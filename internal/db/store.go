@@ -442,6 +442,12 @@ func DeleteSession(ctx context.Context, dir, sessionID string) error {
 }
 
 func (s *Store) migrate(ctx context.Context) error {
+	if _, err := s.db.ExecContext(ctx, `PRAGMA busy_timeout = 5000`); err != nil {
+		return err
+	}
+	if _, err := s.db.ExecContext(ctx, `PRAGMA journal_mode = WAL`); err != nil {
+		return err
+	}
 	if _, err := s.db.ExecContext(ctx, `PRAGMA foreign_keys = ON`); err != nil {
 		return err
 	}
