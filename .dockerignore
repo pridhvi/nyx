@@ -1,0 +1,13 @@
+.git
+.nox
+bin
+coverage
+node_modules
+web/node_modules
+web/dist
+*.db
+*.sqlite
+*.sqlite3
+.env
+.DS_Store
+npm-debug.log*

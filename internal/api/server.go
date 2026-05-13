@@ -43,7 +43,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	}
 	errCh := make(chan error, 1)
 	go func() {
-		fmt.Printf("NOX listening on http://%s\n", server.Addr)
+		fmt.Printf("Nox listening on http://%s\n", server.Addr)
 		errCh <- server.ListenAndServe()
 	}()
 	select {

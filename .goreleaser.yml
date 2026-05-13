@@ -1,0 +1,42 @@
+version: 2
+
+project_name: nox
+
+before:
+  hooks:
+    - sh -c "cd web && npm ci && npm run build"
+
+builds:
+  - id: nox
+    main: .
+    binary: nox
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
+archives:
+  - id: nox
+    ids:
+      - nox
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - docs/nox-project-spec.md
+      - docs/implementation-plan.md
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  use: git

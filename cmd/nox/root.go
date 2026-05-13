@@ -44,7 +44,10 @@ func Execute() {
 }
 
 func printUsage() {
-	fmt.Fprintln(os.Stderr, `NOX - local web application penetration testing framework
+	fmt.Fprintln(os.Stderr, `Nox - local web application penetration testing framework
+
+Authorized use only: run Nox only against systems you own or have explicit,
+written permission to test. Unauthorized scanning or exploitation may be illegal.
 
 Usage:
  nox scan --target <host-or-url> [--mode passive|active|stealth]

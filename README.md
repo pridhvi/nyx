@@ -1,8 +1,12 @@
-# NOX
+# Nox
 
-NOX is a local-first web application penetration testing framework. It is designed around scoped scan sessions, normalized findings, evidence preservation, deterministic attack-vector rules, and optional local LLM analysis.
+Nox is a local-first web application penetration testing framework. It is designed around scoped scan sessions, normalized findings, evidence preservation, deterministic attack-vector rules, and optional local LLM analysis.
 
 The canonical project specification is tracked at [docs/nox-project-spec.md](docs/nox-project-spec.md).
+
+## Authorized Use Only
+
+Nox is intended exclusively for authorized penetration testing, security research, and CTF challenges. Only use Nox against systems you own or have explicit, written permission to test. Unauthorized scanning or exploitation of systems is illegal in most jurisdictions. The authors accept no responsibility for misuse.
 
 This repository currently contains the buildable foundation plus the first safe scan path:
 
@@ -24,12 +28,14 @@ This repository currently contains the buildable foundation plus the first safe 
 
 ## Toolchain
 
-NOX targets Go 1.26. Use the latest Go 1.26 patch release for local development and CI.
+Nox targets Go 1.26. Use the latest Go 1.26 patch release for local development and CI.
 
 ## Quick Start
 
 ```sh
-go test ./...
+make test
+make web
+make build
 go run . version
 go run . scan --target https://example.com
 go run . sessions list
@@ -40,14 +46,25 @@ go run . serve --host 127.0.0.1 --port 8080
 
 The frontend source lives in `web/`. Production frontend assets are built with `npm run build` and embedded into the Go binary from `internal/api/web/dist`.
 
+## Docker
+
+```sh
+docker compose up --build
+curl http://127.0.0.1:8080/api/health
+```
+
+The Docker image bundles the Nox binary and common external scanner tools. Single-binary local builds still work without those tools installed; optional adapters degrade gracefully and record missing binaries as `tool_runs`.
+
 ## Roadmap
 
-1. Add CVE correlation with cache/offline mode.
-2. Implement attack vector evaluation and report generation.
-3. Add release packaging and automated frontend build checks in CI.
-4. Expand dashboard detail views for sessions, tool runs, and evidence.
-5. Add configuration for external tool paths, timeouts, and wordlists.
+Implementation now proceeds in order from the lowest incomplete phase in [docs/implementation-plan.md](docs/implementation-plan.md). Phase 0 is complete from the repository perspective; the next focus is Phase 1:
+
+1. Verify core models against the canonical spec fields and JSON names.
+2. Add or complete report-related models.
+3. Align attack vector models with chain, confidence, OWASP, narrative, and LLM note requirements.
+4. Align CVE models with source, version, fix, references, exploit availability, and confidence fields.
+5. Add model serialization and validation tests.
 
 ## Safety Boundary
 
-NOX must treat scope as a hard control. Every network-touching adapter should call scope validation before making outbound requests. Tool failures should be recorded as `tool_runs`, not crash the whole scan unless the database or session context fails.
+Nox must treat scope as a hard control. Every network-touching adapter should call scope validation before making outbound requests. Tool failures should be recorded as `tool_runs`, not crash the whole scan unless the database or session context fails.

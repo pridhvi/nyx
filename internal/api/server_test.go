@@ -18,7 +18,7 @@ import (
 func TestSessionAPI(t *testing.T) {
 	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
-		_, _ = w.Write([]byte("<title>NOX Test</title>"))
+		_, _ = w.Write([]byte("<title>Nox Test</title>"))
 	}))
 	defer targetServer.Close()
 
@@ -148,7 +148,7 @@ func waitForCompletedScan(t *testing.T, handler http.Handler, sessionID string) 
 func TestScanEventsWebSocketReplaysLifecycle(t *testing.T) {
 	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
-		_, _ = w.Write([]byte("<title>NOX Test</title>"))
+		_, _ = w.Write([]byte("<title>Nox Test</title>"))
 	}))
 	defer targetServer.Close()
 

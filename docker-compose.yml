@@ -5,7 +5,19 @@ services:
       - "8080:8080"
     volumes:
       - nox-data:/home/nox/.nox
+    environment:
+      - NOX_LLM_BASE_URL=http://ollama:11434/v1
+      - NOX_LLM_MODEL=llama3:8b
+    depends_on:
+      - ollama
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
 
 volumes:
   nox-data:
-
+  ollama-data:

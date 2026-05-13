@@ -1,14 +1,40 @@
-.PHONY: build test run web-build
+.PHONY: build dev test test-integration lint web web-build run sqlc migrate-up clean release-snapshot
 
 build:
-	go build ./...
+	cd web && npm run build
+	go build -o bin/nox .
+
+dev:
+	@echo "Starting Nox API on http://127.0.0.1:8080"
+	go run . serve --host 127.0.0.1 --port 8080
 
 test:
 	go test ./...
 
+test-integration:
+	@echo "Integration tests are opt-in and will be added with Docker vulnerable-target fixtures."
+
+lint:
+	@if command -v golangci-lint >/dev/null 2>&1; then golangci-lint run; else echo "golangci-lint not installed; skipping Go lint"; fi
+	cd web && npm run build
+
+web:
+	cd web && npm run build
+
+web-build: web
+
 run:
 	go run . serve
 
-web-build:
-	cd web && npm run build
+sqlc:
+	@if command -v sqlc >/dev/null 2>&1; then sqlc generate; else echo "sqlc not installed; handwritten store is currently used"; fi
 
+migrate-up:
+	@echo "SQLite migrations are embedded and run automatically when sessions open."
+	go test ./internal/db
+
+clean:
+	rm -rf bin coverage web/dist
+
+release-snapshot:
+	@if command -v goreleaser >/dev/null 2>&1; then goreleaser release --snapshot --clean; else echo "goreleaser not installed; install goreleaser to build release artifacts"; fi

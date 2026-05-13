@@ -1,4 +1,4 @@
-# NOX Implementation Plan
+# Nox Implementation Plan
 
 This plan is the execution roadmap for the canonical product specification in
 `docs/nox-project-spec.md`. It intentionally preserves the current MVP work and
@@ -33,6 +33,14 @@ specific implementation is proven incompatible with the spec.
 - `Pending`: Not yet implemented.
 - `Planned Later`: Spec-required or spec-mentioned work intentionally deferred
   until prerequisite phases land.
+
+## Implementation Order
+
+Work should proceed from the lowest-numbered phase that still has remaining
+acceptance criteria. Phase 0 is complete from the repository perspective, so
+the next implementation focus is Phase 1: Core Data Models. Later phases can be
+inspected for context, but implementation should not skip ahead unless a Phase 1
+task explicitly depends on later-phase context.
 
 ## Current Baseline
 
@@ -69,7 +77,7 @@ must be carried forward:
 
 ## Phase 0: Repository, Safety, And Toolchain Foundation
 
-**Status:** Partial  
+**Status:** Implemented  
 **Spec sections covered:** 1, 2, 3, 20, 21, 22, 23
 
 ### Existing Baseline
@@ -78,34 +86,24 @@ must be carried forward:
 - React/Vite frontend exists and builds into embedded assets.
 - Repository guidance exists in `AGENTS.md`.
 - README describes local-first purpose and safety boundary.
+- README and CLI help include authorized-testing legal guidance.
+- Makefile targets exist for build, dev, test, integration-test placeholder,
+  lint, web, sqlc placeholder, migration placeholder, cleanup, and release
+  snapshot.
+- Dockerfile and docker-compose exist for Nox plus Ollama services.
+- GoReleaser snapshot configuration exists for embedded-frontend single-binary
+  release artifacts.
+- GitHub Actions CI runs Makefile test/web/build workflows, Docker image build,
+  Compose config validation, and GoReleaser snapshot release.
+- Local Docker validation now covers image build, `nox version`, CLI help,
+  docker-compose startup, and `/api/health` with writable session storage.
 
 ### Remaining Work
 
-- Reconcile toolchain documentation:
-  - Current repo targets Go 1.26.
-  - Spec minimum is Go 1.22.
-  - Keep Go 1.26 as the active repo target unless intentionally downgraded.
-- Add prominent legal and safety warning from spec section 23 to README and CLI
-  help output.
-- Add build/dev automation matching the spec Makefile targets:
-  - `build`
-  - `dev`
-  - `test`
-  - `test-integration`
-  - `lint`
-  - `web`
-  - `sqlc`
-  - `migrate-up`
-  - `clean`
-- Add Docker packaging from spec section 20:
-  - frontend build stage using Node 20
-  - Go binary build stage
-  - Kali or Parrot final image with external tools
-  - docker-compose service for NOX and Ollama
-- Add release packaging:
-  - single-binary path with embedded frontend
-  - external tool installation documented for non-Docker use
-  - goreleaser or equivalent release workflow
+- Replace placeholder `test-integration`, `sqlc`, and `migrate-up` Makefile
+  behavior when those later systems are fully implemented.
+- Add deeper Docker smoke tests once the scan pipeline has deterministic
+  fixture targets.
 
 ### Spec Alignment Follow-ups
 
@@ -116,11 +114,14 @@ must be carried forward:
 
 ### Acceptance Criteria
 
-- README and CLI visibly warn that NOX is for authorized testing only.
+- README and CLI visibly warn that Nox is for authorized testing only.
 - `make build`, `make test`, and `make web` work.
-- Docker image builds and starts `nox serve`.
-- Docker Compose can start NOX with an Ollama service.
-- Release build embeds frontend assets and does not require CGO for SQLite.
+- CI validates that the Docker image builds.
+- CI validates Docker Compose configuration for Nox and Ollama services.
+- Local Docker smoke validation can start Nox and Ollama and report API health
+  with `db_dir_ready: true`.
+- CI validates release snapshot generation for embedded-frontend single-binary
+  artifacts.
 
 ---
 
@@ -564,7 +565,7 @@ must be carried forward:
 
 ## Phase 10: CVE Intelligence
 
-**Status:** Pending  
+**Status:** Partial  
 **Spec sections covered:** 5.4, 11, 16 CVE settings
 
 ### Existing Baseline
@@ -942,23 +943,21 @@ must be carried forward:
 ### Existing Baseline
 
 - Frontend build embeds assets into the Go binary.
-- No full Docker/Makefile/release workflow exists yet.
+- Dockerfile builds the frontend, compiles the Go binary, and produces a Kali
+  runtime image with common optional scanner tools installed.
+- docker-compose starts Nox and Ollama with persistent volumes.
+- Makefile covers build, dev, test, web build, lint, placeholder integration
+  tests, placeholder migrations/sqlc, cleanup, and release snapshots.
+- GoReleaser snapshot configuration exists for embedded-frontend binaries.
 
 ### Remaining Work
 
-- Add Dockerfile with:
-  - Node frontend build stage
-  - Go builder stage
-  - Kali or Parrot final image
-  - external tools preinstalled
-- Add docker-compose with:
-  - NOX service
-  - Ollama service
-  - persistent volumes
-  - config mount
-- Add Makefile targets from the spec.
-- Add release tooling for cross-platform binaries.
-- Document single-binary behavior when external tools are absent.
+- Replace placeholder integration-test, sqlc, and migration targets as those
+  systems mature.
+- Add config file mount examples once Phase 14 configuration is implemented.
+- Expand release metadata when versioning, signing, and distribution channels
+  are decided.
+- Add end-to-end Docker scan smoke tests with controlled vulnerable fixtures.
 
 ### Spec Alignment Follow-ups
 
@@ -967,10 +966,11 @@ must be carried forward:
 
 ### Acceptance Criteria
 
-- Docker image can run a scan and serve the UI.
-- docker-compose starts NOX and Ollama.
+- Docker image can serve the UI and pass API health checks.
+- docker-compose starts Nox and Ollama.
 - Makefile targets work locally and in CI.
 - Release artifacts include embedded frontend.
+- A later fixture-backed smoke test verifies Docker scan execution end to end.
 
 ---
 
@@ -1031,7 +1031,7 @@ must be carried forward:
 | 3.3 Frontend | Phase 16 | Partial | Dashboard exists; full page set pending. |
 | 3.4 Database | Phase 2 | Partial | SQLite exists; full schema and optional Postgres pending. |
 | 3.5 Plugin System | Phase 4 | Partial | JSON contract exists; install/persist/load flow pending. |
-| 3.6 Packaging | Phase 17 | Pending | Docker/release workflow pending. |
+| 3.6 Packaging | Phase 17 | Partial | Docker, Compose, Makefile, CI build, and snapshot release exist; deeper release hardening pending. |
 | 4. Project Structure | All phases | Partial | Current structure is close but not complete. |
 | 5. Core Data Models | Phase 1 | Partial | Core models exist; full report/CVE/vector persistence alignment pending. |
 | 6. Database Schema | Phase 2 | Partial | Initial schema exists; complete schema pending. |
@@ -1048,10 +1048,10 @@ must be carried forward:
 | 17. Scope Validation | Phase 3 | Partial | Checker exists; full coverage tests/config integration pending. |
 | 18. Error Handling & Logging | Phases 3, 4, 5 | Partial | Tool failures persist; structured logging/config pending. |
 | 19. Testing Strategy | Phase 18 | Partial | Tests exist; full coverage pending. |
-| 20. Docker Setup | Phase 17 | Pending | Dockerfile/compose pending. |
-| 21. Makefile | Phase 17 | Pending | Makefile pending. |
+| 20. Docker Setup | Phase 17 | Partial | Dockerfile and compose exist and pass local smoke validation; fixture-backed scan smoke tests pending. |
+| 21. Makefile | Phase 17 | Partial | Core Makefile targets exist; placeholder migration/sqlc/integration behavior will be replaced later. |
 | 22. Build Order Recommendation | This plan | Implemented | This roadmap follows the spec build order while preserving current work. |
-| 23. Security & Legal Notes | Phase 0 | Partial | Safety boundary documented; prominent legal warning pending. |
+| 23. Security & Legal Notes | Phase 0 | Implemented | README and CLI help include prominent authorized-use warnings; scope remains a hard implementation boundary. |
 
 ## Coverage Check Terms
 
@@ -1070,4 +1070,3 @@ confirm coverage:
 - `Ollama`, `LM Studio`, `llama.cpp`, `OpenAI-compatible`
 - `Markdown`, `HTML`, `PDF`, `Docker`, `docker-compose`, `Makefile`,
   `goreleaser`, `sqlc`
-

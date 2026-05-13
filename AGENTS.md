@@ -1,4 +1,4 @@
-# Codex Guidance for NOX
+# Codex Guidance for Nox
 
 Use `docs/nox-project-spec.md` as the canonical product specification. Keep `README.md`, `AGENTS.md`, and `docs/implementation-plan.md` updated after every major implementation change.
 
@@ -17,8 +17,10 @@ This repo has a buildable backend with per-session SQLite persistence, a synchro
 
 ## Suggested Next Tasks
 
-1. Add CVE correlation and attack vector evaluation from persisted findings.
-2. Add frontend build verification to CI.
-3. Add report generation from persisted findings and tool runs.
-4. Expand session detail views for tool runs, findings, and persisted evidence.
-5. Add configuration for external tool paths, timeouts, and wordlists.
+Proceed in order from the lowest incomplete phase in `docs/implementation-plan.md`. Phase 0 is complete from the repository perspective; the next focus is Phase 1:
+
+1. Verify core models against the canonical spec fields and JSON names.
+2. Add or complete report-related models.
+3. Align attack vector models with chain, confidence, OWASP, narrative, and LLM note requirements.
+4. Align CVE models with source, version, fix, references, exploit availability, and confidence fields.
+5. Add model serialization and validation tests.

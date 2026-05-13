@@ -17,7 +17,7 @@ function App() {
       <BrowserRouter>
         <div className="shell">
           <aside className="sidebar">
-            <div className="brand">NOX</div>
+            <div className="brand">Nox</div>
             <nav>
               <NavLink to="/"><Shield size={18} />Dashboard</NavLink>
               <NavLink to="/graph"><Network size={18} />Attack Graph</NavLink>

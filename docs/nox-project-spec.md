@@ -1,15 +1,15 @@
-# NOX — Web Application Penetration Testing Framework
+# Nox — Web Application Penetration Testing Framework
 ## Complete Project Specification & Build Document
 
-> **Purpose of this document:** This is a full technical specification for an AI coding assistant to use as the primary reference when building the NOX project. It covers architecture, tech stack rationale, all component designs, database schema, Go structs, API surfaces, plugin contracts, LLM integration, and the attack vector engine. Follow it as closely as possible.
+> **Purpose of this document:** This is a full technical specification for an AI coding assistant to use as the primary reference when building the Nox project. It covers architecture, tech stack rationale, all component designs, database schema, Go structs, API surfaces, plugin contracts, LLM integration, and the attack vector engine. Follow it as closely as possible.
 
 ---
 
 ## 1. Project Overview
 
-**NOX** is an open-source, locally-run web application penetration testing framework. It orchestrates a suite of security tools in a dependency-aware pipeline, normalizes all output into a shared schema stored in a local database, correlates findings across tools to suggest concrete multi-step attack vectors, and uses a locally-hosted LLM to analyse results, suggest CVEs, and generate pentest report narratives.
+**Nox** is an open-source, locally-run web application penetration testing framework. It orchestrates a suite of security tools in a dependency-aware pipeline, normalizes all output into a shared schema stored in a local database, correlates findings across tools to suggest concrete multi-step attack vectors, and uses a locally-hosted LLM to analyse results, suggest CVEs, and generate pentest report narratives.
 
-NOX is designed to be:
+Nox is designed to be:
 - **100% local by default** — no telemetry, no cloud, no API keys required
 - **Web-app focused** — goes well beyond port scanning into SQLi, XSS, SSRF, JWT attacks, CORS, SSTI, XXE, and OAuth misconfigurations
 - **Extensible** — plugin-based tool adapter system; community can ship new adapters in any language
@@ -18,11 +18,11 @@ NOX is designed to be:
 
 ### Inspiration & Differentiation from METATRON
 
-NOX was inspired by the METATRON project (github.com/sooryathejas/METATRON), which is a CLI-based pentest assistant for Linux that runs nmap/nikto/whois/dig/whatweb/curl, feeds results to a locally-hosted Qwen LLM, and stores data in a 5-table MariaDB schema.
+Nox was inspired by the METATRON project (github.com/sooryathejas/METATRON), which is a CLI-based pentest assistant for Linux that runs nmap/nikto/whois/dig/whatweb/curl, feeds results to a locally-hosted Qwen LLM, and stores data in a 5-table MariaDB schema.
 
-NOX improves on this concept in every dimension:
+Nox improves on this concept in every dimension:
 
-| Dimension | METATRON | NOX |
+| Dimension | METATRON | Nox |
 |---|---|---|
 | Platform | Linux CLI only | Docker + single binary, Linux/macOS/Windows |
 | Interface | CLI only | CLI + local web UI |
@@ -148,7 +148,7 @@ The frontend is built with `vite build` and the output `dist/` directory is embe
 
 ### 3.5 Plugin System
 
-Subprocess JSON-RPC. Each tool adapter is a standalone binary (any language). NOX spawns the binary, writes a JSON request to stdin, reads a JSON response from stdout. This is the initial plugin contract. The `hashicorp/go-plugin` (gRPC-based) system can replace this later for performance-critical adapters.
+Subprocess JSON-RPC. Each tool adapter is a standalone binary (any language). Nox spawns the binary, writes a JSON request to stdin, reads a JSON response from stdout. This is the initial plugin contract. The `hashicorp/go-plugin` (gRPC-based) system can replace this later for performance-critical adapters.
 
 Tools from the ProjectDiscovery suite (nuclei, httpx, subfinder, naabu, dnsx) are embedded as Go libraries, not subprocess plugins.
 
@@ -715,7 +715,7 @@ const (
     PhaseVulnScan       Phase = "vuln_scan"
 )
 
-// AdapterInput is what NOX passes to every adapter.
+// AdapterInput is what Nox passes to every adapter.
 type AdapterInput struct {
     SessionID string
     Target    models.Target
@@ -834,7 +834,7 @@ For tools written outside Go (Python, Ruby, etc.), the subprocess JSON-RPC contr
 }
 ```
 
-Any process that speaks this JSON contract over stdin/stdout is a valid NOX plugin. The `internal/adapters/subprocess.go` file implements the generic subprocess runner.
+Any process that speaks this JSON contract over stdin/stdout is a valid Nox plugin. The `internal/adapters/subprocess.go` file implements the generic subprocess runner.
 
 ---
 
@@ -1019,7 +1019,7 @@ var LLMTools = []openai.Tool{
         Type: openai.ToolTypeFunction,
         Function: &openai.FunctionDefinition{
             Name:        "request_scan",
-            Description: "Request that NOX run an additional tool scan on a specific target or parameter",
+            Description: "Request that Nox run an additional tool scan on a specific target or parameter",
             Parameters: jsonschema.Definition{
                 Type: jsonschema.Object,
                 Properties: map[string]jsonschema.Definition{
@@ -1105,7 +1105,7 @@ func BuildSessionContext(sessionID string, db *db.Queries) (SessionContext, erro
 ### 10.4 System Prompt
 
 ```
-You are NOX, an expert web application penetration testing assistant. You are analysing the results of automated security scans.
+You are Nox, an expert web application penetration testing assistant. You are analysing the results of automated security scans.
 
 Your capabilities:
 - Identify patterns across multiple tool outputs that indicate exploitable vulnerabilities
@@ -1318,7 +1318,7 @@ var DefaultRules = []Rule{
 
 ## 13. REST API Surface
 
-The chi router exposes these endpoints. All responses are JSON. Authentication is a local API key stored in the NOX config file (for when the web UI is accessible on a local network).
+The chi router exposes these endpoints. All responses are JSON. Authentication is a local API key stored in the Nox config file (for when the web UI is accessible on a local network).
 
 ```
 POST   /api/scan/start              Start a new scan session
@@ -1468,7 +1468,7 @@ The frontend is a React SPA embedded in the Go binary. Routes:
 Default location: `~/.nox/config.yaml`
 
 ```yaml
-# NOX configuration
+# Nox configuration
 
 # LLM settings
 llm:
@@ -1702,10 +1702,8 @@ Build in this order to have working, testable code at each step:
 
 **Include prominently in README and CLI:**
 
-> NOX is intended exclusively for authorized penetration testing, security research, and CTF challenges. Only use NOX against systems you own or have explicit, written permission to test. Unauthorized scanning or exploitation of systems is illegal in most jurisdictions. The authors accept no responsibility for misuse.
-
-The CLI should display this warning and require acknowledgement on first run. Every scan session should require the user to confirm: `--i-have-permission` flag or an interactive prompt before any active scanning begins.
+> Nox is intended exclusively for authorized penetration testing, security research, and CTF challenges. Only use Nox against systems you own or have explicit, written permission to test. Unauthorized scanning or exploitation of systems is illegal in most jurisdictions. The authors accept no responsibility for misuse.
 
 ---
 
-*End of NOX Project Specification — Version 1.0*
+*End of Nox Project Specification — Version 1.0*
