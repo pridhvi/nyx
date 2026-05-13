@@ -31,6 +31,20 @@ type SessionRecord struct {
 	DBPath  string         `json:"db_path"`
 }
 
+type SessionStats struct {
+	SessionID      string         `json:"session_id"`
+	TargetCount    int            `json:"target_count"`
+	FindingCount   int            `json:"finding_count"`
+	ToolRunCount   int            `json:"tool_run_count"`
+	SeverityCounts map[string]int `json:"severity_counts"`
+}
+
+type FindingFilter struct {
+	Severity string
+	ToolID   string
+	Type     string
+}
+
 func DefaultSessionsDir() string {
 	return filepath.Join(".nox", "sessions")
 }
@@ -270,14 +284,28 @@ ORDER BY created_at ASC`, sessionID)
 	return targets, rows.Err()
 }
 
-func (s *Store) ListFindings(ctx context.Context, sessionID string) ([]models.Finding, error) {
-	rows, err := s.db.QueryContext(ctx, `
+func (s *Store) ListFindings(ctx context.Context, sessionID string, filter FindingFilter) ([]models.Finding, error) {
+	query := `
 SELECT id, session_id, target_id, tool_id, type, severity, confidence, cvss_score,
        title, description, remediation, url, parameter, method, evidence_raw,
        evidence_normalized, tags, created_at
 FROM findings
-WHERE session_id = ?
-ORDER BY created_at ASC`, sessionID)
+WHERE session_id = ?`
+	args := []any{sessionID}
+	if filter.Severity != "" {
+		query += ` AND severity = ?`
+		args = append(args, filter.Severity)
+	}
+	if filter.ToolID != "" {
+		query += ` AND tool_id = ?`
+		args = append(args, filter.ToolID)
+	}
+	if filter.Type != "" {
+		query += ` AND type = ?`
+		args = append(args, filter.Type)
+	}
+	query += ` ORDER BY created_at ASC`
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -291,6 +319,56 @@ ORDER BY created_at ASC`, sessionID)
 		findings = append(findings, finding)
 	}
 	return findings, rows.Err()
+}
+
+func (s *Store) ListToolRuns(ctx context.Context, sessionID string) ([]models.ToolRun, error) {
+	rows, err := s.db.QueryContext(ctx, `
+SELECT id, session_id, COALESCE(target_id, ''), tool_id, args, stdout_raw, stderr_raw,
+       exit_code, duration_ms, finding_count, normalized_at, started_at
+FROM tool_runs
+WHERE session_id = ?
+ORDER BY started_at ASC`, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var runs []models.ToolRun
+	for rows.Next() {
+		run, err := scanToolRun(rows)
+		if err != nil {
+			return nil, err
+		}
+		runs = append(runs, run)
+	}
+	return runs, rows.Err()
+}
+
+func (s *Store) Stats(ctx context.Context, sessionID string) (SessionStats, error) {
+	stats := SessionStats{SessionID: sessionID, SeverityCounts: map[string]int{}}
+	err := s.db.QueryRowContext(ctx, `
+SELECT
+  (SELECT COUNT(*) FROM targets WHERE session_id = ?),
+  (SELECT COUNT(*) FROM findings WHERE session_id = ?),
+  (SELECT COUNT(*) FROM tool_runs WHERE session_id = ?)`,
+		sessionID, sessionID, sessionID,
+	).Scan(&stats.TargetCount, &stats.FindingCount, &stats.ToolRunCount)
+	if err != nil {
+		return SessionStats{}, err
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT severity, COUNT(*) FROM findings WHERE session_id = ? GROUP BY severity`, sessionID)
+	if err != nil {
+		return SessionStats{}, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var severity string
+		var count int
+		if err := rows.Scan(&severity, &count); err != nil {
+			return SessionStats{}, err
+		}
+		stats.SeverityCounts[severity] = count
+	}
+	return stats, rows.Err()
 }
 
 func (s *Store) UpdateSessionCounts(ctx context.Context, sessionID string) error {
@@ -521,6 +599,46 @@ func scanFinding(row rowScanner) (models.Finding, error) {
 	}
 	finding.CreatedAt = created
 	return finding, nil
+}
+
+func scanToolRun(row rowScanner) (models.ToolRun, error) {
+	var run models.ToolRun
+	var args string
+	var normalizedAt sql.NullString
+	var startedAt string
+	err := row.Scan(
+		&run.ID,
+		&run.SessionID,
+		&run.TargetID,
+		&run.ToolID,
+		&args,
+		&run.StdoutRaw,
+		&run.StderrRaw,
+		&run.ExitCode,
+		&run.DurationMS,
+		&run.FindingCount,
+		&normalizedAt,
+		&startedAt,
+	)
+	if err != nil {
+		return models.ToolRun{}, err
+	}
+	if err := json.Unmarshal([]byte(args), &run.Args); err != nil {
+		return models.ToolRun{}, err
+	}
+	if normalizedAt.Valid {
+		normalized, err := parseTime(normalizedAt.String)
+		if err != nil {
+			return models.ToolRun{}, err
+		}
+		run.NormalizedAt = &normalized
+	}
+	started, err := parseTime(startedAt)
+	if err != nil {
+		return models.ToolRun{}, err
+	}
+	run.StartedAt = started
+	return run, nil
 }
 
 func formatTime(t time.Time) string {

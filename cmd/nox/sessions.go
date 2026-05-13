@@ -27,8 +27,18 @@ func runSessions(args []string) error {
 			return fmt.Errorf("sessions delete requires a session id")
 		}
 		return deleteSession(args[1])
+	case "findings":
+		if len(args) < 2 {
+			return fmt.Errorf("sessions findings requires a session id")
+		}
+		return listFindings(args[1])
+	case "runs":
+		if len(args) < 2 {
+			return fmt.Errorf("sessions runs requires a session id")
+		}
+		return listToolRuns(args[1])
 	default:
-		return fmt.Errorf("supported sessions commands: list, show <id>, delete <id>")
+		return fmt.Errorf("supported sessions commands: list, show <id>, delete <id>, findings <id>, runs <id>")
 	}
 }
 
@@ -98,4 +108,62 @@ func deleteSession(sessionID string) error {
 	}
 	fmt.Printf("deleted session %s\n", sessionID)
 	return nil
+}
+
+func listFindings(sessionID string) error {
+	store, err := db.OpenSession(context.Background(), db.DefaultSessionsDir(), sessionID)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return fmt.Errorf("session %s not found", sessionID)
+		}
+		return err
+	}
+	defer store.Close()
+	session, err := store.GetSession(context.Background())
+	if err != nil {
+		return err
+	}
+	findings, err := store.ListFindings(context.Background(), session.ID, db.FindingFilter{})
+	if err != nil {
+		return err
+	}
+	if len(findings) == 0 {
+		fmt.Println("no findings found")
+		return nil
+	}
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "SEVERITY\tTOOL\tTITLE\tURL")
+	for _, finding := range findings {
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", finding.Severity, finding.ToolID, finding.Title, finding.URL)
+	}
+	return w.Flush()
+}
+
+func listToolRuns(sessionID string) error {
+	store, err := db.OpenSession(context.Background(), db.DefaultSessionsDir(), sessionID)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return fmt.Errorf("session %s not found", sessionID)
+		}
+		return err
+	}
+	defer store.Close()
+	session, err := store.GetSession(context.Background())
+	if err != nil {
+		return err
+	}
+	runs, err := store.ListToolRuns(context.Background(), session.ID)
+	if err != nil {
+		return err
+	}
+	if len(runs) == 0 {
+		fmt.Println("no tool runs found")
+		return nil
+	}
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "TOOL\tEXIT\tDURATION_MS\tFINDINGS\tSTARTED")
+	for _, run := range runs {
+		fmt.Fprintf(w, "%s\t%d\t%d\t%d\t%s\n", run.ToolID, run.ExitCode, run.DurationMS, run.FindingCount, run.StartedAt.Format("2006-01-02 15:04:05"))
+	}
+	return w.Flush()
 }

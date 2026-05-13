@@ -52,6 +52,8 @@ Usage:
   nox sessions list
   nox sessions show <id>
   nox sessions delete <id>
+  nox sessions findings <id>
+  nox sessions runs <id>
   nox plugins list
   nox report <session-id>
   nox version`)

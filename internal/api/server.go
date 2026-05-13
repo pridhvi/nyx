@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"strings"
 	"time"
@@ -23,14 +24,15 @@ type Config struct {
 }
 
 type Server struct {
-	cfg Config
+	cfg         Config
+	scanManager *ScanManager
 }
 
 func NewServer(cfg Config) *Server {
 	if cfg.SessionDir == "" {
 		cfg.SessionDir = db.DefaultSessionsDir()
 	}
-	return &Server{cfg: cfg}
+	return &Server{cfg: cfg, scanManager: NewScanManager(cfg.SessionDir, cfg.HTTPClient)}
 }
 
 func (s *Server) ListenAndServe(ctx context.Context) error {
@@ -64,10 +66,33 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/sessions", s.listSessions)
 	mux.HandleFunc("GET /api/sessions/{id}", s.getSession)
 	mux.HandleFunc("GET /api/sessions/{id}/targets", s.listTargets)
+	mux.HandleFunc("GET /api/sessions/{id}/findings", s.listFindings)
+	mux.HandleFunc("GET /api/sessions/{id}/tool-runs", s.listToolRuns)
+	mux.HandleFunc("GET /api/sessions/{id}/stats", s.sessionStats)
 	mux.HandleFunc("GET /api/scan/{id}/status", s.scanStatus)
 	mux.HandleFunc("POST /api/scan/start", s.startScan)
-	mux.Handle("/", http.FileServer(http.Dir("web/dist")))
+	mux.Handle("/", spaHandler())
 	return mux
+}
+
+func spaHandler() http.Handler {
+	dist, err := fs.Sub(webAssets, "web/dist")
+	if err != nil {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "embedded web assets are unavailable", http.StatusInternalServerError)
+		})
+	}
+	fileServer := http.FileServer(http.FS(dist))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/")
+		if path == "" {
+			path = "index.html"
+		}
+		if _, err := fs.Stat(dist, path); err != nil {
+			r.URL.Path = "/"
+		}
+		fileServer.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
@@ -137,6 +162,70 @@ func (s *Server) listTargets(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, targets)
 }
 
+func (s *Server) listFindings(w http.ResponseWriter, r *http.Request) {
+	store, err := db.OpenSession(r.Context(), s.cfg.SessionDir, r.PathValue("id"))
+	if err != nil {
+		writeDBError(w, err)
+		return
+	}
+	defer store.Close()
+	session, err := store.GetSession(r.Context())
+	if err != nil {
+		writeDBError(w, err)
+		return
+	}
+	findings, err := store.ListFindings(r.Context(), session.ID, db.FindingFilter{
+		Severity: r.URL.Query().Get("severity"),
+		ToolID:   r.URL.Query().Get("tool_id"),
+		Type:     r.URL.Query().Get("type"),
+	})
+	if err != nil {
+		writeDBError(w, err)
+		return
+	}
+	writeJSON(w, findings)
+}
+
+func (s *Server) listToolRuns(w http.ResponseWriter, r *http.Request) {
+	store, err := db.OpenSession(r.Context(), s.cfg.SessionDir, r.PathValue("id"))
+	if err != nil {
+		writeDBError(w, err)
+		return
+	}
+	defer store.Close()
+	session, err := store.GetSession(r.Context())
+	if err != nil {
+		writeDBError(w, err)
+		return
+	}
+	runs, err := store.ListToolRuns(r.Context(), session.ID)
+	if err != nil {
+		writeDBError(w, err)
+		return
+	}
+	writeJSON(w, runs)
+}
+
+func (s *Server) sessionStats(w http.ResponseWriter, r *http.Request) {
+	store, err := db.OpenSession(r.Context(), s.cfg.SessionDir, r.PathValue("id"))
+	if err != nil {
+		writeDBError(w, err)
+		return
+	}
+	defer store.Close()
+	session, err := store.GetSession(r.Context())
+	if err != nil {
+		writeDBError(w, err)
+		return
+	}
+	stats, err := store.Stats(r.Context(), session.ID)
+	if err != nil {
+		writeDBError(w, err)
+		return
+	}
+	writeJSON(w, stats)
+}
+
 type startScanRequest struct {
 	Target     string          `json:"target"`
 	Name       string          `json:"name"`
@@ -166,24 +255,8 @@ func (s *Server) startScan(w http.ResponseWriter, r *http.Request) {
 		writeDBError(w, err)
 		return
 	}
-	store, err := db.OpenSession(r.Context(), s.cfg.SessionDir, record.Session.ID)
-	if err != nil {
-		writeDBError(w, err)
-		return
-	}
-	defer store.Close()
-	runner := engine.NewRunnerWithHTTPClient(store, s.cfg.HTTPClient)
-	if err := runner.Run(r.Context(), record.Session); err != nil {
-		writeDBError(w, err)
-		return
-	}
-	updated, err := store.GetSession(r.Context())
-	if err != nil {
-		writeDBError(w, err)
-		return
-	}
-	record.Session = updated
-	writeJSONStatus(w, http.StatusCreated, record)
+	s.scanManager.Start(record.Session)
+	writeJSONStatus(w, http.StatusAccepted, record)
 }
 
 func (s *Server) scanStatus(w http.ResponseWriter, r *http.Request) {

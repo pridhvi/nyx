@@ -23,14 +23,22 @@ Status: implemented.
 - Add DAG runner with dependency ordering and tests.
 - Persist tool runs and normalized findings.
 
-Status: implemented as synchronous scans. WebSocket scan lifecycle events are deferred until the scan runner becomes asynchronous.
+Status: implemented. CLI scans run synchronously; API scan start runs asynchronously.
 
 ## Phase 2.5: API/UI Read Model
 
 - Add REST endpoints for findings and tool runs.
 - Add session detail API aggregation for target/finding/tool-run counts.
 - Wire the dashboard to real API data.
-- Keep scans synchronous until WebSocket progress is available.
+- Add CLI inspection for findings and tool runs.
+
+Status: implemented.
+
+## Phase 2.6: Live Progress
+
+- Add WebSocket scan lifecycle events for queued, running, tool started, tool completed, finding found, failed, and completed states.
+- Keep the existing polling status endpoints as fallback.
+- Surface live progress in the dashboard.
 
 ## Phase 3: External Tool Adapters
 

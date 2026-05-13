@@ -4,7 +4,7 @@ Use `docs/nox-project-spec.md` as the canonical product specification. Keep `REA
 
 ## Current State
 
-This repo has a buildable backend with per-session SQLite persistence and a synchronous safe scan path (`http-probe` and `security-headers`). The backend targets Go 1.26; keep it buildable with `go test ./...` after every change. The frontend is scaffolded as React/Vite, but package installation is pending because `npm` is not currently available in this environment.
+This repo has a buildable backend with per-session SQLite persistence, a synchronous CLI safe scan path, and asynchronous API scan start (`http-probe` and `security-headers`). The dashboard reads real sessions, stats, and findings from the API. The backend targets Go 1.26; keep it buildable with `go test ./...` after every change. The frontend is scaffolded as React/Vite, but package installation is pending because `npm` is not currently available in this environment.
 
 ## Engineering Priorities
 
@@ -17,8 +17,8 @@ This repo has a buildable backend with per-session SQLite persistence and a sync
 
 ## Suggested Next Tasks
 
-1. Add findings and tool-run API endpoints.
-2. Wire the React dashboard to real session/finding data.
-3. Add WebSocket scan lifecycle events before making scans asynchronous.
-4. Add optional subprocess adapters for external tools.
-5. Add CVE correlation and attack vector evaluation from persisted findings.
+1. Add WebSocket scan lifecycle events for live progress.
+2. Add optional subprocess adapters for external tools.
+3. Add CVE correlation and attack vector evaluation from persisted findings.
+4. Add frontend dependency installation/build verification.
+5. Add report generation from persisted findings and tool runs.

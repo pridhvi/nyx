@@ -4,8 +4,11 @@
 *.sqlite3
 dist/
 web/dist/
+!internal/api/web/
+!internal/api/web/dist/
+!internal/api/web/dist/**
 node_modules/
+bin/
 coverage/
 .env
 .nox/
-
