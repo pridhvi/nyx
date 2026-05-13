@@ -60,7 +60,7 @@ Status: implemented.
 
 ## Phase 6: Product Polish
 
-- Wire React UI to APIs.
+- Expand React UI beyond the dashboard into session detail, attack graph, LLM, and reports views.
 - Add Docker and release builds.
 - Add GitHub Actions for tests and lint.
 - Add plugin SDK examples.

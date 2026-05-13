@@ -35,7 +35,7 @@ go run . sessions runs <session-id>
 go run . serve --host 127.0.0.1 --port 8080
 ```
 
-The frontend scaffold lives in `web/`. This environment has Node installed but not `npm`, so dependencies have not been installed yet.
+The frontend source lives in `web/`. Production frontend assets are built with `npm run build` and embedded into the Go binary from `internal/api/web/dist`.
 
 ## Roadmap
 
@@ -43,7 +43,7 @@ The frontend scaffold lives in `web/`. This environment has Node installed but n
 2. Add subprocess adapters for tools that can be optional on PATH.
 3. Add CVE correlation with cache/offline mode.
 4. Implement attack vector evaluation and report generation.
-5. Add release packaging and frontend dependency installation.
+5. Add release packaging and automated frontend build checks in CI.
 
 ## Safety Boundary
 
