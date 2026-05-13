@@ -37,10 +37,11 @@ specific implementation is proven incompatible with the spec.
 ## Implementation Order
 
 Work should proceed from the lowest-numbered phase that still has remaining
-acceptance criteria. Phase 0 is complete from the repository perspective, so
-the next implementation focus is Phase 1: Core Data Models. Later phases can be
-inspected for context, but implementation should not skip ahead unless a Phase 1
-task explicitly depends on later-phase context.
+acceptance criteria. Phases 0 and 1 are complete from the repository
+perspective, so the next implementation focus is Phase 2: Database And
+Persistence. Later phases can be inspected for context, but implementation
+should not skip ahead unless a Phase 2 task explicitly depends on later-phase
+context.
 
 ## Current Baseline
 
@@ -50,7 +51,8 @@ must be carried forward:
 - **Foundation:** Buildable Go module and CLI entrypoint with `scan`, `serve`,
   `sessions`, `plugins`, `report`, and `version` command surfaces.
 - **Models and migration:** Canonical model structs for sessions, targets,
-  findings, CVEs, tool runs, and attack vectors, plus an initial SQLite schema.
+  findings, CVEs, tool runs, attack vectors, and report metadata, plus an
+  initial SQLite schema.
 - **Session store:** Per-session SQLite persistence in `.nox/sessions`, with
   create/list/show/delete support.
 - **Scope safety:** Scope checker for hosts, URLs, and CIDRs.
@@ -127,7 +129,7 @@ must be carried forward:
 
 ## Phase 1: Core Data Models
 
-**Status:** Partial  
+**Status:** Implemented  
 **Spec sections covered:** 5.1, 5.2, 5.3, 5.4, 5.5, 5.6
 
 ### Existing Baseline
@@ -142,36 +144,32 @@ must be carried forward:
   - `AttackVector`
   - `AttackStep`
   - `ToolRun`
+  - `Report`
+  - `ReportSection`
 - Findings support severity, type, confidence, CVSS, remediation, URL,
   parameter, method, raw evidence, normalized evidence, tags, and CVE matches.
 - Sessions support scan mode, in-scope/out-of-scope lists, LLM fields, counts,
   and timestamps.
+- CVE matches include source, CVSS v3 score/vector, affected/fixed version
+  fields, references, exploit availability, patch availability, and confidence.
+- Attack vectors include ordered steps, prerequisite finding IDs, severity,
+  confidence, OWASP category, narrative, LLM reviewed state, and LLM notes.
+- Report metadata models cover md/html/pdf formats, executive/technical modes,
+  report sections, linked finding/CVE/vector IDs, and generation metadata.
+- Model validation helpers exist for enum values, required identifiers, score
+  ranges, confidence ranges, target ports, attack steps, and report sections.
+- Serialization tests cover findings, CVE matches, attack vectors, tool runs,
+  report metadata, sessions, targets, technologies, and validation failures.
 
 ### Remaining Work
 
-- Verify every model matches the spec fields and JSON names exactly where API
-  compatibility depends on them.
-- Add or complete report-related models required by spec reporting.
-- Ensure attack vector models include:
-  - chain/step structure
-  - confidence
-  - OWASP category
-  - narrative
-  - LLM reviewed state
-  - LLM notes
-- Ensure CVE models include:
-  - source
-  - CVSS score
-  - affected version data
-  - fix version
-  - references
-  - exploit availability
-  - confidence
-- Add model validation helpers where needed for external data ingestion.
+- None for Phase 1. Persistence, API exposure, and report generation for the new
+  model fields are handled by later phases.
 
 ### Spec Alignment Follow-ups
 
-- Preserve current models where possible and extend them through migrations.
+- Preserve current models where possible and extend them through migrations in
+  Phase 2.
 - Do not break existing API JSON without adding compatibility handling.
 
 ### Acceptance Criteria
@@ -179,7 +177,8 @@ must be carried forward:
 - All spec model concepts are represented in Go structs.
 - Model tests cover serialization for findings, CVE matches, attack vectors,
   tool runs, and report metadata.
-- API responses can expose the model fields needed by the full UI and reports.
+- API responses can expose the model fields needed by the full UI and reports
+  once Phase 2 persists and Phase 13 exposes them.
 
 ---
 
@@ -1033,7 +1032,7 @@ must be carried forward:
 | 3.5 Plugin System | Phase 4 | Partial | JSON contract exists; install/persist/load flow pending. |
 | 3.6 Packaging | Phase 17 | Partial | Docker, Compose, Makefile, CI build, and snapshot release exist; deeper release hardening pending. |
 | 4. Project Structure | All phases | Partial | Current structure is close but not complete. |
-| 5. Core Data Models | Phase 1 | Partial | Core models exist; full report/CVE/vector persistence alignment pending. |
+| 5. Core Data Models | Phase 1 | Implemented | Canonical models, report metadata models, additive CVE version fields, and serialization/validation tests exist. |
 | 6. Database Schema | Phase 2 | Partial | Initial schema exists; complete schema pending. |
 | 7. Tool Adapter System | Phase 4 | Partial | Interface/registry/runners exist; plugin ecosystem pending. |
 | 8. Tool Pipeline | Phases 6-9 | Partial | MVP built-ins and four external wrappers exist; full pipeline pending. |

@@ -8,6 +8,8 @@ type CVEMatch struct {
 	CVSSv3Score      float64  `json:"cvss_v3_score"`
 	CVSSv3Vector     string   `json:"cvss_v3_vector"`
 	Description      string   `json:"description"`
+	AffectedVersion  string   `json:"affected_version,omitempty"`
+	FixedVersion     string   `json:"fixed_version,omitempty"`
 	PatchAvailable   bool     `json:"patch_available"`
 	ExploitAvailable bool     `json:"exploit_available"`
 	References       []string `json:"references"`

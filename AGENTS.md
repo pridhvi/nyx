@@ -17,10 +17,10 @@ This repo has a buildable backend with per-session SQLite persistence, a synchro
 
 ## Suggested Next Tasks
 
-Proceed in order from the lowest incomplete phase in `docs/implementation-plan.md`. Phase 0 is complete from the repository perspective; the next focus is Phase 1:
+Proceed in order from the lowest incomplete phase in `docs/implementation-plan.md`. Phases 0 and 1 are complete from the repository perspective; the next focus is Phase 2:
 
-1. Verify core models against the canonical spec fields and JSON names.
-2. Add or complete report-related models.
-3. Align attack vector models with chain, confidence, OWASP, narrative, and LLM note requirements.
-4. Align CVE models with source, version, fix, references, exploit availability, and confidence fields.
-5. Add model serialization and validation tests.
+1. Expand SQLite migrations for HTTP evidence, technologies, CVE matches, attack vectors, LLM history, plugins, and schema migration tracking.
+2. Persist raw HTTP request/response evidence separately from normalized findings.
+3. Persist technologies, CVE matches, attack vectors, and attack steps.
+4. Add database repository methods and tests for the expanded schema.
+5. Preserve compatibility for current per-session SQLite databases where possible.
