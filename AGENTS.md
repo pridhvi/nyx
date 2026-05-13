@@ -1,10 +1,10 @@
 # Codex Guidance for NOX
 
-Use `/Users/kanini/Downloads/nox-project-spec.md` as the product specification until it is superseded by docs in this repository.
+Use `docs/nox-project-spec.md` as the canonical product specification. Keep `README.md`, `AGENTS.md`, and `docs/implementation-plan.md` updated after every major implementation change.
 
 ## Current State
 
-This repo is a first scaffold, not a complete scanner. Keep the backend buildable with `go test ./...` after every change. The frontend is scaffolded as React/Vite, but package installation is pending because `npm` is not currently available in this environment.
+This repo has a buildable backend with per-session SQLite persistence and a synchronous safe scan path (`http-probe` and `security-headers`). The backend targets Go 1.26; keep it buildable with `go test ./...` after every change. The frontend is scaffolded as React/Vite, but package installation is pending because `npm` is not currently available in this environment.
 
 ## Engineering Priorities
 
@@ -17,9 +17,8 @@ This repo is a first scaffold, not a complete scanner. Keep the backend buildabl
 
 ## Suggested Next Tasks
 
-1. Add SQLite connection/migration runner.
-2. Implement `sessions` persistence and CLI listing.
-3. Add a minimal DAG engine with in-process fake adapters for tests.
-4. Add `header-check` and `http-probe` adapters before integrating heavier tools.
-5. Add API endpoints for session CRUD and scan start/status.
-
+1. Add findings and tool-run API endpoints.
+2. Wire the React dashboard to real session/finding data.
+3. Add WebSocket scan lifecycle events before making scans asynchronous.
+4. Add optional subprocess adapters for external tools.
+5. Add CVE correlation and attack vector evaluation from persisted findings.

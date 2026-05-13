@@ -14,6 +14,7 @@ func TestScopeChecker(t *testing.T) {
 		{"https://example.com/login", true},
 		{"admin.example.com", false},
 		{"10.0.0.9", true},
+		{"10.0.0.0/24", true},
 		{"10.0.0.10", false},
 		{"api.app.test", true},
 		{"other.test", false},

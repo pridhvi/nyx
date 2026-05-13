@@ -84,7 +84,7 @@ CREATE TABLE cve_matches (
     description       TEXT NOT NULL DEFAULT '',
     patch_available   BOOLEAN NOT NULL DEFAULT FALSE,
     exploit_available BOOLEAN NOT NULL DEFAULT FALSE,
-    references        TEXT NOT NULL DEFAULT '[]',
+    "references"      TEXT NOT NULL DEFAULT '[]',
     source            TEXT NOT NULL DEFAULT '',
     confidence_score  REAL NOT NULL DEFAULT 0.0,
     created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -134,4 +134,3 @@ CREATE TABLE llm_analyses (
     created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX idx_llm_session ON llm_analyses(session_id);
-

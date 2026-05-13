@@ -26,6 +26,19 @@ func NewScopeChecker(inScope, outOfScope []string) (*ScopeChecker, error) {
 }
 
 func (s *ScopeChecker) IsInScope(raw string) (bool, string) {
+	if _, cidr, err := net.ParseCIDR(strings.TrimSpace(raw)); err == nil {
+		for _, blocked := range s.outNets {
+			if blocked.String() == cidr.String() || blocked.Contains(cidr.IP) {
+				return false, fmt.Sprintf("%s matches out-of-scope CIDR %s", cidr.String(), blocked.String())
+			}
+		}
+		for _, allowed := range s.inNets {
+			if allowed.String() == cidr.String() || allowed.Contains(cidr.IP) {
+				return true, ""
+			}
+		}
+		return false, fmt.Sprintf("%s does not match configured scope", cidr.String())
+	}
 	host := normalizeHost(raw)
 	if host == "" {
 		return false, "empty host"

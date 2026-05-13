@@ -1,4 +1,4 @@
-FROM golang:1.22-alpine AS backend
+FROM golang:1.26-alpine AS backend
 WORKDIR /src
 COPY go.mod ./
 COPY . .
@@ -12,4 +12,3 @@ COPY --from=backend /out/nox /usr/local/bin/nox
 EXPOSE 8080
 ENTRYPOINT ["nox"]
 CMD ["serve", "--host", "0.0.0.0", "--port", "8080"]
-

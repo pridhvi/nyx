@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/kanini/nox/internal/models"
 )
@@ -21,6 +22,8 @@ type AdapterInput struct {
 	Session           models.Session
 	PriorFindings     []models.Finding
 	PriorTechnologies []models.Technology
+	Scope             ScopeValidator
+	HTTPClient        HTTPDoer
 }
 
 type AdapterOutput struct {
@@ -37,4 +40,12 @@ type Adapter interface {
 	DependsOn() []string
 	ShouldRun(input AdapterInput) bool
 	Run(ctx context.Context, input AdapterInput) (AdapterOutput, error)
+}
+
+type ScopeValidator interface {
+	IsInScope(raw string) (bool, string)
+}
+
+type HTTPDoer interface {
+	Do(req *http.Request) (*http.Response, error)
 }

@@ -47,9 +47,11 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, `NOX - local web application penetration testing framework
 
 Usage:
-  nox scan --target <host-or-url> [--mode passive|active|stealth]
+ nox scan --target <host-or-url> [--mode passive|active|stealth]
   nox serve [--host 127.0.0.1] [--port 8080]
   nox sessions list
+  nox sessions show <id>
+  nox sessions delete <id>
   nox plugins list
   nox report <session-id>
   nox version`)

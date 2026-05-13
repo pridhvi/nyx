@@ -1,11 +1,12 @@
 package nox
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"strings"
-	"time"
 
+	"github.com/kanini/nox/internal/db"
 	"github.com/kanini/nox/internal/engine"
 	"github.com/kanini/nox/internal/models"
 )
@@ -23,27 +24,38 @@ func runScan(args []string) error {
 		return fmt.Errorf("--target is required")
 	}
 
-	session := models.Session{
-		ID:          models.NewID(),
-		Name:        *name,
-		Status:      models.SessionStatusPending,
-		Mode:        models.ScanMode(*mode),
-		TargetInput: *target,
-		InScope:     []string{*target},
-		OutOfScope:  splitCSV(*outOfScope),
-		CreatedAt:   time.Now().UTC(),
-	}
-	checker, err := engine.NewScopeChecker(session.InScope, session.OutOfScope)
+	session, initialTarget, err := engine.NewPendingSession(engine.NewSessionInput{
+		Target:     *target,
+		Name:       *name,
+		Mode:       models.ScanMode(*mode),
+		OutOfScope: splitCSV(*outOfScope),
+	})
 	if err != nil {
 		return err
 	}
-	ok, reason := checker.IsInScope(*target)
-	if !ok {
-		return fmt.Errorf("target is out of scope: %s", reason)
+	record, err := db.CreateSessionDB(context.Background(), db.DefaultSessionsDir(), session, initialTarget)
+	if err != nil {
+		return err
 	}
+	store, err := db.OpenSession(context.Background(), db.DefaultSessionsDir(), record.Session.ID)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	runner := engine.NewRunner(store)
+	scanErr := runner.Run(context.Background(), record.Session)
 
-	fmt.Printf("created session %s for %s (%s mode)\n", session.ID, session.TargetInput, session.Mode)
-	fmt.Println("scanner orchestration is scaffolded; adapters are registered next")
+	fmt.Printf("created session %s for %s (%s mode)\n", record.Session.ID, record.Session.TargetInput, record.Session.Mode)
+	fmt.Printf("db: %s\n", record.DBPath)
+	if scanErr != nil {
+		fmt.Println("status: failed")
+		return scanErr
+	}
+	updated, err := store.GetSession(context.Background())
+	if err != nil {
+		return err
+	}
+	fmt.Printf("status: %s; targets=%d findings=%d\n", updated.Status, updated.TargetCount, updated.FindingCount)
 	return nil
 }
 
