@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/kanini/nox/internal/adapters"
@@ -15,10 +16,17 @@ type ScanManager struct {
 	sessionDir string
 	httpClient adapters.HTTPDoer
 	events     *scanEventBroker
+	mu         sync.Mutex
+	running    map[string]context.CancelFunc
 }
 
 func NewScanManager(sessionDir string, httpClient adapters.HTTPDoer) *ScanManager {
-	return &ScanManager{sessionDir: sessionDir, httpClient: httpClient, events: newScanEventBroker()}
+	return &ScanManager{
+		sessionDir: sessionDir,
+		httpClient: httpClient,
+		events:     newScanEventBroker(),
+		running:    make(map[string]context.CancelFunc),
+	}
 }
 
 func (m *ScanManager) Start(session models.Session) {
@@ -29,7 +37,17 @@ func (m *ScanManager) Start(session models.Session) {
 		Message:   "Scan queued",
 		At:        time.Now().UTC(),
 	})
+	ctx, cancel := context.WithCancel(context.Background())
+	m.mu.Lock()
+	m.running[session.ID] = cancel
+	m.mu.Unlock()
 	go func() {
+		defer func() {
+			m.mu.Lock()
+			delete(m.running, session.ID)
+			m.mu.Unlock()
+			cancel()
+		}()
 		store, err := db.OpenSession(context.Background(), m.sessionDir, session.ID)
 		if err != nil {
 			slog.Error("open async scan session", "session_id", session.ID, "error", err)
@@ -45,10 +63,28 @@ func (m *ScanManager) Start(session models.Session) {
 		defer store.Close()
 		runner := engine.NewRunnerWithHTTPClient(store, m.httpClient)
 		runner.OnEvent(m.Publish)
-		if err := runner.Run(context.Background(), session); err != nil {
+		if err := runner.Run(ctx, session); err != nil {
 			slog.Error("async scan failed", "session_id", session.ID, "error", err)
 		}
 	}()
+}
+
+func (m *ScanManager) Stop(sessionID string) bool {
+	m.mu.Lock()
+	cancel, ok := m.running[sessionID]
+	m.mu.Unlock()
+	if !ok {
+		return false
+	}
+	cancel()
+	m.Publish(engine.ScanEvent{
+		Type:      engine.ScanEventFailed,
+		SessionID: sessionID,
+		Status:    string(models.SessionStatusCancelled),
+		Message:   "Scan cancellation requested",
+		At:        time.Now().UTC(),
+	})
+	return true
 }
 
 func (m *ScanManager) Publish(event engine.ScanEvent) {

@@ -37,10 +37,10 @@ specific implementation is proven incompatible with the spec.
 ## Implementation Order
 
 Work should proceed from the lowest-numbered phase that still has remaining
-acceptance criteria. Phases 0, 1, and 2 are complete from the repository
-perspective, so the next implementation focus is Phase 3: Scope Validation And
-Session Lifecycle. Later phases can be inspected for context, but
-implementation should not skip ahead unless a Phase 3 task explicitly depends
+acceptance criteria. Phases 0, 1, 2, and 3 are complete from the repository
+perspective, so the next implementation focus is Phase 4: Adapter System,
+Registry, And Plugin Contract. Later phases can be inspected for context, but
+implementation should not skip ahead unless a Phase 4 task explicitly depends
 on later-phase context.
 
 ## Current Baseline
@@ -231,7 +231,7 @@ must be carried forward:
 
 ## Phase 3: Scope Validation And Session Lifecycle
 
-**Status:** Partial  
+**Status:** Implemented  
 **Spec sections covered:** 2, 5.3, 16, 17, 18
 
 ### Existing Baseline
@@ -241,28 +241,20 @@ must be carried forward:
 - Built-in and external MVP adapters validate target host scope before network
   requests or subprocess scanner invocation.
 - Session statuses include pending, running, completed, failed, and cancelled.
+- Running API scans can be cancelled with `POST /api/scan/{id}/stop`.
+- Cancellation propagates through adapter contexts and sets session status to
+  cancelled.
+- Adapter failures are recorded as failed `tool_runs` without failing the
+  session.
+- WebSocket scan events remain available at `GET /api/scan/{id}/events`, with
+  the spec-compatible alias `WS /ws/scan/{id}`.
+- Tests cover no-network scope rejection for HTTP adapters, non-fatal adapter
+  failures, cancellation status transitions, and the spec WebSocket route.
 
 ### Remaining Work
 
-- Add configuration-backed default scan settings:
-  - default mode
-  - default concurrency
-  - default rate limit
-  - timeout per tool
-- Add stop/cancel support for running scans.
-- Make session-level failure semantics match the spec:
-  - adapter failures are non-fatal
-  - DB/session context failures can fail the scan
-  - cancellation sets cancelled status
-- Add persistent scan options:
-  - enabled phases
-  - selected tools
-  - LLM model/base URL
-  - no-LLM flag
-  - rate limits and concurrency caps
-- Add structured logging with configurable levels.
-- Add tests for out-of-scope enforcement across built-in HTTP adapters and
-  subprocess adapters.
+- None for Phase 3. Configuration-backed defaults, selected tools, rate limits,
+  concurrency caps, and broader structured logging are handled by later phases.
 
 ### Spec Alignment Follow-ups
 
@@ -1032,8 +1024,8 @@ must be carried forward:
 | 14. CLI Commands | Phase 14 | Partial | Core commands exist; full flags/config/LLM/report pending. |
 | 15. Web UI Pages | Phase 16 | Partial | Dashboard exists; full session pages pending. |
 | 16. Configuration File | Phase 14 | Pending | Config system pending. |
-| 17. Scope Validation | Phase 3 | Partial | Checker exists; full coverage tests/config integration pending. |
-| 18. Error Handling & Logging | Phases 3, 4, 5 | Partial | Tool failures persist; structured logging/config pending. |
+| 17. Scope Validation | Phase 3 | Implemented | Checker, adapter boundary tests, cancellation, and lifecycle status coverage exist; config integration remains later. |
+| 18. Error Handling & Logging | Phases 3, 4, 5 | Partial | Tool failures persist without failing scans; broader structured logging/config pending. |
 | 19. Testing Strategy | Phase 18 | Partial | Tests exist; full coverage pending. |
 | 20. Docker Setup | Phase 17 | Partial | Dockerfile and compose exist and pass local smoke validation; fixture-backed scan smoke tests pending. |
 | 21. Makefile | Phase 17 | Partial | Core Makefile targets exist; placeholder migration/sqlc/integration behavior will be replaced later. |

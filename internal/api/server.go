@@ -71,7 +71,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/sessions/{id}/stats", s.sessionStats)
 	mux.HandleFunc("GET /api/scan/{id}/status", s.scanStatus)
 	mux.HandleFunc("GET /api/scan/{id}/events", s.scanEvents)
+	mux.HandleFunc("GET /ws/scan/{id}", s.scanEvents)
 	mux.HandleFunc("POST /api/scan/start", s.startScan)
+	mux.HandleFunc("POST /api/scan/{id}/stop", s.stopScan)
 	mux.Handle("/", spaHandler())
 	return mux
 }
@@ -279,6 +281,29 @@ func (s *Server) scanStatus(w http.ResponseWriter, r *http.Request) {
 		"finding_count": session.FindingCount,
 		"started_at":    session.StartedAt,
 		"completed_at":  session.CompletedAt,
+	})
+}
+
+func (s *Server) stopScan(w http.ResponseWriter, r *http.Request) {
+	sessionID := r.PathValue("id")
+	store, err := db.OpenSession(r.Context(), s.cfg.SessionDir, sessionID)
+	if err != nil {
+		writeDBError(w, err)
+		return
+	}
+	defer store.Close()
+	session, err := store.GetSession(r.Context())
+	if err != nil {
+		writeDBError(w, err)
+		return
+	}
+	if !s.scanManager.Stop(session.ID) {
+		writeError(w, http.StatusConflict, fmt.Errorf("scan %s is not running", session.ID))
+		return
+	}
+	writeJSONStatus(w, http.StatusAccepted, map[string]any{
+		"id":     session.ID,
+		"status": models.SessionStatusCancelled,
 	})
 }
 

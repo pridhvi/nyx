@@ -77,8 +77,14 @@ func (r *Runner) Run(ctx context.Context, session models.Session) error {
 		return err
 	}
 	var scanErr error
+	cancelled := false
 	for _, adapter := range ordered {
 		for _, target := range targets {
+			if err := ctx.Err(); err != nil {
+				cancelled = true
+				scanErr = err
+				break
+			}
 			input := adapters.AdapterInput{
 				SessionID:  session.ID,
 				Session:    session,
@@ -98,10 +104,15 @@ func (r *Runner) Run(ctx context.Context, session models.Session) error {
 				At:        time.Now().UTC(),
 			})
 			output, err := adapter.Run(ctx, input)
-			if err != nil && scanErr == nil {
-				scanErr = err
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				cancelled = true
+				scanErr = ctxErr
 			}
-			if persistErr := r.persist(ctx, session.ID, output); persistErr != nil {
+			persistCtx := ctx
+			if ctx.Err() != nil {
+				persistCtx = context.WithoutCancel(ctx)
+			}
+			if persistErr := r.persist(persistCtx, session.ID, output); persistErr != nil {
 				scanErr = persistErr
 			}
 			status := "completed"
@@ -121,6 +132,9 @@ func (r *Runner) Run(ctx context.Context, session models.Session) error {
 				DurationMS:   output.ToolRun.DurationMS,
 				At:           time.Now().UTC(),
 			})
+			if cancelled || (scanErr != nil && ctx.Err() != nil) {
+				break
+			}
 			for _, updated := range output.NewTargets {
 				for i := range targets {
 					if targets[i].ID == updated.ID {
@@ -130,21 +144,30 @@ func (r *Runner) Run(ctx context.Context, session models.Session) error {
 				}
 			}
 		}
+		if cancelled || (scanErr != nil && ctx.Err() != nil) {
+			break
+		}
 	}
-	if err := r.store.UpdateSessionCounts(ctx, session.ID); err != nil {
+	finalCtx := context.WithoutCancel(ctx)
+	if err := r.store.UpdateSessionCounts(finalCtx, session.ID); err != nil {
 		return err
 	}
 	completed := time.Now().UTC()
 	status := models.SessionStatusCompleted
-	if scanErr != nil {
+	if cancelled {
+		status = models.SessionStatusCancelled
+	} else if scanErr != nil {
 		status = models.SessionStatusFailed
 	}
-	if err := r.store.UpdateSessionStatus(ctx, session.ID, status, nil, &completed); err != nil {
+	if err := r.store.UpdateSessionStatus(finalCtx, session.ID, status, nil, &completed); err != nil {
 		return err
 	}
 	eventType := ScanEventCompleted
 	message := "Scan completed"
-	if scanErr != nil {
+	if cancelled {
+		eventType = ScanEventFailed
+		message = "Scan cancelled"
+	} else if scanErr != nil {
 		eventType = ScanEventFailed
 		message = scanErr.Error()
 	}

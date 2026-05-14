@@ -124,6 +124,11 @@ func TestSessionAPI(t *testing.T) {
 
 func waitForCompletedScan(t *testing.T, handler http.Handler, sessionID string) {
 	t.Helper()
+	waitForScanStatus(t, handler, sessionID, models.SessionStatusCompleted)
+}
+
+func waitForScanStatus(t *testing.T, handler http.Handler, sessionID string, want models.SessionStatus) {
+	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		status := httptest.NewRecorder()
@@ -137,12 +142,12 @@ func waitForCompletedScan(t *testing.T, handler http.Handler, sessionID string) 
 		if err := json.NewDecoder(status.Body).Decode(&payload); err != nil {
 			t.Fatal(err)
 		}
-		if payload.Status == models.SessionStatusCompleted {
+		if payload.Status == want {
 			return
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	t.Fatal("scan did not complete")
+	t.Fatalf("scan did not reach status %s", want)
 }
 
 func TestScanEventsWebSocketReplaysLifecycle(t *testing.T) {
@@ -169,7 +174,7 @@ func TestScanEventsWebSocketReplaysLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	wsURL := "ws" + strings.TrimPrefix(apiServer.URL, "http") + "/api/scan/" + created.Session.ID + "/events"
+	wsURL := "ws" + strings.TrimPrefix(apiServer.URL, "http") + "/ws/scan/" + created.Session.ID
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -201,4 +206,40 @@ func TestScanEventsWebSocketReplaysLifecycle(t *testing.T) {
 			t.Fatalf("missing event %s; saw %#v", eventType, seen)
 		}
 	}
+}
+
+func TestStopScanCancelsRunningScan(t *testing.T) {
+	requestStarted := make(chan struct{})
+	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(requestStarted)
+		<-r.Context().Done()
+	}))
+	defer targetServer.Close()
+
+	server := NewServer(Config{SessionDir: t.TempDir(), HTTPClient: targetServer.Client()})
+	handler := server.Handler()
+
+	body := bytes.NewBufferString(`{"target":"` + targetServer.URL + `","name":"Cancel","mode":"active"}`)
+	start := httptest.NewRecorder()
+	handler.ServeHTTP(start, httptest.NewRequest(http.MethodPost, "/api/scan/start", body))
+	if start.Code != http.StatusAccepted {
+		t.Fatalf("start status = %d body=%s", start.Code, start.Body.String())
+	}
+	var created db.SessionRecord
+	if err := json.NewDecoder(start.Body).Decode(&created); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-requestStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("scan did not start target request")
+	}
+
+	stop := httptest.NewRecorder()
+	handler.ServeHTTP(stop, httptest.NewRequest(http.MethodPost, "/api/scan/"+created.Session.ID+"/stop", nil))
+	if stop.Code != http.StatusAccepted {
+		t.Fatalf("stop status = %d body=%s", stop.Code, stop.Body.String())
+	}
+	waitForScanStatus(t, handler, created.Session.ID, models.SessionStatusCancelled)
 }

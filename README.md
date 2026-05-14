@@ -21,6 +21,7 @@ This repository currently contains the buildable foundation plus the first safe 
 - REST APIs for session create/list/detail/targets/findings/tool-runs/stats and scan status.
 - Asynchronous API scan start with polling-friendly status/read endpoints.
 - WebSocket scan lifecycle stream for queued/running/tool/finding/completed progress.
+- Running API scans can be cancelled with `POST /api/scan/{id}/stop`.
 - Dashboard wired to real session, stats, and finding data.
 - Dashboard live progress feed for the selected session.
 - Subprocess plugin JSON contract and runner.
@@ -63,13 +64,13 @@ The Docker image bundles the Nox binary and common external scanner tools. Singl
 
 ## Roadmap
 
-Implementation now proceeds in order from the lowest incomplete phase in [docs/implementation-plan.md](docs/implementation-plan.md). Phases 0, 1, and 2 are complete from the repository perspective; the next focus is Phase 3:
+Implementation now proceeds in order from the lowest incomplete phase in [docs/implementation-plan.md](docs/implementation-plan.md). Phases 0, 1, 2, and 3 are complete from the repository perspective; the next focus is Phase 4:
 
-1. Tighten scope validation coverage for every network-touching adapter.
-2. Add compatibility route `WS /ws/scan/{id}` for scan lifecycle events.
-3. Improve session status transition tests and cancellation behavior.
-4. Preserve the current synchronous CLI safe scan path while extending lifecycle controls.
-5. Keep existing per-session databases compatible with the Phase 2 schema.
+1. Complete plugin install/register flows for subprocess adapters.
+2. Persist and load configured plugin metadata from the Phase 2 plugin store.
+3. Add plugin directory loading from configuration when config support lands.
+4. Expand plugin request/response metadata only where adapters need it.
+5. Preserve the current built-in adapter registry and subprocess runner.
 
 ## Safety Boundary
 
