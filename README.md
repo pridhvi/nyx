@@ -33,6 +33,7 @@ This repository currently contains the buildable foundation plus the first safe 
 - Optional vulnerability adapters for `nuclei` vulnerability templates, `sqlmap`, `dalfox`, SSRFmap, `jwt_tool`, OAuth checks, SSTI checks, XXE fuzzing, and `nikto`.
 - CVE intelligence correlator with offline JSON source support, local cache, technology/finding matching, persisted CVE matches, and draft vectors for high-severity exploitable CVEs.
 - Deterministic attack vector engine with default rules, confidence scoring, ordered steps, prerequisite findings, and CVE vector merging.
+- Optional local-first OpenAI-compatible LLM analyst for structured session context, constrained tool calls, evidence truncation, and persisted conversation audit trails.
 - Optional subprocess adapters for `nmap`, `ffuf`, `sqlmap`, and `dalfox`, with graceful degradation when tools are unavailable.
 - React/Vite frontend scaffold for dashboard, graph, LLM, and reports.
 
@@ -72,13 +73,13 @@ The Docker image bundles the Nox binary and common external scanner tools. Singl
 
 ## Roadmap
 
-Implementation now proceeds in order from the lowest incomplete phase in [docs/implementation-plan.md](docs/implementation-plan.md). Phases 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, and 11 are complete from the repository perspective; the next focus is Phase 12:
+Implementation now proceeds in order from the lowest incomplete phase in [docs/implementation-plan.md](docs/implementation-plan.md). Phases 0 through 12 are complete from the repository perspective; the next focus is Phase 13:
 
-1. Add local-first LLM client integration.
-2. Annotate findings, CVEs, and attack vectors without changing deterministic facts.
-3. Persist prompts, responses, and token metadata.
-4. Keep cloud/OpenAI-compatible endpoints optional.
-5. Add safeguards for evidence-only, traceable LLM analysis.
+1. Expand the REST API for CVEs, attack vectors, LLM analysis, reports, and scan stop/status coverage.
+2. Add authentication hooks while keeping local development simple.
+3. Preserve existing API routes, including `GET /api/scan/{id}/events`.
+4. Add compatibility aliases required by the spec.
+5. Keep all write actions scope-aware and auditable.
 
 ## Safety Boundary
 

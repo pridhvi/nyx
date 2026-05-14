@@ -12,6 +12,7 @@ import (
 	"github.com/kanini/nox/internal/adapters"
 	cveintel "github.com/kanini/nox/internal/cve"
 	"github.com/kanini/nox/internal/db"
+	llmintel "github.com/kanini/nox/internal/llm"
 	"github.com/kanini/nox/internal/models"
 	"github.com/kanini/nox/internal/vectors"
 )
@@ -223,6 +224,9 @@ func (r *Runner) Run(ctx context.Context, session models.Session) error {
 		if vectorErr := r.runAttackVectorEngine(finalCtx, session); vectorErr != nil {
 			scanErr = vectorErr
 		}
+		if llmErr := r.runLLMAnalysis(finalCtx, session); llmErr != nil {
+			scanErr = llmErr
+		}
 	}
 	if err := r.store.UpdateSessionCounts(finalCtx, session.ID); err != nil {
 		return err
@@ -254,6 +258,19 @@ func (r *Runner) Run(ctx context.Context, session models.Session) error {
 		At:        completed,
 	})
 	return scanErr
+}
+
+func (r *Runner) runLLMAnalysis(ctx context.Context, session models.Session) error {
+	config := llmintel.ConfigFromSession(session)
+	if !config.Configured() {
+		return nil
+	}
+	analyst := llmintel.NewAnalyst(r.store, nil, config)
+	_, err := analyst.AnalyzeSession(ctx, session.ID, "Review the completed scan. Summarize the highest-confidence risks, relevant CVEs, deterministic attack vectors, and safe follow-up checks.")
+	if err != nil {
+		return nil
+	}
+	return nil
 }
 
 func (r *Runner) runAttackVectorEngine(ctx context.Context, session models.Session) error {

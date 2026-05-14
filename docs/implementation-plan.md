@@ -37,11 +37,10 @@ specific implementation is proven incompatible with the spec.
 ## Implementation Order
 
 Work should proceed from the lowest-numbered phase that still has remaining
-acceptance criteria. Phases 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, and 11 are
-complete from the repository perspective, so the next implementation focus is
-Phase 12: LLM Integration. Later phases can be inspected for context, but
-implementation should not skip ahead unless a Phase 12 task explicitly depends
-on later-phase context.
+acceptance criteria. Phases 0 through 12 are complete from the repository
+perspective, so the next implementation focus is Phase 13: REST API and auth.
+Later phases can be inspected for context, but implementation should not skip
+ahead unless a Phase 13 task explicitly depends on later-phase context.
 
 ## Current Baseline
 
@@ -78,6 +77,9 @@ must be carried forward:
 - **Runner:** Simple dependency-ordered runner with persisted tool runs and
   normalized findings. This should be incrementally evolved into the spec DAG
   scheduler instead of being thrown away.
+- **LLM analyst:** Optional local-first OpenAI-compatible client, structured
+  scan context builder, constrained LLM tools, evidence truncation, and
+  persisted conversation/tool-call audit trails.
 - **API:** Health, tools, sessions, targets, findings, tool runs, stats, scan
   start, scan status, and scan lifecycle WebSocket event stream.
 - **WebSocket progress:** Current endpoint is `GET /api/scan/{id}/events` with
@@ -142,7 +144,7 @@ must be carried forward:
 
 ## Phase 1: Core Data Models
 
-**Status:** Implemented  
+**Status:** Implemented
 **Spec sections covered:** 5.1, 5.2, 5.3, 5.4, 5.5, 5.6
 
 ### Existing Baseline
@@ -660,7 +662,7 @@ must be carried forward:
 - Fix rule references to current tool IDs where needed, while preserving spec
   semantics.
 - Ensure findings include tags required by attack rules.
-- Phase 12 should add LLM annotation/review only after deterministic vectors are
+- Phase 12 adds persisted LLM analysis only after deterministic vectors are
   generated, without overwriting rule facts.
 - Phase 13 and Phase 16 should expose vectors through API and UI surfaces.
 
@@ -675,55 +677,76 @@ must be carried forward:
 
 ## Phase 12: LLM Integration
 
-**Status:** Pending  
+**Status:** Implemented
 **Spec sections covered:** 3.2 LLM dependency, 5.3 LLM session fields, 10
 
 ### Existing Baseline
 
 - Session model includes LLM model/base URL fields.
 - Placeholder UI page exists for LLM chat.
+- LLM analysis persistence exists in the per-session database.
 
-### Remaining Work
+### Implemented Work
 
-- Add OpenAI-compatible LLM client supporting:
+- Added `internal/llm` OpenAI-compatible chat client supporting:
   - Ollama
   - LM Studio
   - llama.cpp OpenAI-compatible servers
   - OpenAI-compatible cloud endpoints when configured
-- Add LLM config:
+- Added LLM config from session fields and environment:
   - provider
   - base URL
   - API key
   - model
   - max tokens
   - temperature
-- Add context builder that summarizes:
+- Added structured context builder that summarizes:
   - session
   - targets
   - technologies
   - findings
+  - CVE matches
   - attack vectors
   - stats
-- Truncate long evidence fields before sending to LLM.
-- Add tool definitions:
+- Long raw evidence and HTTP request/response fields are truncated before
+  being sent to an LLM.
+- Added constrained tool definitions:
   - `request_scan`
   - `lookup_cve`
   - `search_cves_for_technology`
   - `get_session_findings`
-- Add analyst loop with visible tool-call audit trail.
-- Persist conversation history.
-- Add system prompt from the spec.
+- Added analyst loop with visible tool-call audit trail.
+- Persisted system/user/assistant/tool messages, tool-call arguments, tool
+  results, model id, prompt summary, token totals, and creation time.
+- Added spec-aligned system prompt that treats deterministic findings, CVEs,
+  and attack-vector rules as authoritative.
+- Added optional post-scan LLM analysis in the runner. It no-ops when no LLM is
+  configured and does not fail scans when a configured LLM endpoint is
+  unavailable.
+- Added unit coverage for config, context truncation, tool constraints, analyst
+  persistence, and tool-call audit trails.
+
+### Remaining Work
+
+- Add REST endpoints for interactive LLM chat and LLM analysis retrieval in
+  Phase 13.
+- Add CLI commands for LLM analysis in Phase 14.
+- Feed persisted LLM analyses into generated report narratives in Phase 15.
+- Replace the placeholder UI page with an interactive LLM chat surface in
+  Phase 16.
 
 ### Spec Alignment Follow-ups
 
 - LLM integration must remain optional and local-first by default.
 - Do not require cloud API keys for normal operation.
+- LLM output annotates and explains; it must not overwrite deterministic
+  findings, CVE matches, or attack vectors without trace.
 
 ### Acceptance Criteria
 
-- LLM chat can answer from structured session context.
+- LLM analysis can answer from structured session context.
 - LLM tool calls are constrained by scope and recorded.
-- Full-session analysis can annotate reports and attack narratives.
+- Full-session analysis is persisted for later report and attack-narrative use.
 - Operation degrades gracefully when no LLM is configured.
 
 ---
@@ -1044,8 +1067,8 @@ must be carried forward:
 | Spec section | Implementation phase | Current status | Notes |
 | --- | --- | --- | --- |
 | 1. Project Overview | Phase 0 | Partial | Local-first dual-interface direction exists; full product scope remains. |
-| 2. Design Principles | Phases 0, 3, 4, 5, 11, 12 | Partial | Scope/evidence/normalization are started; full DAG and LLM constraints pending. |
-| 3. Tech Stack | Phases 0, 2, 12, 15, 16, 17 | Partial | Go, SQLite, React/Vite exist; many planned deps and packaging remain. |
+| 2. Design Principles | Phases 0, 3, 4, 5, 11, 12 | Partial | Scope/evidence/normalization, DAG scheduling, deterministic vectors, and constrained LLM analysis exist; later UX/report/auth work remains. |
+| 3. Tech Stack | Phases 0, 2, 12, 15, 16, 17 | Partial | Go, SQLite, React/Vite, WebSocket, and OpenAI-compatible LLM client exist; report/UI/packaging hardening remains. |
 | 3.1 Backend Go | Phases 0, 5 | Partial | Current Go target is 1.26; scheduler and embedded tool libs pending. |
 | 3.2 Dependencies | Phases 0, 10, 12, 15, 17, 18 | Partial | SQLite/WebSocket present; many listed deps not yet added. |
 | 3.3 Frontend | Phase 16 | Partial | Dashboard exists; full page set pending. |
@@ -1058,9 +1081,9 @@ must be carried forward:
 | 7. Tool Adapter System | Phase 4 | Implemented | Built-in registry and configured subprocess plugin adapters coexist; broader ecosystem docs remain later. |
 | 8. Tool Pipeline | Phases 6-9 | Implemented | Recon, fingerprinting, enumeration, and vulnerability-scanning adapter slices now cover Phases 6-9; deeper Go-library migrations and richer targeting remain follow-ups. |
 | 9. DAG Engine | Phase 5 | Implemented | Dependency levels, same-level concurrency, semaphores, timeout/delay controls, prior-result propagation, and phase events exist. |
-| 10. LLM Integration | Phase 12 | Pending | Session fields/placeholders exist only. |
+| 10. LLM Integration | Phase 12 | Implemented | Optional OpenAI-compatible client, config, structured context builder, constrained tools, analyst loop, evidence truncation, and persisted audit trails exist; API/UI/report surfaces remain in later phases. |
 | 11. CVE Intelligence | Phase 10 | Implemented | Correlator, offline source, cache, NVD client parser, evidence CVE extraction, persisted matches, and draft vectors exist; richer remote source parsers remain follow-ups. |
-| 12. Attack Vector Engine | Phase 11 | Implemented | Deterministic rule engine, default rules, scoring, steps, persistence integration, CVE vector merging, and rule tests exist; LLM annotation remains Phase 12. |
+| 12. Attack Vector Engine | Phase 11 | Implemented | Deterministic rule engine, default rules, scoring, steps, persistence integration, CVE vector merging, and rule tests exist; API/UI exposure remains later. |
 | 13. REST API Surface | Phase 13 | Partial | Core read/start endpoints exist; stop/vector/CVE/LLM/report/auth pending. |
 | 14. CLI Commands | Phase 14 | Partial | Core commands exist; full flags/config/LLM/report pending. |
 | 15. Web UI Pages | Phase 16 | Partial | Dashboard exists; full session pages pending. |
