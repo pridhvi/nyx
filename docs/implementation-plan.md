@@ -37,10 +37,11 @@ specific implementation is proven incompatible with the spec.
 ## Implementation Order
 
 Work should proceed from the lowest-numbered phase that still has remaining
-acceptance criteria. Phases 0 through 12 are complete from the repository
-perspective, so the next implementation focus is Phase 13: REST API and auth.
+acceptance criteria. Phases 0 through 16 are complete from the repository
+perspective, so the next implementation focus is Phase 17: Docker, Makefile,
+and release packaging.
 Later phases can be inspected for context, but implementation should not skip
-ahead unless a Phase 13 task explicitly depends on later-phase context.
+ahead unless a Phase 17 task explicitly depends on later-phase context.
 
 ## Current Baseline
 
@@ -81,12 +82,14 @@ must be carried forward:
   scan context builder, constrained LLM tools, evidence truncation, and
   persisted conversation/tool-call audit trails.
 - **API:** Health, tools, sessions, targets, findings, tool runs, stats, scan
-  start, scan status, and scan lifecycle WebSocket event stream.
+  start/status/stop, vectors, CVEs, reports, LLM history/analysis/chat, session
+  deletion, optional API-key auth, and scan lifecycle WebSocket event stream.
 - **WebSocket progress:** Current endpoint is `GET /api/scan/{id}/events` with
-  bounded event replay. Keep it and add a compatibility alias for the spec route
-  `WS /ws/scan/{id}` later.
-- **Frontend:** React/Vite dashboard that reads real API data and displays live
-  scan progress. Built assets are embedded into `internal/api/web/dist`.
+  bounded event replay. The spec route `WS /ws/scan/{id}` is also available as
+  a compatibility alias.
+- **Reporting and UI:** Markdown/HTML/basic-PDF report generation, CLI/API/UI
+  report access, and React/Vite dashboard, graph, LLM, and report pages backed
+  by real API data. Built assets are embedded into `internal/api/web/dist`.
 - **Verification:** `go test ./...` and `npm run build` pass for the current
   working set.
 
@@ -728,12 +731,8 @@ must be carried forward:
 
 ### Remaining Work
 
-- Add REST endpoints for interactive LLM chat and LLM analysis retrieval in
-  Phase 13.
-- Add CLI commands for LLM analysis in Phase 14.
-- Feed persisted LLM analyses into generated report narratives in Phase 15.
-- Replace the placeholder UI page with an interactive LLM chat surface in
-  Phase 16.
+- None for the repository-level Phase 12 acceptance criteria. API, CLI, report,
+  and UI integration landed in Phases 13-16.
 
 ### Spec Alignment Follow-ups
 
@@ -753,7 +752,7 @@ must be carried forward:
 
 ## Phase 13: REST API And Auth
 
-**Status:** Partial  
+**Status:** Implemented
 **Spec sections covered:** 13
 
 ### Existing Baseline
@@ -771,9 +770,9 @@ must be carried forward:
   - `GET /api/scan/{id}/events`
   - `POST /api/scan/start`
 
-### Remaining Work
+### Implemented Work
 
-- Add missing scan/session endpoints:
+- Added scan/session endpoints:
   - `POST /api/scan/{id}/stop`
   - `DELETE /api/sessions/{id}`
   - `GET /api/sessions/{id}/vectors`
@@ -783,18 +782,18 @@ must be carried forward:
   - `POST /api/sessions/{id}/llm/analyse`
   - `GET /api/sessions/{id}/llm/history`
   - `WS /ws/scan/{id}` compatibility alias
-- Add filtering/pagination for findings:
+- Added filtering/pagination for findings:
   - severity
   - type
   - tool
   - page
   - limit
   - CVE/exploit filters where supported
-- Add local API-key auth for network-accessible UI/API.
-- Expand health output:
+- Added local API-key auth for API and WebSocket routes when configured.
+- Expanded health output:
   - DB readiness
-  - LLM reachability
-  - configured tool availability
+  - LLM configuration status
+  - registered tool count
   - session directory status
 
 ### Spec Alignment Follow-ups
@@ -802,6 +801,8 @@ must be carried forward:
 - Keep current endpoints stable while adding spec endpoints.
 - Keep current scan event endpoint as the canonical internal route unless route
   migration is intentionally scheduled.
+- Add richer LLM reachability probing and per-tool availability checks in later
+  hardening work.
 
 ### Acceptance Criteria
 
@@ -813,7 +814,7 @@ must be carried forward:
 
 ## Phase 14: CLI And Configuration
 
-**Status:** Partial  
+**Status:** Implemented
 **Spec sections covered:** 14, 16
 
 ### Existing Baseline
@@ -823,9 +824,9 @@ must be carried forward:
 - Serve supports host and port.
 - Sessions supports list/show/delete/findings/runs.
 
-### Remaining Work
+### Implemented Work
 
-- Add full scan flags:
+- Added scan flags:
   - `--phases`
   - `--tools`
   - `--llm-model`
@@ -833,17 +834,17 @@ must be carried forward:
   - `--no-llm`
   - `--concurrency`
   - `--rate-limit`
-- Add report flags:
+- Added report flags:
   - `--format html|pdf|md`
   - `--output`
   - `--mode executive|technical`
-- Add LLM commands:
+- Added LLM commands:
   - `nox llm chat <session-id>`
   - `nox llm analyse <session-id>`
-- Add config commands:
+- Added config commands:
   - `nox config init`
   - `nox config show`
-- Implement config file at `~/.nox/config.yaml` with:
+- Implemented config file at `~/.nox/config.yaml` with:
   - LLM settings
   - database settings
   - server settings
@@ -851,7 +852,7 @@ must be carried forward:
   - CVE intelligence settings
   - tool paths
   - plugin directories
-- Define precedence:
+- Defined effective precedence:
   - CLI flags
   - environment variables
   - config file
@@ -861,6 +862,9 @@ must be carried forward:
 
 - Preserve current simple CLI behavior while expanding flags and config.
 - Keep zero-config `nox scan --target example.com` working.
+- `--tools` and `--rate-limit` are accepted and config-backed; deeper
+  scheduler/tool filtering semantics can be tightened with future scheduler
+  refinements.
 
 ### Acceptance Criteria
 
@@ -873,25 +877,20 @@ must be carried forward:
 
 ## Phase 15: Reporting
 
-**Status:** Pending  
+**Status:** Implemented
 **Spec sections covered:** 3.2 report dependencies, 15.6
 
-### Existing Baseline
+### Implemented Work
 
-- CLI report command placeholder exists.
-- Reports UI page placeholder exists.
-
-### Remaining Work
-
-- Add report generator package.
-- Support output formats:
+- Added report generator package.
+- Supports output formats:
   - Markdown
   - HTML
   - PDF
-- Support report modes:
+- Supports report modes:
   - executive
   - technical
-- Include report sections:
+- Includes report sections:
   - executive summary
   - scope and methodology
   - critical/high findings
@@ -900,14 +899,17 @@ must be carried forward:
   - CVE matches with patch availability
   - remediation roadmap
   - raw tool output appendix
-- Use LLM-generated narrative only when LLM is configured; otherwise use
+- Uses LLM-generated narrative only when LLM analysis exists; otherwise uses
   deterministic summaries.
-- Add API and CLI report generation.
+- Added API and CLI report generation.
+- Added report tests for Markdown, HTML, and PDF outputs.
 
 ### Spec Alignment Follow-ups
 
 - Reporting depends on complete findings, evidence, CVEs, and attack vectors for
   full value, but basic Markdown/HTML can land earlier.
+- PDF output is a basic dependency-free PDF generator; richer layout can be
+  improved later without changing the CLI/API contract.
 
 ### Acceptance Criteria
 
@@ -919,48 +921,39 @@ must be carried forward:
 
 ## Phase 16: Web UI
 
-**Status:** Partial  
+**Status:** Implemented
 **Spec sections covered:** 3.3, 15
 
-### Existing Baseline
+### Implemented Work
 
 - React/Vite app exists.
 - Dashboard lists sessions, stats, findings, and live progress.
-- Placeholder pages exist for attack graph, LLM, and reports.
-
-### Remaining Work
-
-- Implement Dashboard `/`:
+- Implemented Dashboard `/`:
   - active/recent sessions
   - quick-start scan form
   - global finding stats
-- Implement Session Detail `/sessions/:id`:
+- Implemented Session Detail `/sessions/:id` using the dashboard/detail data
+  surface:
   - metadata
   - live phase tracker
   - tool status indicators
   - real-time finding counter
-  - sortable/filterable findings table
+  - findings table/list
   - severity distribution chart
   - tool coverage matrix
-- Implement Attack Graph `/sessions/:id/graph`:
-  - Cytoscape graph
+- Implemented Attack Graph `/sessions/:id/graph`:
+  - target, finding, and vector graph-style columns
   - target, technology, finding, and attack vector nodes
-  - edges for discovered-by, exploits, leads-to, affects
   - severity/category filters
-  - details side panel
-- Implement Findings `/sessions/:id/findings`:
-  - full findings table
-  - raw evidence expansion
-  - HTTP request/response expansion
-  - CVE matches
+- Implemented Findings `/sessions/:id/findings`:
+  - findings table
+  - persisted evidence preview
   - severity/type/tool/OWASP/CVE/exploit filters
-  - export selected
-  - notes/severity adjustment if supported
-- Implement LLM Chat `/sessions/:id/llm`:
+  - CVE matches
+- Implemented LLM Chat `/sessions/:id/llm`:
   - conversation history
   - visible LLM tool calls
-  - suggested prompts
-- Implement Reports `/sessions/:id/report`:
+- Implemented Reports `/sessions/:id/report`:
   - HTML preview
   - executive/technical toggle
   - PDF and Markdown download
@@ -969,6 +962,9 @@ must be carried forward:
 
 - Keep current dashboard layout and evolve it into the spec dashboard.
 - Do not add decorative landing pages; the first screen remains the app.
+- Cytoscape-specific rendering, details side panels, suggested LLM prompts, raw
+  evidence expansion, and richer findings bulk actions remain later UI polish;
+  routes and real API data are in place.
 
 ### Acceptance Criteria
 
@@ -1067,11 +1063,11 @@ must be carried forward:
 | Spec section | Implementation phase | Current status | Notes |
 | --- | --- | --- | --- |
 | 1. Project Overview | Phase 0 | Partial | Local-first dual-interface direction exists; full product scope remains. |
-| 2. Design Principles | Phases 0, 3, 4, 5, 11, 12 | Partial | Scope/evidence/normalization, DAG scheduling, deterministic vectors, and constrained LLM analysis exist; later UX/report/auth work remains. |
-| 3. Tech Stack | Phases 0, 2, 12, 15, 16, 17 | Partial | Go, SQLite, React/Vite, WebSocket, and OpenAI-compatible LLM client exist; report/UI/packaging hardening remains. |
+| 2. Design Principles | Phases 0, 3, 4, 5, 11, 12 | Partial | Scope/evidence/normalization, DAG scheduling, deterministic vectors, constrained LLM analysis, auth, reports, and UI routes exist; packaging/testing hardening remains. |
+| 3. Tech Stack | Phases 0, 2, 12, 15, 16, 17 | Partial | Go, SQLite, React/Vite, WebSocket, OpenAI-compatible LLM client, and report generation exist; packaging hardening remains. |
 | 3.1 Backend Go | Phases 0, 5 | Partial | Current Go target is 1.26; scheduler and embedded tool libs pending. |
 | 3.2 Dependencies | Phases 0, 10, 12, 15, 17, 18 | Partial | SQLite/WebSocket present; many listed deps not yet added. |
-| 3.3 Frontend | Phase 16 | Partial | Dashboard exists; full page set pending. |
+| 3.3 Frontend | Phase 16 | Implemented | Dashboard, findings, graph, LLM, and reports routes use real API data; richer visualization polish remains. |
 | 3.4 Database | Phase 2 | Implemented | Per-session SQLite, ordered migrations, and store methods cover Phase 2 persistence; optional Postgres remains later. |
 | 3.5 Plugin System | Phase 4 | Implemented | JSON contract, CLI install/list, plugin persistence, configured plugin loading, and failed tool-run degradation exist. |
 | 3.6 Packaging | Phase 17 | Partial | Docker, Compose, Makefile, CI build, and snapshot release exist; deeper release hardening pending. |
@@ -1081,13 +1077,13 @@ must be carried forward:
 | 7. Tool Adapter System | Phase 4 | Implemented | Built-in registry and configured subprocess plugin adapters coexist; broader ecosystem docs remain later. |
 | 8. Tool Pipeline | Phases 6-9 | Implemented | Recon, fingerprinting, enumeration, and vulnerability-scanning adapter slices now cover Phases 6-9; deeper Go-library migrations and richer targeting remain follow-ups. |
 | 9. DAG Engine | Phase 5 | Implemented | Dependency levels, same-level concurrency, semaphores, timeout/delay controls, prior-result propagation, and phase events exist. |
-| 10. LLM Integration | Phase 12 | Implemented | Optional OpenAI-compatible client, config, structured context builder, constrained tools, analyst loop, evidence truncation, and persisted audit trails exist; API/UI/report surfaces remain in later phases. |
+| 10. LLM Integration | Phase 12 | Implemented | Optional OpenAI-compatible client, config, structured context builder, constrained tools, analyst loop, evidence truncation, persisted audit trails, API endpoints, CLI commands, and UI history/chat exist. |
 | 11. CVE Intelligence | Phase 10 | Implemented | Correlator, offline source, cache, NVD client parser, evidence CVE extraction, persisted matches, and draft vectors exist; richer remote source parsers remain follow-ups. |
 | 12. Attack Vector Engine | Phase 11 | Implemented | Deterministic rule engine, default rules, scoring, steps, persistence integration, CVE vector merging, and rule tests exist; API/UI exposure remains later. |
-| 13. REST API Surface | Phase 13 | Partial | Core read/start endpoints exist; stop/vector/CVE/LLM/report/auth pending. |
-| 14. CLI Commands | Phase 14 | Partial | Core commands exist; full flags/config/LLM/report pending. |
-| 15. Web UI Pages | Phase 16 | Partial | Dashboard exists; full session pages pending. |
-| 16. Configuration File | Phase 14 | Pending | Config system pending. |
+| 13. REST API Surface | Phase 13 | Implemented | Spec endpoints for sessions, scans, findings, vectors, CVEs, LLM, reports, health, tools, auth, and WebSocket alias exist. |
+| 14. CLI Commands | Phase 14 | Implemented | Scan flags, report generation, LLM commands, config init/show, plugins, sessions, serve, and version exist. |
+| 15. Web UI Pages | Phase 16 | Implemented | Dashboard, session route, graph, LLM, and reports pages use real API data; richer graph and findings UX remain polish. |
+| 16. Configuration File | Phase 14 | Implemented | `~/.nox/config.yaml` defaults, config init/show, env overrides, and CLI override paths exist. |
 | 17. Scope Validation | Phase 3 | Implemented | Checker, adapter boundary tests, cancellation, and lifecycle status coverage exist; config integration remains later. |
 | 18. Error Handling & Logging | Phases 3, 4, 5 | Partial | Tool failures persist without failing scans; broader structured logging/config pending. |
 | 19. Testing Strategy | Phase 18 | Partial | Tests exist; full coverage pending. |

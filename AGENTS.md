@@ -4,7 +4,7 @@ Use `docs/nox-project-spec.md` as the canonical product specification. Keep `REA
 
 ## Current State
 
-This repo has a buildable backend with per-session SQLite persistence, a synchronous CLI safe scan path, and asynchronous API scan start. Active scans run built-in `http-probe` and `security-headers` plus optional subprocess adapters for recon (`subfinder`, `dnsx`, `naabu`, `httpx`, `whois`, `waybackurls`), fingerprinting (`whatweb`, `nuclei-tech`, `testssl.sh`, GraphQL introspection, OpenAPI/Swagger discovery, `wpscan`, `droopescan`), enumeration (`ffuf`, `arjun`, `linkfinder`, `gitleaks`, JavaScript secret scanning, CORS checks, scoped cloud bucket checks), vulnerability scanning (`nuclei-vuln`, `sqlmap`, `dalfox`, SSRFmap, `jwt_tool`, OAuth, SSTI, XXE, `nikto`), CVE intelligence, deterministic attack vector generation, optional local-first LLM analysis, and `nmap`; `crt.sh` is registered but opt-in. API scans publish WebSocket lifecycle events at `GET /api/scan/{id}/events` while keeping polling endpoints as fallback. The dashboard reads real sessions, stats, findings, and live progress from the API. The React/Vite frontend builds into `internal/api/web/dist` and is embedded into the Go binary. The backend targets Go 1.26; keep it buildable with `go test ./...` after every change.
+This repo has a buildable backend with per-session SQLite persistence, a synchronous CLI safe scan path, and asynchronous API scan start. Active scans run built-in `http-probe` and `security-headers` plus optional subprocess adapters for recon (`subfinder`, `dnsx`, `naabu`, `httpx`, `whois`, `waybackurls`), fingerprinting (`whatweb`, `nuclei-tech`, `testssl.sh`, GraphQL introspection, OpenAPI/Swagger discovery, `wpscan`, `droopescan`), enumeration (`ffuf`, `arjun`, `linkfinder`, `gitleaks`, JavaScript secret scanning, CORS checks, scoped cloud bucket checks), vulnerability scanning (`nuclei-vuln`, `sqlmap`, `dalfox`, SSRFmap, `jwt_tool`, OAuth, SSTI, XXE, `nikto`), CVE intelligence, deterministic attack vector generation, optional local-first LLM analysis, reporting, and `nmap`; `crt.sh` is registered but opt-in. API scans publish WebSocket lifecycle events at `GET /api/scan/{id}/events` while keeping polling endpoints as fallback. The API exposes sessions, findings, targets, tool runs, stats, vectors, CVEs, LLM history/analysis, reports, and optional API-key auth. The dashboard and session pages read real API data for findings, graph, LLM, and reports. The React/Vite frontend builds into `internal/api/web/dist` and is embedded into the Go binary. The backend targets Go 1.26; keep it buildable with `go test ./...` after every change.
 
 ## Engineering Priorities
 
@@ -17,10 +17,10 @@ This repo has a buildable backend with per-session SQLite persistence, a synchro
 
 ## Suggested Next Tasks
 
-Proceed in order from the lowest incomplete phase in `docs/implementation-plan.md`. Phases 0 through 12 are complete from the repository perspective; the next focus is Phase 13:
+Proceed in order from the lowest incomplete phase in `docs/implementation-plan.md`. Phases 0 through 16 are complete from the repository perspective; the next focus is Phase 17:
 
-1. Expand REST endpoints for CVEs, attack vectors, LLM analyses, reports, and scan controls.
-2. Add auth hooks without breaking local-first development.
-3. Preserve existing API routes and add spec compatibility aliases.
-4. Keep mutating actions scope-aware and auditable.
-5. Add focused API tests for the new surfaces.
+1. Harden Docker, Compose, Makefile, and release packaging.
+2. Add config-file mount examples for containerized runs.
+3. Expand release metadata and snapshot packaging.
+4. Add Docker scan smoke tests with controlled fixtures.
+5. Keep single-binary local mode useful without external tools installed.

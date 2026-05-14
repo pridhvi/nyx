@@ -8,10 +8,13 @@ import (
 )
 
 type NewSessionInput struct {
-	Target     string
-	Name       string
-	Mode       models.ScanMode
-	OutOfScope []string
+	Target        string
+	Name          string
+	Mode          models.ScanMode
+	OutOfScope    []string
+	EnabledPhases []string
+	LLMModel      string
+	LLMBaseURL    string
 }
 
 func NewPendingSession(input NewSessionInput) (models.Session, models.Target, error) {
@@ -28,14 +31,17 @@ func NewPendingSession(input NewSessionInput) (models.Session, models.Target, er
 		return models.Session{}, models.Target{}, fmt.Errorf("unsupported scan mode %q", mode)
 	}
 	session := models.Session{
-		ID:          models.NewID(),
-		Name:        input.Name,
-		Status:      models.SessionStatusPending,
-		Mode:        mode,
-		TargetInput: input.Target,
-		InScope:     []string{input.Target},
-		OutOfScope:  input.OutOfScope,
-		CreatedAt:   time.Now().UTC(),
+		ID:            models.NewID(),
+		Name:          input.Name,
+		Status:        models.SessionStatusPending,
+		Mode:          mode,
+		TargetInput:   input.Target,
+		InScope:       []string{input.Target},
+		OutOfScope:    input.OutOfScope,
+		EnabledPhases: input.EnabledPhases,
+		LLMModel:      input.LLMModel,
+		LLMBaseURL:    input.LLMBaseURL,
+		CreatedAt:     time.Now().UTC(),
 	}
 	checker, err := NewScopeChecker(session.InScope, session.OutOfScope)
 	if err != nil {

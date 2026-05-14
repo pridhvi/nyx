@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/kanini/nox/internal/api"
+	"github.com/kanini/nox/internal/config"
 )
 
 const version = "0.1.0-dev"
@@ -25,6 +26,10 @@ func Execute() {
 		err = runServe(os.Args[2:])
 	case "report":
 		err = runReport(os.Args[2:])
+	case "llm":
+		err = runLLM(os.Args[2:])
+	case "config":
+		err = runConfig(os.Args[2:])
 	case "sessions":
 		err = runSessions(os.Args[2:])
 	case "plugins":
@@ -50,7 +55,7 @@ Authorized use only: run Nox only against systems you own or have explicit,
 written permission to test. Unauthorized scanning or exploitation may be illegal.
 
 Usage:
- nox scan --target <host-or-url> [--mode passive|active|stealth]
+  nox scan --target <host-or-url> [--mode passive|active|stealth]
   nox serve [--host 127.0.0.1] [--port 8080]
   nox sessions list
   nox sessions show <id>
@@ -59,17 +64,32 @@ Usage:
   nox sessions runs <id>
   nox plugins list
   nox plugins install --session <id> <path>
-  nox report <session-id>
+  nox report <session-id> --format html|pdf|md --output report.html
+  nox llm chat <session-id>
+  nox llm analyse <session-id>
+  nox config init
+  nox config show
   nox version`)
 }
 
 func runServe(args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
+	cfgPath := fs.String("config", "", "config file path")
 	host := fs.String("host", "127.0.0.1", "server host")
 	port := fs.Int("port", 8080, "server port")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	srv := api.NewServer(api.Config{Host: *host, Port: *port})
+	cfg, err := config.Load(*cfgPath)
+	if err != nil {
+		return err
+	}
+	if fs.Lookup("host").Value.String() == "127.0.0.1" && cfg.Server.Host != "" {
+		*host = cfg.Server.Host
+	}
+	if *port == 8080 && cfg.Server.Port != 0 {
+		*port = cfg.Server.Port
+	}
+	srv := api.NewServer(api.Config{Host: *host, Port: *port, SessionDir: cfg.Database.SessionDir, APIKey: cfg.Server.APIKey})
 	return srv.ListenAndServe(context.Background())
 }

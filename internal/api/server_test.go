@@ -115,10 +115,62 @@ func TestSessionAPI(t *testing.T) {
 		t.Fatalf("stats status = %d", stats.Code)
 	}
 
+	vectors := httptest.NewRecorder()
+	handler.ServeHTTP(vectors, httptest.NewRequest(http.MethodGet, "/api/sessions/"+created.Session.ID+"/vectors", nil))
+	if vectors.Code != http.StatusOK {
+		t.Fatalf("vectors status = %d", vectors.Code)
+	}
+
+	cves := httptest.NewRecorder()
+	handler.ServeHTTP(cves, httptest.NewRequest(http.MethodGet, "/api/sessions/"+created.Session.ID+"/cves", nil))
+	if cves.Code != http.StatusOK {
+		t.Fatalf("cves status = %d", cves.Code)
+	}
+
+	report := httptest.NewRecorder()
+	handler.ServeHTTP(report, httptest.NewRequest(http.MethodGet, "/api/sessions/"+created.Session.ID+"/report?format=md&mode=technical", nil))
+	if report.Code != http.StatusOK || !strings.Contains(report.Body.String(), "Executive Summary") {
+		t.Fatalf("report status = %d body=%s", report.Code, report.Body.String())
+	}
+
+	history := httptest.NewRecorder()
+	handler.ServeHTTP(history, httptest.NewRequest(http.MethodGet, "/api/sessions/"+created.Session.ID+"/llm/history", nil))
+	if history.Code != http.StatusOK {
+		t.Fatalf("llm history status = %d", history.Code)
+	}
+
+	analyse := httptest.NewRecorder()
+	handler.ServeHTTP(analyse, httptest.NewRequest(http.MethodPost, "/api/sessions/"+created.Session.ID+"/llm/analyse", nil))
+	if analyse.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected unavailable llm status, got %d", analyse.Code)
+	}
+
 	missing := httptest.NewRecorder()
 	handler.ServeHTTP(missing, httptest.NewRequest(http.MethodGet, "/api/sessions/not-found", nil))
 	if missing.Code != http.StatusNotFound {
 		t.Fatalf("missing status = %d", missing.Code)
+	}
+
+	deleted := httptest.NewRecorder()
+	handler.ServeHTTP(deleted, httptest.NewRequest(http.MethodDelete, "/api/sessions/"+created.Session.ID, nil))
+	if deleted.Code != http.StatusOK {
+		t.Fatalf("delete status = %d body=%s", deleted.Code, deleted.Body.String())
+	}
+}
+
+func TestAPIKeyAuth(t *testing.T) {
+	handler := NewServer(Config{SessionDir: t.TempDir(), APIKey: "secret"}).Handler()
+	blocked := httptest.NewRecorder()
+	handler.ServeHTTP(blocked, httptest.NewRequest(http.MethodGet, "/api/health", nil))
+	if blocked.Code != http.StatusUnauthorized {
+		t.Fatalf("expected unauthorized, got %d", blocked.Code)
+	}
+	allowed := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	req.Header.Set("X-Nox-API-Key", "secret")
+	handler.ServeHTTP(allowed, req)
+	if allowed.Code != http.StatusOK {
+		t.Fatalf("expected authorized health, got %d", allowed.Code)
 	}
 }
 

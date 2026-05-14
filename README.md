@@ -34,8 +34,12 @@ This repository currently contains the buildable foundation plus the first safe 
 - CVE intelligence correlator with offline JSON source support, local cache, technology/finding matching, persisted CVE matches, and draft vectors for high-severity exploitable CVEs.
 - Deterministic attack vector engine with default rules, confidence scoring, ordered steps, prerequisite findings, and CVE vector merging.
 - Optional local-first OpenAI-compatible LLM analyst for structured session context, constrained tool calls, evidence truncation, and persisted conversation audit trails.
+- Expanded REST API for vectors, CVEs, reports, LLM history/analysis, session deletion, finding filters, and optional API-key auth.
+- CLI config, LLM, and report commands plus expanded scan flags for phases, LLM settings, concurrency, and rate-limit configuration.
+- Markdown, HTML, and basic PDF report generation from persisted findings, evidence, CVEs, attack vectors, tool runs, and optional LLM analysis.
+- Web UI pages for session detail/dashboard, attack graph, LLM analyst history/chat, and report preview/download.
 - Optional subprocess adapters for `nmap`, `ffuf`, `sqlmap`, and `dalfox`, with graceful degradation when tools are unavailable.
-- React/Vite frontend scaffold for dashboard, graph, LLM, and reports.
+- React/Vite frontend for dashboard, graph, LLM, and reports.
 
 ## Toolchain
 
@@ -73,13 +77,13 @@ The Docker image bundles the Nox binary and common external scanner tools. Singl
 
 ## Roadmap
 
-Implementation now proceeds in order from the lowest incomplete phase in [docs/implementation-plan.md](docs/implementation-plan.md). Phases 0 through 12 are complete from the repository perspective; the next focus is Phase 13:
+Implementation now proceeds in order from the lowest incomplete phase in [docs/implementation-plan.md](docs/implementation-plan.md). Phases 0 through 16 are complete from the repository perspective; the next focus is Phase 17:
 
-1. Expand the REST API for CVEs, attack vectors, LLM analysis, reports, and scan stop/status coverage.
-2. Add authentication hooks while keeping local development simple.
-3. Preserve existing API routes, including `GET /api/scan/{id}/events`.
-4. Add compatibility aliases required by the spec.
-5. Keep all write actions scope-aware and auditable.
+1. Harden Docker, Compose, Makefile, and release packaging.
+2. Add config-file mount examples for containerized runs.
+3. Expand release metadata and snapshot packaging.
+4. Add Docker scan smoke tests with controlled fixtures.
+5. Keep single-binary local mode useful without external tools installed.
 
 ## Safety Boundary
 
