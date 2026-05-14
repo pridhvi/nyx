@@ -43,6 +43,13 @@ func DefaultSafeAdapters() []adapters.Adapter {
 	return []adapters.Adapter{
 		adapters.NewHTTPProbe(),
 		adapters.NewSecurityHeaders(),
+		adapters.NewWhatWeb(),
+		adapters.NewNucleiTech(),
+		adapters.NewTestSSL(),
+		adapters.NewGraphQLIntrospection(),
+		adapters.NewOpenAPIDiscovery(),
+		adapters.NewWPScan(),
+		adapters.NewDroopescan(),
 		adapters.NewSubfinder(),
 		adapters.NewDNSX(),
 		adapters.NewNaabu(),

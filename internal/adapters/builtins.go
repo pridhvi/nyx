@@ -3,6 +3,13 @@ package adapters
 func init() {
 	Register(NewHTTPProbe())
 	Register(NewSecurityHeaders())
+	Register(NewWhatWeb())
+	Register(NewNucleiTech())
+	Register(NewTestSSL())
+	Register(NewGraphQLIntrospection())
+	Register(NewOpenAPIDiscovery())
+	Register(NewWPScan())
+	Register(NewDroopescan())
 	Register(NewSubfinder())
 	Register(NewDNSX())
 	Register(NewNaabu())

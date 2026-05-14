@@ -37,10 +37,10 @@ specific implementation is proven incompatible with the spec.
 ## Implementation Order
 
 Work should proceed from the lowest-numbered phase that still has remaining
-acceptance criteria. Phases 0, 1, 2, 3, 4, 5, and 6 are complete from the
-repository perspective, so the next implementation focus is Phase 7:
-Fingerprinting Adapters. Later phases can be inspected for context, but
-implementation should not skip ahead unless a Phase 7 task explicitly depends
+acceptance criteria. Phases 0, 1, 2, 3, 4, 5, 6, and 7 are complete from the
+repository perspective, so the next implementation focus is Phase 8:
+Enumeration Adapters. Later phases can be inspected for context, but
+implementation should not skip ahead unless a Phase 8 task explicitly depends
 on later-phase context.
 
 ## Current Baseline
@@ -59,13 +59,16 @@ must be carried forward:
 - **Adapters:** Adapter interface, registry, plugin JSON contract, subprocess
   helper, built-in `http-probe`, built-in `security-headers`, and optional
   recon adapters for `subfinder`, `dnsx`, `naabu`, `httpx`, `whois`,
-  `waybackurls`, and `crt.sh`.
+  `waybackurls`, `crt.sh`, plus fingerprinting adapters for `whatweb`,
+  `nuclei` technology templates, `testssl.sh`, GraphQL introspection,
+  OpenAPI/Swagger discovery, `wpscan`, and `droopescan`.
 - **MVP external adapter slice:** Optional subprocess wrappers for `nmap`,
   `subfinder`, `dnsx`, `naabu`, `httpx`, `whois`, `waybackurls`, `ffuf`,
-  `sqlmap`, and `dalfox`, plus a passive `crt.sh` HTTP adapter that is
-  registered but not run by default. This is a useful MVP slice across spec
-  reconnaissance, enumeration, and vulnerability scanning. It is not a
-  replacement for every future spec adapter.
+  `whatweb`, `nuclei`, `testssl.sh`, `wpscan`, `droopescan`, `sqlmap`, and
+  `dalfox`, plus HTTP-based GraphQL/OpenAPI checks and a passive `crt.sh` HTTP
+  adapter that is registered but not run by default. This is a useful MVP slice
+  across spec reconnaissance, fingerprinting, enumeration, and vulnerability
+  scanning. It is not a replacement for every future spec adapter.
 - **Runner:** Simple dependency-ordered runner with persisted tool runs and
   normalized findings. This should be incrementally evolved into the spec DAG
   scheduler instead of being thrown away.
@@ -417,7 +420,7 @@ must be carried forward:
 
 ## Phase 7: Fingerprinting Adapters
 
-**Status:** Partial  
+**Status:** Implemented
 **Spec sections covered:** 8 Phase 2
 
 ### Existing Baseline
@@ -427,27 +430,39 @@ must be carried forward:
 - Dashboard and API expose these normalized findings.
 - Phase 6 `httpx` can already persist discovered web technologies when the
   external binary is installed.
+- Optional `whatweb` subprocess adapter parses detected web technologies and
+  versions.
+- Optional `nuclei-tech` subprocess adapter runs technology-tagged templates and
+  persists technology matches plus normalized informational findings.
+- Optional `testssl.sh` subprocess adapter parses TLS/certificate findings.
+- Built-in GraphQL introspection check probes `/graphql` and reports exposed
+  schema introspection.
+- Built-in OpenAPI/Swagger discovery checks common API documentation paths and
+  reports exposed docs.
+- Optional `wpscan` subprocess adapter records WordPress core, theme, and plugin
+  technology versions and vulnerability metadata.
+- Optional `droopescan` subprocess adapter records CMS technology detections and
+  vulnerability metadata.
+- Missing external fingerprinting binaries degrade gracefully through persisted
+  failed `tool_runs`.
+- Parser tests cover technology, TLS, GraphQL, OpenAPI/Swagger, WordPress, and
+  CMS fingerprint normalization.
 
 ### Remaining Work
 
-- Implement full fingerprinting pipeline:
-  - `whatweb` subprocess
-  - nuclei technology templates
-  - `testssl.sh` subprocess
-  - GraphQL introspection check
-  - OpenAPI/Swagger discovery
-  - WPScan subprocess
-  - droopescan subprocess
-- Persist detected technologies with name, version, category, confidence, and
-  source tool.
-- Persist TLS/certificate issues and exposed documentation findings.
-- Use fingerprinting output as input for CVE correlation and attack vectors.
+- None for the repository-level Phase 7 acceptance criteria.
 
 ### Spec Alignment Follow-ups
 
 - Keep `security-headers` as the initial built-in fingerprinting adapter.
 - Reuse the existing technologies table/store methods for every fingerprinting
   adapter that emits product/version data.
+- Keep subprocess `nuclei` technology templates useful until a Go-library
+  migration is needed for richer structured output or distribution constraints.
+- Extend `droopescan` invocation/configuration when CMS-specific selection is
+  configurable.
+- Phase 10 will consume persisted technology names/versions for CVE
+  correlation.
 
 ### Acceptance Criteria
 
@@ -1016,7 +1031,7 @@ must be carried forward:
 | 5. Core Data Models | Phase 1 | Implemented | Canonical models, report metadata models, additive CVE version fields, and serialization/validation tests exist. |
 | 6. Database Schema | Phase 2 | Implemented | Schema covers sessions, targets, findings, evidence, technologies, CVEs, vectors, tool runs, LLM analyses, plugins, and migrations. |
 | 7. Tool Adapter System | Phase 4 | Implemented | Built-in registry and configured subprocess plugin adapters coexist; broader ecosystem docs remain later. |
-| 8. Tool Pipeline | Phases 6-9 | Partial | Recon adapters now cover the Phase 6 subprocess/passive slice; fingerprinting, enumeration, and vulnerability scanning remain incomplete. |
+| 8. Tool Pipeline | Phases 6-9 | Partial | Recon and fingerprinting adapters now cover Phases 6-7; enumeration and vulnerability scanning remain incomplete. |
 | 9. DAG Engine | Phase 5 | Implemented | Dependency levels, same-level concurrency, semaphores, timeout/delay controls, prior-result propagation, and phase events exist. |
 | 10. LLM Integration | Phase 12 | Pending | Session fields/placeholders exist only. |
 | 11. CVE Intelligence | Phase 10 | Pending | Model exists; engine pending. |

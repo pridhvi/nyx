@@ -191,3 +191,93 @@ func TestScopedRootDomainDoesNotBroadenSubdomainScope(t *testing.T) {
 		t.Fatalf("expected scoped root domain, got %q", got)
 	}
 }
+
+func TestParseWhatWebOutput(t *testing.T) {
+	raw := `[{"target":"https://example.com","plugins":{"nginx":{"version":["1.25.1"]},"React":{}}}]`
+	technologies, findings := parseWhatWebOutput(testExternalInput(), raw)
+	if len(findings) != 0 {
+		t.Fatalf("expected no findings, got %d", len(findings))
+	}
+	if len(technologies) != 2 {
+		t.Fatalf("expected 2 technologies, got %d", len(technologies))
+	}
+	var nginx models.Technology
+	for _, technology := range technologies {
+		if technology.Name == "nginx" {
+			nginx = technology
+		}
+	}
+	if nginx.Version != "1.25.1" || nginx.SourceTool != "whatweb" {
+		t.Fatalf("unexpected nginx technology: %#v", nginx)
+	}
+}
+
+func TestParseNucleiTechOutput(t *testing.T) {
+	raw := `{"template-id":"tech-detect:nginx","matched-at":"https://example.com","info":{"name":"nginx technology detected","severity":"info"}}`
+	technologies, findings := parseNucleiTechOutput(testExternalInput(), raw)
+	if len(technologies) != 1 || len(findings) != 1 {
+		t.Fatalf("unexpected parsed counts: technologies=%d findings=%d", len(technologies), len(findings))
+	}
+	if technologies[0].SourceTool != "nuclei-tech" || findings[0].ToolID != "nuclei-tech" {
+		t.Fatalf("unexpected parsed output: %#v %#v", technologies[0], findings[0])
+	}
+}
+
+func TestParseTestSSLOutput(t *testing.T) {
+	raw := `[{"id":"TLS1_0","severity":"LOW","finding":"TLS 1.0 offered"},{"id":"cert","severity":"OK","finding":"certificate valid"}]`
+	findings := parseTestSSLOutput(testExternalInput(), raw)
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d", len(findings))
+	}
+	if findings[0].ToolID != "testssl" || findings[0].Severity != models.SeverityLow {
+		t.Fatalf("unexpected finding: %#v", findings[0])
+	}
+}
+
+func TestParseGraphQLIntrospection(t *testing.T) {
+	findings := parseGraphQLIntrospection(testExternalInput(), "https://example.com/graphql", 200, `{"data":{"__schema":{"queryType":{"name":"Query"}}}}`)
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d", len(findings))
+	}
+	if findings[0].ToolID != "graphql-introspection" || findings[0].Severity != models.SeverityMedium {
+		t.Fatalf("unexpected finding: %#v", findings[0])
+	}
+}
+
+func TestParseOpenAPIDocument(t *testing.T) {
+	findings := parseOpenAPIDocument(testExternalInput(), "https://example.com/openapi.json", 200, `{"openapi":"3.0.3","paths":{}}`)
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d", len(findings))
+	}
+	if findings[0].ToolID != "openapi-discovery" || findings[0].Severity != models.SeverityLow {
+		t.Fatalf("unexpected finding: %#v", findings[0])
+	}
+}
+
+func TestParseWPScanOutput(t *testing.T) {
+	raw := `{"version":{"number":"6.4.2"},"main_theme":{"slug":"twentytwentyfour","version":{"number":"1.0"}},"plugins":{"akismet":{"version":{"number":"5.3"}}}}`
+	technologies, findings := parseWPScanOutput(testExternalInput(), raw)
+	if len(findings) != 0 {
+		t.Fatalf("expected no findings, got %d", len(findings))
+	}
+	if len(technologies) != 3 {
+		t.Fatalf("expected 3 technologies, got %d", len(technologies))
+	}
+	if technologies[0].Name != "WordPress" || technologies[0].Version != "6.4.2" {
+		t.Fatalf("unexpected WordPress technology: %#v", technologies[0])
+	}
+}
+
+func TestParseDroopescanOutput(t *testing.T) {
+	raw := `{"identified":"drupal","version":["10.2.0"]}`
+	technologies, findings := parseDroopescanOutput(testExternalInput(), raw)
+	if len(findings) != 0 {
+		t.Fatalf("expected no findings, got %d", len(findings))
+	}
+	if len(technologies) != 1 {
+		t.Fatalf("expected 1 technology, got %d", len(technologies))
+	}
+	if technologies[0].Name != "drupal" || technologies[0].Version != "10.2.0" || technologies[0].SourceTool != "droopescan" {
+		t.Fatalf("unexpected technology: %#v", technologies[0])
+	}
+}
