@@ -37,10 +37,10 @@ specific implementation is proven incompatible with the spec.
 ## Implementation Order
 
 Work should proceed from the lowest-numbered phase that still has remaining
-acceptance criteria. Phases 0, 1, 2, 3, 4, and 5 are complete from the
-repository perspective, so the next implementation focus is Phase 6:
-Reconnaissance Adapters. Later phases can be inspected for context, but
-implementation should not skip ahead unless a Phase 6 task explicitly depends
+acceptance criteria. Phases 0, 1, 2, 3, 4, 5, and 6 are complete from the
+repository perspective, so the next implementation focus is Phase 7:
+Fingerprinting Adapters. Later phases can be inspected for context, but
+implementation should not skip ahead unless a Phase 7 task explicitly depends
 on later-phase context.
 
 ## Current Baseline
@@ -57,11 +57,15 @@ must be carried forward:
   create/list/show/delete support.
 - **Scope safety:** Scope checker for hosts, URLs, and CIDRs.
 - **Adapters:** Adapter interface, registry, plugin JSON contract, subprocess
-  helper, built-in `http-probe`, and built-in `security-headers`.
+  helper, built-in `http-probe`, built-in `security-headers`, and optional
+  recon adapters for `subfinder`, `dnsx`, `naabu`, `httpx`, `whois`,
+  `waybackurls`, and `crt.sh`.
 - **MVP external adapter slice:** Optional subprocess wrappers for `nmap`,
-  `ffuf`, `sqlmap`, and `dalfox`. This is a useful MVP slice across spec
+  `subfinder`, `dnsx`, `naabu`, `httpx`, `whois`, `waybackurls`, `ffuf`,
+  `sqlmap`, and `dalfox`, plus a passive `crt.sh` HTTP adapter that is
+  registered but not run by default. This is a useful MVP slice across spec
   reconnaissance, enumeration, and vulnerability scanning. It is not a
-  replacement for the full spec pipeline.
+  replacement for every future spec adapter.
 - **Runner:** Simple dependency-ordered runner with persisted tool runs and
   normalized findings. This should be incrementally evolved into the spec DAG
   scheduler instead of being thrown away.
@@ -79,7 +83,7 @@ must be carried forward:
 
 ## Phase 0: Repository, Safety, And Toolchain Foundation
 
-**Status:** Implemented  
+**Status:** Implemented
 **Spec sections covered:** 1, 2, 3, 20, 21, 22, 23
 
 ### Existing Baseline
@@ -363,51 +367,51 @@ must be carried forward:
 
 ## Phase 6: Reconnaissance Adapters
 
-**Status:** Partial  
+**Status:** Implemented
 **Spec sections covered:** 8 Phase 1, 22 step 6
 
 ### Existing Baseline
 
 - Built-in `http-probe` provides a lightweight safe HTTP probe.
 - MVP subprocess `nmap` records open-port findings when available.
+- Optional `subfinder`, `dnsx`, `naabu`, `httpx`, `whois`, and `waybackurls`
+  adapters are registered and included in the default safe runner.
+- Optional `crt.sh` HTTP recon adapter is registered and available, but is not
+  run by default so passive third-party lookups remain an explicit choice.
+- Recon adapters validate scope before network execution.
+- Missing external binaries are captured as failed `tool_runs` instead of
+  failing the scan.
+- Recon output is normalized into new targets, open-port findings, live HTTP
+  service findings, technologies, archived URL findings, WHOIS metadata, and
+  raw tool evidence.
+- Parser tests cover host normalization, open ports, HTTPX JSON output,
+  technologies, WHOIS output, URL discovery, and crt.sh target normalization.
 
 ### Remaining Work
 
-- Implement full reconnaissance pipeline:
-  - `subfinder` as Go library
-  - `dnsx` as Go library
-  - `naabu` as Go library
-  - `httpx` as Go library
-  - `nmap` using the spec-preferred Go wrapper, or keep subprocess `nmap` as a
-    transitional implementation with a documented migration path
-  - `whois` subprocess
-  - `crt.sh` HTTP API client
-  - `waybackurls` subprocess
-- Normalize outputs into:
-  - targets
-  - open ports
-  - service/version findings
-  - status codes
-  - page titles
-  - discovered URLs
-  - raw evidence/tool runs
-- Add dependency handling:
-  - `subfinder`, `dnsx`, `nmap`, `crt.sh`, and `whois` can run early
-  - `httpx` depends on discovered hosts/ports
-  - `waybackurls` depends on discovered domains/subdomains
+- None for the repository-level Phase 6 acceptance criteria.
 
 ### Spec Alignment Follow-ups
 
 - Do not remove current `http-probe`; it can remain as a safe built-in probe
   beside or before full `httpx`.
 - Keep current subprocess `nmap` useful until Go-wrapper parity is implemented.
+- Keep current subprocess ProjectDiscovery tools useful until Go-library
+  migration is needed for richer streaming output, structured config, or
+  distribution constraints.
+- Add configuration controls before enabling passive third-party sources such
+  as `crt.sh` by default.
+- Add deeper service/version parsing for `nmap` and `httpx` when later phases
+  need stronger CVE matching inputs.
 
 ### Acceptance Criteria
 
-- Recon phase builds a complete in-scope target map.
+- Recon phase builds an in-scope target map from the current target plus
+  optional external recon output.
 - New targets are persisted and available to later phases.
-- Missing external recon tools degrade gracefully.
-- Fixture tests cover parser normalization.
+- Missing external recon tools degrade gracefully through persisted failed
+  `tool_runs`.
+- Parser tests cover normalization for each new recon output family.
 
 ---
 
@@ -421,6 +425,8 @@ must be carried forward:
 - `security-headers` adapter identifies missing CSP, HSTS, X-Frame-Options,
   X-Content-Type-Options, and Referrer-Policy.
 - Dashboard and API expose these normalized findings.
+- Phase 6 `httpx` can already persist discovered web technologies when the
+  external binary is installed.
 
 ### Remaining Work
 
@@ -440,7 +446,8 @@ must be carried forward:
 ### Spec Alignment Follow-ups
 
 - Keep `security-headers` as the initial built-in fingerprinting adapter.
-- Add technologies table/store methods before adapters that emit technologies.
+- Reuse the existing technologies table/store methods for every fingerprinting
+  adapter that emits product/version data.
 
 ### Acceptance Criteria
 
@@ -1009,7 +1016,7 @@ must be carried forward:
 | 5. Core Data Models | Phase 1 | Implemented | Canonical models, report metadata models, additive CVE version fields, and serialization/validation tests exist. |
 | 6. Database Schema | Phase 2 | Implemented | Schema covers sessions, targets, findings, evidence, technologies, CVEs, vectors, tool runs, LLM analyses, plugins, and migrations. |
 | 7. Tool Adapter System | Phase 4 | Implemented | Built-in registry and configured subprocess plugin adapters coexist; broader ecosystem docs remain later. |
-| 8. Tool Pipeline | Phases 6-9 | Partial | MVP built-ins and four external wrappers exist; full pipeline pending. |
+| 8. Tool Pipeline | Phases 6-9 | Partial | Recon adapters now cover the Phase 6 subprocess/passive slice; fingerprinting, enumeration, and vulnerability scanning remain incomplete. |
 | 9. DAG Engine | Phase 5 | Implemented | Dependency levels, same-level concurrency, semaphores, timeout/delay controls, prior-result propagation, and phase events exist. |
 | 10. LLM Integration | Phase 12 | Pending | Session fields/placeholders exist only. |
 | 11. CVE Intelligence | Phase 10 | Pending | Model exists; engine pending. |

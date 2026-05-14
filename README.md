@@ -27,6 +27,7 @@ This repository currently contains the buildable foundation plus the first safe 
 - Dashboard live progress feed for the selected session.
 - Subprocess plugin JSON contract and runner.
 - Session-scoped plugin install/list support for configured subprocess adapters.
+- Optional recon subprocess adapters for `subfinder`, `dnsx`, `naabu`, `httpx`, `whois`, and `waybackurls`, plus registered opt-in `crt.sh` lookup support.
 - Optional subprocess adapters for `nmap`, `ffuf`, `sqlmap`, and `dalfox`, with graceful degradation when tools are unavailable.
 - React/Vite frontend scaffold for dashboard, graph, LLM, and reports.
 
@@ -66,12 +67,12 @@ The Docker image bundles the Nox binary and common external scanner tools. Singl
 
 ## Roadmap
 
-Implementation now proceeds in order from the lowest incomplete phase in [docs/implementation-plan.md](docs/implementation-plan.md). Phases 0, 1, 2, 3, 4, and 5 are complete from the repository perspective; the next focus is Phase 6:
+Implementation now proceeds in order from the lowest incomplete phase in [docs/implementation-plan.md](docs/implementation-plan.md). Phases 0, 1, 2, 3, 4, 5, and 6 are complete from the repository perspective; the next focus is Phase 7:
 
-1. Expand reconnaissance adapters while preserving existing safe built-ins.
-2. Add subprocess `whois`, `crt.sh` HTTP lookup, and `waybackurls` support where available.
-3. Normalize all recon output into targets, technologies, findings, and tool runs.
-4. Add fixture-backed parser tests for each new recon adapter.
+1. Add fingerprinting adapters while preserving existing `security-headers`.
+2. Implement optional `whatweb`, `testssl.sh`, nuclei technology templates, GraphQL introspection, OpenAPI/Swagger discovery, WPScan, and droopescan where available.
+3. Normalize fingerprinting output into technologies, TLS findings, exposed documentation findings, and tool runs.
+4. Feed detected technologies into later CVE correlation.
 5. Keep missing external tools optional with persisted failed `tool_runs`.
 
 ## Safety Boundary

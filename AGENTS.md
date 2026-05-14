@@ -4,7 +4,7 @@ Use `docs/nox-project-spec.md` as the canonical product specification. Keep `REA
 
 ## Current State
 
-This repo has a buildable backend with per-session SQLite persistence, a synchronous CLI safe scan path, and asynchronous API scan start. Active scans run built-in `http-probe` and `security-headers` plus optional subprocess adapters for `nmap`, `ffuf`, `sqlmap`, and `dalfox`. API scans publish WebSocket lifecycle events at `GET /api/scan/{id}/events` while keeping polling endpoints as fallback. The dashboard reads real sessions, stats, findings, and live progress from the API. The React/Vite frontend builds into `internal/api/web/dist` and is embedded into the Go binary. The backend targets Go 1.26; keep it buildable with `go test ./...` after every change.
+This repo has a buildable backend with per-session SQLite persistence, a synchronous CLI safe scan path, and asynchronous API scan start. Active scans run built-in `http-probe` and `security-headers` plus optional subprocess adapters for recon (`subfinder`, `dnsx`, `naabu`, `httpx`, `whois`, `waybackurls`), `nmap`, `ffuf`, `sqlmap`, and `dalfox`; `crt.sh` is registered but opt-in. API scans publish WebSocket lifecycle events at `GET /api/scan/{id}/events` while keeping polling endpoints as fallback. The dashboard reads real sessions, stats, findings, and live progress from the API. The React/Vite frontend builds into `internal/api/web/dist` and is embedded into the Go binary. The backend targets Go 1.26; keep it buildable with `go test ./...` after every change.
 
 ## Engineering Priorities
 
@@ -17,10 +17,10 @@ This repo has a buildable backend with per-session SQLite persistence, a synchro
 
 ## Suggested Next Tasks
 
-Proceed in order from the lowest incomplete phase in `docs/implementation-plan.md`. Phases 0, 1, 2, 3, 4, and 5 are complete from the repository perspective; the next focus is Phase 6:
+Proceed in order from the lowest incomplete phase in `docs/implementation-plan.md`. Phases 0, 1, 2, 3, 4, 5, and 6 are complete from the repository perspective; the next focus is Phase 7:
 
-1. Expand reconnaissance adapters while preserving existing safe built-ins.
-2. Add subprocess `whois`, `crt.sh` HTTP lookup, and `waybackurls` support where available.
-3. Normalize all recon output into targets, technologies, findings, and tool runs.
-4. Add fixture-backed parser tests for each new recon adapter.
+1. Add fingerprinting adapters while preserving existing `security-headers`.
+2. Implement optional `whatweb`, `testssl.sh`, nuclei technology templates, GraphQL introspection, OpenAPI/Swagger discovery, WPScan, and droopescan where available.
+3. Normalize fingerprinting output into technologies, TLS findings, exposed documentation findings, and tool runs.
+4. Feed detected technologies into later CVE correlation.
 5. Keep missing external tools optional with persisted failed `tool_runs`.
