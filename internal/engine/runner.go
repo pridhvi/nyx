@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	cveintel "github.com/kanini/nox/internal/cve"
 	"github.com/kanini/nox/internal/db"
 	"github.com/kanini/nox/internal/models"
+	"github.com/kanini/nox/internal/vectors"
 )
 
 type Runner struct {
@@ -218,6 +220,9 @@ func (r *Runner) Run(ctx context.Context, session models.Session) error {
 		if cveErr := r.runCVECorrelation(finalCtx, session); cveErr != nil {
 			scanErr = cveErr
 		}
+		if vectorErr := r.runAttackVectorEngine(finalCtx, session); vectorErr != nil {
+			scanErr = vectorErr
+		}
 	}
 	if err := r.store.UpdateSessionCounts(finalCtx, session.ID); err != nil {
 		return err
@@ -249,6 +254,41 @@ func (r *Runner) Run(ctx context.Context, session models.Session) error {
 		At:        completed,
 	})
 	return scanErr
+}
+
+func (r *Runner) runAttackVectorEngine(ctx context.Context, session models.Session) error {
+	findings, err := r.store.ListFindings(ctx, session.ID, db.FindingFilter{})
+	if err != nil {
+		return err
+	}
+	cves, err := r.store.ListCVEMatchesBySession(ctx, session.ID)
+	if err != nil {
+		return err
+	}
+	existing, err := r.store.ListAttackVectors(ctx, session.ID)
+	if err != nil {
+		return err
+	}
+	seen := map[string]bool{}
+	for _, vector := range existing {
+		seen[attackVectorKey(vector)] = true
+	}
+	for _, vector := range vectors.NewEngine().Generate(session.ID, findings, cves) {
+		if seen[attackVectorKey(vector)] {
+			continue
+		}
+		if err := r.store.InsertAttackVector(ctx, vector); err != nil {
+			return err
+		}
+		seen[attackVectorKey(vector)] = true
+	}
+	return nil
+}
+
+func attackVectorKey(vector models.AttackVector) string {
+	prereqs := append([]string(nil), vector.PrereqFindingIDs...)
+	sort.Strings(prereqs)
+	return vector.Title + ":" + strings.Join(prereqs, ",")
 }
 
 func (r *Runner) runCVECorrelation(ctx context.Context, session models.Session) error {

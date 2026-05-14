@@ -32,6 +32,7 @@ This repository currently contains the buildable foundation plus the first safe 
 - Optional enumeration adapters for `ffuf`, `arjun`, `linkfinder`, `gitleaks`, JavaScript secret scanning, CORS checks, and scoped cloud bucket checks.
 - Optional vulnerability adapters for `nuclei` vulnerability templates, `sqlmap`, `dalfox`, SSRFmap, `jwt_tool`, OAuth checks, SSTI checks, XXE fuzzing, and `nikto`.
 - CVE intelligence correlator with offline JSON source support, local cache, technology/finding matching, persisted CVE matches, and draft vectors for high-severity exploitable CVEs.
+- Deterministic attack vector engine with default rules, confidence scoring, ordered steps, prerequisite findings, and CVE vector merging.
 - Optional subprocess adapters for `nmap`, `ffuf`, `sqlmap`, and `dalfox`, with graceful degradation when tools are unavailable.
 - React/Vite frontend scaffold for dashboard, graph, LLM, and reports.
 
@@ -71,13 +72,13 @@ The Docker image bundles the Nox binary and common external scanner tools. Singl
 
 ## Roadmap
 
-Implementation now proceeds in order from the lowest incomplete phase in [docs/implementation-plan.md](docs/implementation-plan.md). Phases 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, and 10 are complete from the repository perspective; the next focus is Phase 11:
+Implementation now proceeds in order from the lowest incomplete phase in [docs/implementation-plan.md](docs/implementation-plan.md). Phases 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, and 11 are complete from the repository perspective; the next focus is Phase 12:
 
-1. Expand deterministic attack vector rules over findings and CVE matches.
-2. Score exploit chains by severity, confidence, and prerequisites.
-3. Persist attack vectors with ordered steps and suggested tools.
-4. Keep LLM output as annotation only, not correctness authority.
-5. Feed vectors into later reporting and UI phases.
+1. Add local-first LLM client integration.
+2. Annotate findings, CVEs, and attack vectors without changing deterministic facts.
+3. Persist prompts, responses, and token metadata.
+4. Keep cloud/OpenAI-compatible endpoints optional.
+5. Add safeguards for evidence-only, traceable LLM analysis.
 
 ## Safety Boundary
 

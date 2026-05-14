@@ -37,10 +37,10 @@ specific implementation is proven incompatible with the spec.
 ## Implementation Order
 
 Work should proceed from the lowest-numbered phase that still has remaining
-acceptance criteria. Phases 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, and 10 are complete
-from the repository perspective, so the next implementation focus is Phase 11:
-Attack Vector Engine. Later phases can be inspected for context, but
-implementation should not skip ahead unless a Phase 11 task explicitly depends
+acceptance criteria. Phases 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, and 11 are
+complete from the repository perspective, so the next implementation focus is
+Phase 12: LLM Integration. Later phases can be inspected for context, but
+implementation should not skip ahead unless a Phase 12 task explicitly depends
 on later-phase context.
 
 ## Current Baseline
@@ -627,40 +627,42 @@ must be carried forward:
 
 ## Phase 11: Attack Vector Engine
 
-**Status:** Partial  
+**Status:** Implemented
 **Spec sections covered:** 5.5, 12
 
 ### Existing Baseline
 
-- Attack vector models and initial rules package exist.
-- Full engine, persistence, scoring, and API/UI exposure are incomplete.
-
-### Remaining Work
-
-- Implement deterministic rule engine:
-  - conditions by tool ID
-  - finding type
-  - minimum severity
-  - URL contains
-  - tag contains
-  - parameter present
-- Implement attack chain templates and confidence scoring.
-- Add default rules from the spec:
+- Attack vector models and persistence exist.
+- Deterministic rule engine supports conditions by tool ID, finding type,
+  minimum severity, URL substring, tag substring, and parameter presence.
+- Rule-generated vectors include OWASP category, severity, confidence,
+  narrative, prerequisite finding IDs, ordered steps, and suggested tools.
+- Runner invokes the attack vector engine after CVE correlation and skips
+  duplicate vectors by title/prerequisite set.
+- Default rules cover:
   - reflected XSS with missing CSP
   - SSRF to cloud metadata
   - weak JWT secret
   - unauthenticated SQL injection
   - exposed admin panel with weak/default auth indicators
   - CORS wildcard credentials
-- Persist generated attack vectors and steps.
-- Add LLM augmentation pass after deterministic vectors exist.
-- Keep LLM notes separate from deterministic rule output.
+- CVE matches with exploit availability and score >= 7 also produce vectors.
+- LLM review fields remain separate and default to unreviewed.
+- Unit tests cover all default rules, missing prerequisite behavior, and CVE
+  vector generation.
+
+### Remaining Work
+
+- None for the repository-level Phase 11 acceptance criteria.
 
 ### Spec Alignment Follow-ups
 
 - Fix rule references to current tool IDs where needed, while preserving spec
   semantics.
 - Ensure findings include tags required by attack rules.
+- Phase 12 should add LLM annotation/review only after deterministic vectors are
+  generated, without overwriting rule facts.
+- Phase 13 and Phase 16 should expose vectors through API and UI surfaces.
 
 ### Acceptance Criteria
 
@@ -1058,7 +1060,7 @@ must be carried forward:
 | 9. DAG Engine | Phase 5 | Implemented | Dependency levels, same-level concurrency, semaphores, timeout/delay controls, prior-result propagation, and phase events exist. |
 | 10. LLM Integration | Phase 12 | Pending | Session fields/placeholders exist only. |
 | 11. CVE Intelligence | Phase 10 | Implemented | Correlator, offline source, cache, NVD client parser, evidence CVE extraction, persisted matches, and draft vectors exist; richer remote source parsers remain follow-ups. |
-| 12. Attack Vector Engine | Phase 11 | Partial | Models/rules started; full engine pending. |
+| 12. Attack Vector Engine | Phase 11 | Implemented | Deterministic rule engine, default rules, scoring, steps, persistence integration, CVE vector merging, and rule tests exist; LLM annotation remains Phase 12. |
 | 13. REST API Surface | Phase 13 | Partial | Core read/start endpoints exist; stop/vector/CVE/LLM/report/auth pending. |
 | 14. CLI Commands | Phase 14 | Partial | Core commands exist; full flags/config/LLM/report pending. |
 | 15. Web UI Pages | Phase 16 | Partial | Dashboard exists; full session pages pending. |
