@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/kanini/nox/internal/adapters"
+	cveintel "github.com/kanini/nox/internal/cve"
 	"github.com/kanini/nox/internal/db"
 	"github.com/kanini/nox/internal/models"
 )
@@ -213,6 +214,11 @@ func (r *Runner) Run(ctx context.Context, session models.Session) error {
 		}
 	}
 	finalCtx := context.WithoutCancel(ctx)
+	if !cancelled {
+		if cveErr := r.runCVECorrelation(finalCtx, session); cveErr != nil {
+			scanErr = cveErr
+		}
+	}
 	if err := r.store.UpdateSessionCounts(finalCtx, session.ID); err != nil {
 		return err
 	}
@@ -243,6 +249,56 @@ func (r *Runner) Run(ctx context.Context, session models.Session) error {
 		At:        completed,
 	})
 	return scanErr
+}
+
+func (r *Runner) runCVECorrelation(ctx context.Context, session models.Session) error {
+	targets, err := r.store.ListTargets(ctx, session.ID)
+	if err != nil {
+		return err
+	}
+	findings, err := r.store.ListFindings(ctx, session.ID, db.FindingFilter{})
+	if err != nil {
+		return err
+	}
+	result, err := cveintel.NewDefaultCorrelator().Correlate(ctx, session, targets, findings)
+	if err != nil {
+		return err
+	}
+	for _, match := range result.Matches {
+		if exists, err := r.cveMatchExists(ctx, match); err != nil {
+			return err
+		} else if exists {
+			continue
+		}
+		if err := r.store.InsertCVEMatch(ctx, match); err != nil {
+			return err
+		}
+	}
+	for _, vector := range result.Vectors {
+		if err := r.store.InsertAttackVector(ctx, vector); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *Runner) cveMatchExists(ctx context.Context, match models.CVEMatch) (bool, error) {
+	var matches []models.CVEMatch
+	var err error
+	if match.TechnologyID != "" {
+		matches, err = r.store.ListCVEMatchesByTechnology(ctx, match.TechnologyID)
+	} else if match.FindingID != "" {
+		matches, err = r.store.ListCVEMatchesByFinding(ctx, match.FindingID)
+	}
+	if err != nil {
+		return false, err
+	}
+	for _, existing := range matches {
+		if existing.CVEID == match.CVEID {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (r *Runner) persist(ctx context.Context, sessionID string, output adapters.AdapterOutput) error {

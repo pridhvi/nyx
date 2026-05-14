@@ -37,10 +37,10 @@ specific implementation is proven incompatible with the spec.
 ## Implementation Order
 
 Work should proceed from the lowest-numbered phase that still has remaining
-acceptance criteria. Phases 0, 1, 2, 3, 4, 5, 6, 7, 8, and 9 are complete from
-the repository perspective, so the next implementation focus is Phase 10:
-CVE Intelligence. Later phases can be inspected for context, but
-implementation should not skip ahead unless a Phase 10 task explicitly depends
+acceptance criteria. Phases 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, and 10 are complete
+from the repository perspective, so the next implementation focus is Phase 11:
+Attack Vector Engine. Later phases can be inspected for context, but
+implementation should not skip ahead unless a Phase 11 task explicitly depends
 on later-phase context.
 
 ## Current Baseline
@@ -65,7 +65,7 @@ must be carried forward:
   for `ffuf`, `arjun`, `linkfinder`, `gitleaks`, JavaScript secret scanning,
   CORS checks, scoped cloud bucket checks, plus vulnerability adapters for
   `nuclei` vulnerability templates, `sqlmap`, `dalfox`, SSRFmap, `jwt_tool`,
-  OAuth, SSTI, XXE, and `nikto`.
+  OAuth, SSTI, XXE, `nikto`, and CVE intelligence correlation.
 - **MVP external adapter slice:** Optional subprocess wrappers for `nmap`,
   `subfinder`, `dnsx`, `naabu`, `httpx`, `whois`, `waybackurls`, `ffuf`,
   `whatweb`, `nuclei`, `testssl.sh`, `wpscan`, `droopescan`, `arjun`,
@@ -578,38 +578,43 @@ must be carried forward:
 
 ## Phase 10: CVE Intelligence
 
-**Status:** Partial  
+**Status:** Implemented
 **Spec sections covered:** 5.4, 11, 16 CVE settings
 
 ### Existing Baseline
 
 - CVE model exists.
-- No complete CVE client/correlator exists yet.
+- CVE match persistence exists.
+- `internal/cve` package provides deterministic correlation, in-memory cache,
+  offline JSON source support, embedded advisory fallback data, and HTTP client
+  scaffolding for NVD, OSV.dev, CIRCL, vulners.com, and GitHub Security
+  Advisories.
+- `NOX_CVE_OFFLINE_PATH` enables local offline advisory data.
+- `NOX_CVE_ENABLE_REMOTE=true` opts in to remote CVE clients; default operation
+  remains local/offline-friendly.
+- Runner invokes CVE correlation after scan phases complete and before final
+  session counts/status are updated.
+- Technology/version matches are persisted as `cve_matches`.
+- CVE identifiers observed in finding evidence are persisted as finding-linked
+  `cve_matches`.
+- Exploitable CVEs with CVSS score >= 7.0 create draft attack vectors.
+- Unit tests cover cache reuse, offline source matching, technology matching,
+  finding evidence matching, CVE ID extraction, and draft vector generation.
 
 ### Remaining Work
 
-- Add `internal/cve` package with clients for:
-  - NVD API v2
-  - OSV.dev
-  - CIRCL CVE Search
-  - vulners.com
-  - Exploit-DB offline mirror/CSV
-  - GitHub Security Advisories
-- Add cache with configurable TTL.
-- Add offline mode using local mirrors.
-- Correlate technology name/version to CVEs.
-- Score confidence:
-  - exact version match
-  - version range match
-  - product-only match
-- Persist CVE matches and references.
-- Mark exploit availability and patch/fix version where known.
-- Automatically draft attack vectors for exploitable CVEs with score >= 7.0.
+- None for the repository-level Phase 10 acceptance criteria.
 
 ### Spec Alignment Follow-ups
 
 - Technology persistence from fingerprinting is a prerequisite for full CVE
   correlation.
+- Expand remote client parsers beyond NVD as API credentials and rate-limit
+  behavior are configured in Phase 14.
+- Add an Exploit-DB CSV source when a local mirror path is specified.
+- Persist CVE cache to disk if repeated process restarts need cache reuse.
+- Phase 11 should merge CVE-generated draft vectors with deterministic attack
+  vector rules.
 
 ### Acceptance Criteria
 
@@ -1052,7 +1057,7 @@ must be carried forward:
 | 8. Tool Pipeline | Phases 6-9 | Implemented | Recon, fingerprinting, enumeration, and vulnerability-scanning adapter slices now cover Phases 6-9; deeper Go-library migrations and richer targeting remain follow-ups. |
 | 9. DAG Engine | Phase 5 | Implemented | Dependency levels, same-level concurrency, semaphores, timeout/delay controls, prior-result propagation, and phase events exist. |
 | 10. LLM Integration | Phase 12 | Pending | Session fields/placeholders exist only. |
-| 11. CVE Intelligence | Phase 10 | Pending | Model exists; engine pending. |
+| 11. CVE Intelligence | Phase 10 | Implemented | Correlator, offline source, cache, NVD client parser, evidence CVE extraction, persisted matches, and draft vectors exist; richer remote source parsers remain follow-ups. |
 | 12. Attack Vector Engine | Phase 11 | Partial | Models/rules started; full engine pending. |
 | 13. REST API Surface | Phase 13 | Partial | Core read/start endpoints exist; stop/vector/CVE/LLM/report/auth pending. |
 | 14. CLI Commands | Phase 14 | Partial | Core commands exist; full flags/config/LLM/report pending. |
