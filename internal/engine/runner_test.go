@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -120,10 +121,129 @@ func TestRunnerLoadsConfiguredPlugins(t *testing.T) {
 	t.Fatalf("expected failed configured plugin tool run, got %#v", runs)
 }
 
+func TestAdapterLevelsDetectDependencyErrors(t *testing.T) {
+	_, err := adapterLevels([]adapters.Adapter{
+		fakeRunnerAdapter{id: "dependent", deps: []string{"missing"}},
+	})
+	if err == nil {
+		t.Fatal("expected missing dependency error")
+	}
+	_, err = adapterLevels([]adapters.Adapter{
+		fakeRunnerAdapter{id: "a", deps: []string{"b"}},
+		fakeRunnerAdapter{id: "b", deps: []string{"a"}},
+	})
+	if err == nil {
+		t.Fatal("expected cycle error")
+	}
+}
+
+func TestRunnerRunsSameLevelAdaptersInParallel(t *testing.T) {
+	ctx := context.Background()
+	session, store := testRunnerStore(t, ctx)
+	sleep := 120 * time.Millisecond
+	runner := NewRunnerWithOptions(store, []adapters.Adapter{
+		fakeRunnerAdapter{id: "parallel-a", sleep: sleep},
+		fakeRunnerAdapter{id: "parallel-b", sleep: sleep},
+	}, nil, RunnerOptions{GlobalConcurrency: 2, PerToolConcurrency: 1})
+	started := time.Now()
+	if err := runner.Run(ctx, session); err != nil {
+		t.Fatal(err)
+	}
+	if elapsed := time.Since(started); elapsed >= sleep*2 {
+		t.Fatalf("expected parallel execution under %s, got %s", sleep*2, elapsed)
+	}
+}
+
+func TestRunnerPerToolSemaphoreLimitsTargetConcurrency(t *testing.T) {
+	ctx := context.Background()
+	session, store := testRunnerStore(t, ctx)
+	if err := store.InsertTarget(ctx, models.Target{
+		ID:           models.NewID(),
+		SessionID:    session.ID,
+		Host:         "example.com",
+		Port:         8443,
+		Protocol:     "https",
+		IsAlive:      true,
+		DiscoveredBy: "test",
+		CreatedAt:    time.Now().UTC(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	sleep := 80 * time.Millisecond
+	runner := NewRunnerWithOptions(store, []adapters.Adapter{
+		fakeRunnerAdapter{id: "serialized", sleep: sleep},
+	}, nil, RunnerOptions{GlobalConcurrency: 2, PerToolConcurrency: 1})
+	started := time.Now()
+	if err := runner.Run(ctx, session); err != nil {
+		t.Fatal(err)
+	}
+	if elapsed := time.Since(started); elapsed < sleep*2 {
+		t.Fatalf("expected per-tool semaphore to serialize two targets for at least %s, got %s", sleep*2, elapsed)
+	}
+}
+
+func TestRunnerPropagatesPriorFindingsAndTechnologies(t *testing.T) {
+	ctx := context.Background()
+	session, store := testRunnerStore(t, ctx)
+	var sawPrior atomic.Bool
+	first := fakeRunnerAdapter{
+		id: "first",
+		output: adapters.AdapterOutput{
+			Findings: []models.Finding{{
+				ID:                 models.NewID(),
+				SessionID:          session.ID,
+				TargetID:           "",
+				ToolID:             "first",
+				Type:               models.FindingTypeInfo,
+				Severity:           models.SeverityInfo,
+				Confidence:         0.5,
+				Title:              "first finding",
+				EvidenceNormalized: "{}",
+				Tags:               []string{"test"},
+				CreatedAt:          time.Now().UTC(),
+			}},
+			Technologies: []models.Technology{{
+				ID:         models.NewID(),
+				Name:       "first-tech",
+				Category:   "test",
+				Confidence: 0.5,
+				SourceTool: "first",
+			}},
+		},
+	}
+	second := fakeRunnerAdapter{
+		id:   "second",
+		deps: []string{"first"},
+		runFunc: func(ctx context.Context, input adapters.AdapterInput) (adapters.AdapterOutput, error) {
+			if len(input.PriorFindings) > 0 && len(input.PriorTechnologies) > 0 {
+				sawPrior.Store(true)
+			}
+			return adapters.AdapterOutput{ToolRun: models.ToolRun{
+				ID:        models.NewID(),
+				SessionID: input.Session.ID,
+				TargetID:  input.Target.ID,
+				ToolID:    "second",
+				StartedAt: time.Now().UTC(),
+			}}, nil
+		},
+	}
+	runner := NewRunnerWithOptions(store, []adapters.Adapter{second, first}, nil, RunnerOptions{GlobalConcurrency: 2, PerToolConcurrency: 1})
+	if err := runner.Run(ctx, session); err != nil {
+		t.Fatal(err)
+	}
+	if !sawPrior.Load() {
+		t.Fatal("expected dependent adapter to receive accumulated findings and technologies")
+	}
+}
+
 type fakeRunnerAdapter struct {
 	id      string
 	err     error
 	run     models.ToolRun
+	output  adapters.AdapterOutput
+	phase   adapters.Phase
+	deps    []string
+	sleep   time.Duration
 	runFunc func(context.Context, adapters.AdapterInput) (adapters.AdapterOutput, error)
 }
 
@@ -131,15 +251,50 @@ func (a fakeRunnerAdapter) ID() string { return a.id }
 
 func (a fakeRunnerAdapter) Name() string { return a.id }
 
-func (a fakeRunnerAdapter) Phase() adapters.Phase { return adapters.PhaseRecon }
+func (a fakeRunnerAdapter) Phase() adapters.Phase {
+	if a.phase != "" {
+		return a.phase
+	}
+	return adapters.PhaseRecon
+}
 
-func (a fakeRunnerAdapter) DependsOn() []string { return nil }
+func (a fakeRunnerAdapter) DependsOn() []string { return a.deps }
 
 func (a fakeRunnerAdapter) ShouldRun(adapters.AdapterInput) bool { return true }
 
 func (a fakeRunnerAdapter) Run(ctx context.Context, input adapters.AdapterInput) (adapters.AdapterOutput, error) {
 	if a.runFunc != nil {
 		return a.runFunc(ctx, input)
+	}
+	if a.sleep > 0 {
+		select {
+		case <-ctx.Done():
+			return adapters.AdapterOutput{}, ctx.Err()
+		case <-time.After(a.sleep):
+		}
+	}
+	if a.output.ToolRun.ID != "" || len(a.output.Findings) > 0 || len(a.output.NewTargets) > 0 || len(a.output.Technologies) > 0 {
+		output := a.output
+		if output.ToolRun.ID == "" {
+			output.ToolRun = models.ToolRun{
+				ID:        models.NewID(),
+				SessionID: input.Session.ID,
+				TargetID:  input.Target.ID,
+				ToolID:    a.id,
+				StartedAt: time.Now().UTC(),
+			}
+		}
+		for i := range output.Findings {
+			if output.Findings[i].TargetID == "" {
+				output.Findings[i].TargetID = input.Target.ID
+			}
+		}
+		for i := range output.Technologies {
+			if output.Technologies[i].TargetID == "" {
+				output.Technologies[i].TargetID = input.Target.ID
+			}
+		}
+		return output, a.err
 	}
 	run := a.run
 	if run.SessionID == "" {

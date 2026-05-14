@@ -22,6 +22,7 @@ This repository currently contains the buildable foundation plus the first safe 
 - Asynchronous API scan start with polling-friendly status/read endpoints.
 - WebSocket scan lifecycle stream for queued/running/tool/finding/completed progress.
 - Running API scans can be cancelled with `POST /api/scan/{id}/stop`.
+- DAG-style scheduler with dependency levels, same-level concurrency, phase events, and per-tool concurrency controls.
 - Dashboard wired to real session, stats, and finding data.
 - Dashboard live progress feed for the selected session.
 - Subprocess plugin JSON contract and runner.
@@ -65,13 +66,13 @@ The Docker image bundles the Nox binary and common external scanner tools. Singl
 
 ## Roadmap
 
-Implementation now proceeds in order from the lowest incomplete phase in [docs/implementation-plan.md](docs/implementation-plan.md). Phases 0, 1, 2, 3, and 4 are complete from the repository perspective; the next focus is Phase 5:
+Implementation now proceeds in order from the lowest incomplete phase in [docs/implementation-plan.md](docs/implementation-plan.md). Phases 0, 1, 2, 3, 4, and 5 are complete from the repository perspective; the next focus is Phase 6:
 
-1. Evolve the simple dependency-ordered runner into the spec DAG scheduler.
-2. Add phase-level lifecycle events while keeping existing dashboard event compatibility.
-3. Add concurrency, rate-limit, and timeout controls.
-4. Propagate accumulated findings, technologies, and targets to later adapters.
-5. Keep cancellation and tool-failure semantics from Phase 3 intact.
+1. Expand reconnaissance adapters while preserving existing safe built-ins.
+2. Add subprocess `whois`, `crt.sh` HTTP lookup, and `waybackurls` support where available.
+3. Normalize all recon output into targets, technologies, findings, and tool runs.
+4. Add fixture-backed parser tests for each new recon adapter.
+5. Keep missing external tools optional with persisted failed `tool_runs`.
 
 ## Safety Boundary
 

@@ -37,11 +37,11 @@ specific implementation is proven incompatible with the spec.
 ## Implementation Order
 
 Work should proceed from the lowest-numbered phase that still has remaining
-acceptance criteria. Phases 0, 1, 2, 3, and 4 are complete from the repository
-perspective, so the next implementation focus is Phase 5: DAG Scheduler And
-Live Scan Events. Later phases can be inspected for context, but implementation
-should not skip ahead unless a Phase 5 task explicitly depends on later-phase
-context.
+acceptance criteria. Phases 0, 1, 2, 3, 4, and 5 are complete from the
+repository perspective, so the next implementation focus is Phase 6:
+Reconnaissance Adapters. Later phases can be inspected for context, but
+implementation should not skip ahead unless a Phase 6 task explicitly depends
+on later-phase context.
 
 ## Current Baseline
 
@@ -316,7 +316,7 @@ must be carried forward:
 
 ## Phase 5: DAG Scheduler And Live Scan Events
 
-**Status:** Partial  
+**Status:** Implemented  
 **Spec sections covered:** 8, 9, 13 WebSocket event format
 
 ### Existing Baseline
@@ -326,31 +326,28 @@ must be carried forward:
   finding found, failed, and completed states.
 - API exposes `GET /api/scan/{id}/events` as the current WebSocket endpoint.
 - Dashboard consumes live events and retains REST polling fallback.
+- Runner now builds dependency levels from adapter `DependsOn()` declarations.
+- Same-level adapters run concurrently subject to global and per-tool
+  semaphores.
+- Runner options expose testable global concurrency, per-tool concurrency,
+  per-tool delay, and per-tool timeout controls.
+- Adapter inputs receive accumulated prior findings and technologies from
+  earlier dependency levels.
+- Phase-level events and tool-error events are emitted while preserving existing
+  dashboard-compatible event types.
+- Cancellation emits a dedicated cancelled event and retains Phase 3 cancelled
+  status semantics.
 
 ### Remaining Work
 
-- Evolve simple runner into the full spec DAG scheduler:
-  - build graph from registered adapters
-  - topologically sort into executable phases
-  - run same-phase adapters concurrently where safe
-  - enforce per-tool semaphores
-  - enforce global and per-tool rate limits
-  - propagate accumulated findings, targets, and technologies to later adapters
-  - handle context cancellation and timeouts
-  - trigger CVE correlator and attack vector engine after scanner phases
-- Add phase-level events:
-  - phase started
-  - phase completed
-  - tool error
-  - scan cancelled
-- Add WebSocket compatibility alias for spec route `WS /ws/scan/{id}` while
-  keeping `GET /api/scan/{id}/events`.
-- Align event payloads with spec while maintaining current client compatibility.
+- CVE correlator and attack vector engine triggers remain deferred to Phases 10
+  and 11, after the scanner pipeline produces richer technology and finding
+  data.
 
 ### Spec Alignment Follow-ups
 
-- Do not discard current runner; refactor it incrementally into DAG/scheduler
-  components.
+- Do not discard current runner; continue evolving it incrementally as scanner
+  phases become richer.
 - Keep existing event types stable for the dashboard.
 
 ### Acceptance Criteria
@@ -1013,7 +1010,7 @@ must be carried forward:
 | 6. Database Schema | Phase 2 | Implemented | Schema covers sessions, targets, findings, evidence, technologies, CVEs, vectors, tool runs, LLM analyses, plugins, and migrations. |
 | 7. Tool Adapter System | Phase 4 | Implemented | Built-in registry and configured subprocess plugin adapters coexist; broader ecosystem docs remain later. |
 | 8. Tool Pipeline | Phases 6-9 | Partial | MVP built-ins and four external wrappers exist; full pipeline pending. |
-| 9. DAG Engine | Phase 5 | Partial | Dependency order exists; concurrency/rate limits/phase engine pending. |
+| 9. DAG Engine | Phase 5 | Implemented | Dependency levels, same-level concurrency, semaphores, timeout/delay controls, prior-result propagation, and phase events exist. |
 | 10. LLM Integration | Phase 12 | Pending | Session fields/placeholders exist only. |
 | 11. CVE Intelligence | Phase 10 | Pending | Model exists; engine pending. |
 | 12. Attack Vector Engine | Phase 11 | Partial | Models/rules started; full engine pending. |

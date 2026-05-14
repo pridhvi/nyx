@@ -17,10 +17,10 @@ This repo has a buildable backend with per-session SQLite persistence, a synchro
 
 ## Suggested Next Tasks
 
-Proceed in order from the lowest incomplete phase in `docs/implementation-plan.md`. Phases 0, 1, 2, 3, and 4 are complete from the repository perspective; the next focus is Phase 5:
+Proceed in order from the lowest incomplete phase in `docs/implementation-plan.md`. Phases 0, 1, 2, 3, 4, and 5 are complete from the repository perspective; the next focus is Phase 6:
 
-1. Evolve the simple dependency-ordered runner into the spec DAG scheduler.
-2. Add phase-level lifecycle events while keeping existing dashboard event compatibility.
-3. Add concurrency, rate-limit, and timeout controls.
-4. Propagate accumulated findings, technologies, and targets to later adapters.
-5. Keep cancellation and tool-failure semantics from Phase 3 intact.
+1. Expand reconnaissance adapters while preserving existing safe built-ins.
+2. Add subprocess `whois`, `crt.sh` HTTP lookup, and `waybackurls` support where available.
+3. Normalize all recon output into targets, technologies, findings, and tool runs.
+4. Add fixture-backed parser tests for each new recon adapter.
+5. Keep missing external tools optional with persisted failed `tool_runs`.
