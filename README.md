@@ -25,6 +25,7 @@ This repository currently contains the buildable foundation plus the first safe 
 - Dashboard wired to real session, stats, and finding data.
 - Dashboard live progress feed for the selected session.
 - Subprocess plugin JSON contract and runner.
+- Session-scoped plugin install/list support for configured subprocess adapters.
 - Optional subprocess adapters for `nmap`, `ffuf`, `sqlmap`, and `dalfox`, with graceful degradation when tools are unavailable.
 - React/Vite frontend scaffold for dashboard, graph, LLM, and reports.
 
@@ -64,13 +65,13 @@ The Docker image bundles the Nox binary and common external scanner tools. Singl
 
 ## Roadmap
 
-Implementation now proceeds in order from the lowest incomplete phase in [docs/implementation-plan.md](docs/implementation-plan.md). Phases 0, 1, 2, and 3 are complete from the repository perspective; the next focus is Phase 4:
+Implementation now proceeds in order from the lowest incomplete phase in [docs/implementation-plan.md](docs/implementation-plan.md). Phases 0, 1, 2, 3, and 4 are complete from the repository perspective; the next focus is Phase 5:
 
-1. Complete plugin install/register flows for subprocess adapters.
-2. Persist and load configured plugin metadata from the Phase 2 plugin store.
-3. Add plugin directory loading from configuration when config support lands.
-4. Expand plugin request/response metadata only where adapters need it.
-5. Preserve the current built-in adapter registry and subprocess runner.
+1. Evolve the simple dependency-ordered runner into the spec DAG scheduler.
+2. Add phase-level lifecycle events while keeping existing dashboard event compatibility.
+3. Add concurrency, rate-limit, and timeout controls.
+4. Propagate accumulated findings, technologies, and targets to later adapters.
+5. Keep cancellation and tool-failure semantics from Phase 3 intact.
 
 ## Safety Boundary
 

@@ -37,11 +37,11 @@ specific implementation is proven incompatible with the spec.
 ## Implementation Order
 
 Work should proceed from the lowest-numbered phase that still has remaining
-acceptance criteria. Phases 0, 1, 2, and 3 are complete from the repository
-perspective, so the next implementation focus is Phase 4: Adapter System,
-Registry, And Plugin Contract. Later phases can be inspected for context, but
-implementation should not skip ahead unless a Phase 4 task explicitly depends
-on later-phase context.
+acceptance criteria. Phases 0, 1, 2, 3, and 4 are complete from the repository
+perspective, so the next implementation focus is Phase 5: DAG Scheduler And
+Live Scan Events. Later phases can be inspected for context, but implementation
+should not skip ahead unless a Phase 5 task explicitly depends on later-phase
+context.
 
 ## Current Baseline
 
@@ -272,7 +272,7 @@ must be carried forward:
 
 ## Phase 4: Adapter System, Registry, And Plugin Contract
 
-**Status:** Partial  
+**Status:** Implemented  
 **Spec sections covered:** 3.5, 7
 
 ### Existing Baseline
@@ -284,28 +284,25 @@ must be carried forward:
 - Direct subprocess command helper exists for scanner CLIs.
 - MVP external adapters record `tool_runs` for missing binaries, timeouts,
   non-zero exits, and parser-normalized findings.
+- CLI plugin management supports `nox plugins list` and
+  `nox plugins install --session <id> <path>`.
+- Configured plugin metadata persists in the per-session plugin store.
+- Enabled configured plugins load into the scan runner alongside built-in
+  adapters.
+- Configured plugins invoke the subprocess JSON contract and normalize returned
+  findings, technologies, and new targets into session models.
+- Missing or failing plugin binaries produce failed persisted `tool_runs`
+  without failing the scan.
 
 ### Remaining Work
 
-- Complete plugin management:
-  - install/register plugin binaries
-  - persist plugin metadata
-  - list configured plugins
-  - load plugin directories from config
-- Expand plugin request/response schema if needed for:
-  - scan config
-  - tool-specific config
-  - evidence artifacts
-  - technologies
-  - new targets
-- Add tool path auto-detection and config overrides for all external tools.
-- Add adapter fixture test structure under `testdata`.
-- Add normalized parser tests for each external adapter.
-- Add clear adapter authoring documentation.
+- Plugin directory loading, config-backed tool path overrides, expanded adapter
+  authoring docs, and broader fixture layout are deferred to configuration and
+  scanner-expansion phases.
 
 ### Spec Alignment Follow-ups
 
-- Keep current subprocess JSON-RPC contract as the initial plugin mechanism.
+- Keep current subprocess JSON contract as the initial plugin mechanism.
 - Treat `hashicorp/go-plugin` or gRPC plugins as future optimization only.
 
 ### Acceptance Criteria
@@ -1009,12 +1006,12 @@ must be carried forward:
 | 3.2 Dependencies | Phases 0, 10, 12, 15, 17, 18 | Partial | SQLite/WebSocket present; many listed deps not yet added. |
 | 3.3 Frontend | Phase 16 | Partial | Dashboard exists; full page set pending. |
 | 3.4 Database | Phase 2 | Implemented | Per-session SQLite, ordered migrations, and store methods cover Phase 2 persistence; optional Postgres remains later. |
-| 3.5 Plugin System | Phase 4 | Partial | JSON contract exists; install/persist/load flow pending. |
+| 3.5 Plugin System | Phase 4 | Implemented | JSON contract, CLI install/list, plugin persistence, configured plugin loading, and failed tool-run degradation exist. |
 | 3.6 Packaging | Phase 17 | Partial | Docker, Compose, Makefile, CI build, and snapshot release exist; deeper release hardening pending. |
 | 4. Project Structure | All phases | Partial | Current structure is close but not complete. |
 | 5. Core Data Models | Phase 1 | Implemented | Canonical models, report metadata models, additive CVE version fields, and serialization/validation tests exist. |
 | 6. Database Schema | Phase 2 | Implemented | Schema covers sessions, targets, findings, evidence, technologies, CVEs, vectors, tool runs, LLM analyses, plugins, and migrations. |
-| 7. Tool Adapter System | Phase 4 | Partial | Interface/registry/runners exist; plugin ecosystem pending. |
+| 7. Tool Adapter System | Phase 4 | Implemented | Built-in registry and configured subprocess plugin adapters coexist; broader ecosystem docs remain later. |
 | 8. Tool Pipeline | Phases 6-9 | Partial | MVP built-ins and four external wrappers exist; full pipeline pending. |
 | 9. DAG Engine | Phase 5 | Partial | Dependency order exists; concurrency/rate limits/phase engine pending. |
 | 10. LLM Integration | Phase 12 | Pending | Session fields/placeholders exist only. |

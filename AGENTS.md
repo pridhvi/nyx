@@ -17,10 +17,10 @@ This repo has a buildable backend with per-session SQLite persistence, a synchro
 
 ## Suggested Next Tasks
 
-Proceed in order from the lowest incomplete phase in `docs/implementation-plan.md`. Phases 0, 1, 2, and 3 are complete from the repository perspective; the next focus is Phase 4:
+Proceed in order from the lowest incomplete phase in `docs/implementation-plan.md`. Phases 0, 1, 2, 3, and 4 are complete from the repository perspective; the next focus is Phase 5:
 
-1. Complete plugin install/register flows for subprocess adapters.
-2. Persist and load configured plugin metadata from the Phase 2 plugin store.
-3. Add plugin directory loading from configuration when config support lands.
-4. Expand plugin request/response metadata only where adapters need it.
-5. Preserve the current built-in adapter registry and subprocess runner.
+1. Evolve the simple dependency-ordered runner into the spec DAG scheduler.
+2. Add phase-level lifecycle events while keeping existing dashboard event compatibility.
+3. Add concurrency, rate-limit, and timeout controls.
+4. Propagate accumulated findings, technologies, and targets to later adapters.
+5. Keep cancellation and tool-failure semantics from Phase 3 intact.

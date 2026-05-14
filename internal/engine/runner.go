@@ -19,11 +19,13 @@ type Runner struct {
 }
 
 func NewRunner(store *db.Store) *Runner {
-	return &Runner{
+	runner := &Runner{
 		store:      store,
 		adapters:   DefaultSafeAdapters(),
 		httpClient: &http.Client{Timeout: 15 * time.Second},
 	}
+	runner.loadConfiguredPlugins(context.Background())
+	return runner
 }
 
 func DefaultSafeAdapters() []adapters.Adapter {
@@ -41,7 +43,9 @@ func NewRunnerWithHTTPClient(store *db.Store, client adapters.HTTPDoer) *Runner 
 	if client == nil {
 		client = &http.Client{Timeout: 15 * time.Second}
 	}
-	return &Runner{store: store, adapters: DefaultSafeAdapters(), httpClient: client}
+	runner := &Runner{store: store, adapters: DefaultSafeAdapters(), httpClient: client}
+	runner.loadConfiguredPlugins(context.Background())
+	return runner
 }
 
 func NewRunnerWithAdapters(store *db.Store, scanAdapters []adapters.Adapter, client adapters.HTTPDoer) *Runner {
@@ -50,6 +54,22 @@ func NewRunnerWithAdapters(store *db.Store, scanAdapters []adapters.Adapter, cli
 
 func (r *Runner) OnEvent(handler ScanEventHandler) {
 	r.onEvent = handler
+}
+
+func (r *Runner) loadConfiguredPlugins(ctx context.Context) {
+	if r.store == nil {
+		return
+	}
+	plugins, err := r.store.ListPlugins(ctx)
+	if err != nil {
+		return
+	}
+	for _, plugin := range plugins {
+		if !plugin.Enabled {
+			continue
+		}
+		r.adapters = append(r.adapters, adapters.NewConfiguredPlugin(plugin))
+	}
 }
 
 func (r *Runner) Run(ctx context.Context, session models.Session) error {
@@ -184,6 +204,11 @@ func (r *Runner) Run(ctx context.Context, session models.Session) error {
 func (r *Runner) persist(ctx context.Context, sessionID string, output adapters.AdapterOutput) error {
 	for _, target := range output.NewTargets {
 		if err := r.store.UpdateTarget(ctx, target); err != nil {
+			return err
+		}
+	}
+	for _, technology := range output.Technologies {
+		if err := r.store.InsertTechnology(ctx, technology); err != nil {
 			return err
 		}
 	}

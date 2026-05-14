@@ -58,6 +58,7 @@ Usage:
   nox sessions findings <id>
   nox sessions runs <id>
   nox plugins list
+  nox plugins install --session <id> <path>
   nox report <session-id>
   nox version`)
 }

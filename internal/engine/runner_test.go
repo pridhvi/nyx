@@ -90,6 +90,36 @@ func TestRunnerCancellationSetsCancelledStatus(t *testing.T) {
 	}
 }
 
+func TestRunnerLoadsConfiguredPlugins(t *testing.T) {
+	ctx := context.Background()
+	session, store := testRunnerStore(t, ctx)
+	now := time.Now().UTC()
+	if err := store.UpsertPlugin(ctx, models.PluginRecord{
+		ID:        models.NewID(),
+		Name:      "missing-fixture",
+		Binary:    filepath.Join(t.TempDir(), "missing-plugin"),
+		Enabled:   true,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	runner := NewRunnerWithHTTPClient(store, nil)
+	if err := runner.Run(ctx, session); err != nil {
+		t.Fatal(err)
+	}
+	runs, err := store.ListToolRuns(ctx, session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, run := range runs {
+		if run.ToolID == "plugin:missing-fixture" && run.ExitCode != 0 {
+			return
+		}
+	}
+	t.Fatalf("expected failed configured plugin tool run, got %#v", runs)
+}
+
 type fakeRunnerAdapter struct {
 	id      string
 	err     error

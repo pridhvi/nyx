@@ -177,7 +177,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 }
 
 func (s *Store) UpdateTarget(ctx context.Context, target models.Target) error {
-	_, err := s.db.ExecContext(ctx, `
+	result, err := s.db.ExecContext(ctx, `
 UPDATE targets
 SET host = ?, ip = ?, port = ?, protocol = ?, is_alive = ?, discovered_by = ?
 WHERE id = ? AND session_id = ?`,
@@ -190,7 +190,17 @@ WHERE id = ? AND session_id = ?`,
 		target.ID,
 		target.SessionID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return s.InsertTarget(ctx, target)
+	}
+	return nil
 }
 
 func (s *Store) InsertFinding(ctx context.Context, finding models.Finding) error {
