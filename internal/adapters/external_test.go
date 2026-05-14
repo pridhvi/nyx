@@ -281,3 +281,95 @@ func TestParseDroopescanOutput(t *testing.T) {
 		t.Fatalf("unexpected technology: %#v", technologies[0])
 	}
 }
+
+func TestParseArjunFindings(t *testing.T) {
+	raw := `{"https://example.com/":{"params":["debug","next"]}}`
+	findings := parseArjunFindings(testExternalInput(), raw)
+	if len(findings) != 2 {
+		t.Fatalf("expected 2 findings, got %d", len(findings))
+	}
+	seen := map[string]bool{}
+	for _, finding := range findings {
+		if finding.ToolID != "arjun" || finding.Parameter == "" {
+			t.Fatalf("unexpected finding: %#v", finding)
+		}
+		seen[finding.Parameter] = true
+	}
+	if !seen["debug"] || !seen["next"] {
+		t.Fatalf("expected debug and next params, got %#v", seen)
+	}
+}
+
+func TestParseEndpointFindings(t *testing.T) {
+	raw := `/api/v1/users
+https://example.com/static/app.js
+https://other.example.net/out-of-scope`
+	input := testExternalInput()
+	input.Scope = fakeScope{allowed: map[string]bool{"example.com": true}}
+	findings := parseEndpointFindings(input, "linkfinder", raw)
+	if len(findings) != 2 {
+		t.Fatalf("expected 2 findings, got %d", len(findings))
+	}
+	if findings[0].ToolID != "linkfinder" || findings[0].Tags[1] != "javascript-endpoint" {
+		t.Fatalf("unexpected finding: %#v", findings[0])
+	}
+}
+
+func TestParseGitleaksFindings(t *testing.T) {
+	raw := `[{"RuleID":"generic-api-key","Description":"Generic API key","Secret":"abc123456789012345"}]`
+	findings := parseGitleaksFindings(testExternalInput(), raw)
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d", len(findings))
+	}
+	if findings[0].ToolID != "gitleaks" || findings[0].Severity != models.SeverityHigh {
+		t.Fatalf("unexpected finding: %#v", findings[0])
+	}
+}
+
+func TestScanSecretFindings(t *testing.T) {
+	raw := `const aws = "AKIA1234567890ABCDEF";`
+	findings := scanSecretFindings(testExternalInput(), "js-secret-scan", "https://example.com/app.js", raw)
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d", len(findings))
+	}
+	if findings[0].ToolID != "js-secret-scan" || findings[0].URL != "https://example.com/app.js" {
+		t.Fatalf("unexpected finding: %#v", findings[0])
+	}
+}
+
+func TestParseCORSFindings(t *testing.T) {
+	headers := map[string]string{
+		"access-control-allow-origin":      "*",
+		"access-control-allow-credentials": "true",
+	}
+	findings := parseCORSFindings(testExternalInput(), "https://example.com/", "https://nox.invalid", headers, `{"access-control-allow-origin":"*"}`)
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d", len(findings))
+	}
+	if findings[0].ToolID != "cors-check" || findings[0].Severity != models.SeverityMedium {
+		t.Fatalf("unexpected finding: %#v", findings[0])
+	}
+	if !hasTag(findings[0].Tags, "cors-wildcard-credentials") {
+		t.Fatalf("expected cors-wildcard-credentials tag, got %#v", findings[0].Tags)
+	}
+}
+
+func TestParseCloudBucketFindings(t *testing.T) {
+	raw := `<ListBucketResult><Name>example</Name><Contents><Key>public.txt</Key></Contents></ListBucketResult>`
+	findings := parseCloudBucketFindings(testExternalInput(), "https://example.s3.amazonaws.com/", 200, raw)
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d", len(findings))
+	}
+	if findings[0].ToolID != "cloud-bucket-check" || findings[0].Severity != models.SeverityHigh {
+		t.Fatalf("unexpected finding: %#v", findings[0])
+	}
+}
+
+func hasTag(tags []string, want string) bool {
+	for _, tag := range tags {
+		if tag == want {
+			return true
+		}
+	}
+	return false
+}

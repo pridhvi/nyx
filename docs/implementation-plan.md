@@ -37,10 +37,10 @@ specific implementation is proven incompatible with the spec.
 ## Implementation Order
 
 Work should proceed from the lowest-numbered phase that still has remaining
-acceptance criteria. Phases 0, 1, 2, 3, 4, 5, 6, and 7 are complete from the
-repository perspective, so the next implementation focus is Phase 8:
-Enumeration Adapters. Later phases can be inspected for context, but
-implementation should not skip ahead unless a Phase 8 task explicitly depends
+acceptance criteria. Phases 0, 1, 2, 3, 4, 5, 6, 7, and 8 are complete from the
+repository perspective, so the next implementation focus is Phase 9:
+Vulnerability Scanning Adapters. Later phases can be inspected for context, but
+implementation should not skip ahead unless a Phase 9 task explicitly depends
 on later-phase context.
 
 ## Current Baseline
@@ -61,14 +61,18 @@ must be carried forward:
   recon adapters for `subfinder`, `dnsx`, `naabu`, `httpx`, `whois`,
   `waybackurls`, `crt.sh`, plus fingerprinting adapters for `whatweb`,
   `nuclei` technology templates, `testssl.sh`, GraphQL introspection,
-  OpenAPI/Swagger discovery, `wpscan`, and `droopescan`.
+  OpenAPI/Swagger discovery, `wpscan`, `droopescan`, and enumeration adapters
+  for `ffuf`, `arjun`, `linkfinder`, `gitleaks`, JavaScript secret scanning,
+  CORS checks, and scoped cloud bucket checks.
 - **MVP external adapter slice:** Optional subprocess wrappers for `nmap`,
   `subfinder`, `dnsx`, `naabu`, `httpx`, `whois`, `waybackurls`, `ffuf`,
-  `whatweb`, `nuclei`, `testssl.sh`, `wpscan`, `droopescan`, `sqlmap`, and
-  `dalfox`, plus HTTP-based GraphQL/OpenAPI checks and a passive `crt.sh` HTTP
-  adapter that is registered but not run by default. This is a useful MVP slice
-  across spec reconnaissance, fingerprinting, enumeration, and vulnerability
-  scanning. It is not a replacement for every future spec adapter.
+  `whatweb`, `nuclei`, `testssl.sh`, `wpscan`, `droopescan`, `arjun`,
+  `linkfinder`, `gitleaks`, `sqlmap`, and `dalfox`, plus HTTP-based
+  GraphQL/OpenAPI/CORS/cloud bucket checks, JavaScript secret scanning, and a
+  passive `crt.sh` HTTP adapter that is registered but not run by default. This
+  is a useful MVP slice across spec reconnaissance, fingerprinting,
+  enumeration, and vulnerability scanning. It is not a replacement for every
+  future spec adapter.
 - **Runner:** Simple dependency-ordered runner with persisted tool runs and
   normalized findings. This should be incrementally evolved into the spec DAG
   scheduler instead of being thrown away.
@@ -475,37 +479,41 @@ must be carried forward:
 
 ## Phase 8: Enumeration Adapters
 
-**Status:** Partial  
+**Status:** Implemented
 **Spec sections covered:** 8 Phase 3
 
 ### Existing Baseline
 
 - MVP `ffuf` subprocess adapter discovers web paths when installed and a common
   wordlist exists.
+- Optional `arjun` subprocess adapter records hidden HTTP parameter findings.
+- Optional `linkfinder` subprocess adapter records JavaScript endpoint findings.
+- Optional `gitleaks` subprocess adapter records exposed secret findings.
+- Built-in JavaScript secret scan fetches the page and same-origin script files
+  and records matched secret patterns with raw evidence.
+- Built-in CORS check records wildcard/reflected-origin misconfigurations and
+  includes attack-vector tags such as `cors-wildcard-credentials`.
+- Built-in scoped cloud bucket check records public S3/GCS-style bucket
+  exposure only when the scanned target is itself the scoped bucket endpoint.
+- Missing external enumeration binaries degrade gracefully through persisted
+  failed `tool_runs`.
+- Parser tests cover hidden parameters, JavaScript endpoints, gitleaks output,
+  JavaScript secret patterns, CORS tags, and cloud bucket exposure.
 
 ### Remaining Work
 
-- Implement full enumeration pipeline:
-  - `ffuf` or `feroxbuster`
-  - `arjun`
-  - `linkfinder`
-  - `gitleaks` or `trufflehog`
-  - CORS check
-  - S3/GCS enumeration
-- Normalize:
-  - hidden directories and files
-  - hidden HTTP parameters
-  - JavaScript endpoints
-  - exposed secrets
-  - CORS misconfigurations
-  - public cloud bucket exposures
-- Feed discovered URLs and parameters into vulnerability scanning.
-- Add configurable wordlists and rate limits.
+- None for the repository-level Phase 8 acceptance criteria.
 
 ### Spec Alignment Follow-ups
 
 - Current `ffuf` adapter is an MVP slice and should be extended with configured
   wordlists, response filtering, and better path classification.
+- Add config-driven wordlists, per-tool rate limits, and response filters in
+  Phase 14.
+- Add optional `feroxbuster` or `trufflehog` alternatives if tool availability
+  or output quality is better than the current subprocess choices.
+- Feed persisted hidden parameter and endpoint findings into Phase 9
+  vulnerability-scanning target selection.
 
 ### Acceptance Criteria
 
@@ -1031,7 +1039,7 @@ must be carried forward:
 | 5. Core Data Models | Phase 1 | Implemented | Canonical models, report metadata models, additive CVE version fields, and serialization/validation tests exist. |
 | 6. Database Schema | Phase 2 | Implemented | Schema covers sessions, targets, findings, evidence, technologies, CVEs, vectors, tool runs, LLM analyses, plugins, and migrations. |
 | 7. Tool Adapter System | Phase 4 | Implemented | Built-in registry and configured subprocess plugin adapters coexist; broader ecosystem docs remain later. |
-| 8. Tool Pipeline | Phases 6-9 | Partial | Recon and fingerprinting adapters now cover Phases 6-7; enumeration and vulnerability scanning remain incomplete. |
+| 8. Tool Pipeline | Phases 6-9 | Partial | Recon, fingerprinting, and enumeration adapters now cover Phases 6-8; vulnerability scanning remains incomplete. |
 | 9. DAG Engine | Phase 5 | Implemented | Dependency levels, same-level concurrency, semaphores, timeout/delay controls, prior-result propagation, and phase events exist. |
 | 10. LLM Integration | Phase 12 | Pending | Session fields/placeholders exist only. |
 | 11. CVE Intelligence | Phase 10 | Pending | Model exists; engine pending. |
