@@ -29,6 +29,7 @@ archives:
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
     files:
       - README.md
+      - docs/deployment.md
       - docs/nox-project-spec.md
       - docs/implementation-plan.md
 

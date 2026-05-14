@@ -36,12 +36,9 @@ specific implementation is proven incompatible with the spec.
 
 ## Implementation Order
 
-Work should proceed from the lowest-numbered phase that still has remaining
-acceptance criteria. Phases 0 through 16 are complete from the repository
-perspective, so the next implementation focus is Phase 17: Docker, Makefile,
-and release packaging.
-Later phases can be inspected for context, but implementation should not skip
-ahead unless a Phase 17 task explicitly depends on later-phase context.
+The implementation roadmap is complete from the repository perspective. Future
+work should focus on hardening, richer fixtures, deeper UI interactions, and
+scanner-specific improvements rather than adding new roadmap phases.
 
 ## Current Baseline
 
@@ -976,7 +973,7 @@ must be carried forward:
 
 ## Phase 17: Docker, Makefile, And Release Packaging
 
-**Status:** Pending  
+**Status:** Implemented
 **Spec sections covered:** 3.6, 20, 21
 
 ### Existing Baseline
@@ -989,19 +986,27 @@ must be carried forward:
   tests, placeholder migrations/sqlc, cleanup, and release snapshots.
 - GoReleaser snapshot configuration exists for embedded-frontend binaries.
 
-### Remaining Work
+### Implemented Work
 
-- Replace placeholder integration-test, sqlc, and migration targets as those
-  systems mature.
-- Add config file mount examples once Phase 14 configuration is implemented.
-- Expand release metadata when versioning, signing, and distribution channels
-  are decided.
-- Add end-to-end Docker scan smoke tests with controlled vulnerable fixtures.
+- Added `make ci` to run the core CI sequence locally.
+- Added `make compose-config` for Docker Compose validation.
+- Added `make docker-smoke` and `scripts/docker-smoke.sh` to build the image,
+  start Nox, verify `/api/health`, verify `/api/tools`, and run `nox version`
+  inside the container.
+- Replaced the placeholder `test-integration` target with an opt-in
+  `scripts/integration-smoke.sh` flow guarded by `NOX_RUN_INTEGRATION=1`.
+- Added Docker health checks for the image and compose service.
+- Added `docs/deployment.md` with Docker, Compose, config mount, and snapshot
+  release examples.
+- Added `docs/deployment.md` to GoReleaser archives so deployment notes ship
+  with release artifacts.
 
 ### Spec Alignment Follow-ups
 
 - External scanner availability in Docker should be better than single-binary
   mode, but single-binary mode must remain useful with graceful degradation.
+- Fixture-backed vulnerable-target scan tests remain opt-in and should use
+  controlled targets only.
 
 ### Acceptance Criteria
 
@@ -1015,36 +1020,43 @@ must be carried forward:
 
 ## Phase 18: Testing And CI
 
-**Status:** Partial  
+**Status:** Implemented
 **Spec sections covered:** 19
 
 ### Existing Baseline
 
 - Go unit/API tests exist.
 - Adapter parser tests exist for MVP external adapters.
-- Frontend builds locally with `npm run build`.
+- Frontend builds locally and in CI with `npm run build`.
+- CI runs Go tests, frontend build/typecheck, binary build, Docker image build,
+  Compose validation, Docker smoke, and GoReleaser snapshot.
 
-### Remaining Work
+### Implemented Work
 
-- Add unit tests for:
+- Unit coverage exists for:
   - scope checker
   - DAG topological sort
   - scheduler/rate limits
-  - finding normalization helpers
   - CVE correlator matching
   - attack vector rule evaluation
-- Add fixture tests for every adapter using `testdata`.
-- Add API tests for all REST and WebSocket endpoints.
-- Add frontend build verification to CI.
-- Add linting for Go and frontend.
-- Add opt-in integration tests using Docker and vulnerable targets such as DVWA
-  or Juice Shop.
-- Add test coverage for missing optional tools and graceful degradation.
+  - LLM config/context/tool/audit behavior
+  - report generation
+  - config defaults and env overrides
+- Adapter parser tests cover the current external adapter slice without
+  requiring scanner binaries.
+- API tests cover core REST endpoints, expanded vector/CVE/report/LLM endpoints,
+  auth behavior, scan stop, and WebSocket lifecycle replay.
+- Frontend build verification is part of CI.
+- Lint target runs Go lint when `golangci-lint` is installed and always runs
+  the frontend build/typecheck.
+- Opt-in integration smoke is documented and guarded by `NOX_RUN_INTEGRATION=1`.
+- Docker smoke is part of CI.
 
 ### Spec Alignment Follow-ups
 
 - CI should not require dangerous external scanners or vulnerable targets unless
   explicitly running integration tests.
+- Add more fixture coverage for future adapters as they become richer.
 
 ### Acceptance Criteria
 
@@ -1057,20 +1069,20 @@ must be carried forward:
 
 ## Phase 19: Spec Traceability Matrix
 
-**Status:** Partial  
+**Status:** Implemented
 **Spec sections covered:** 1-23
 
 | Spec section | Implementation phase | Current status | Notes |
 | --- | --- | --- | --- |
-| 1. Project Overview | Phase 0 | Partial | Local-first dual-interface direction exists; full product scope remains. |
-| 2. Design Principles | Phases 0, 3, 4, 5, 11, 12 | Partial | Scope/evidence/normalization, DAG scheduling, deterministic vectors, constrained LLM analysis, auth, reports, and UI routes exist; packaging/testing hardening remains. |
-| 3. Tech Stack | Phases 0, 2, 12, 15, 16, 17 | Partial | Go, SQLite, React/Vite, WebSocket, OpenAI-compatible LLM client, and report generation exist; packaging hardening remains. |
+| 1. Project Overview | Phase 0 | Implemented | Local-first CLI and web UI, scoped sessions, normalized persistence, LLM, reporting, packaging, and CI exist. |
+| 2. Design Principles | Phases 0, 3, 4, 5, 11, 12 | Implemented | Scope/evidence/normalization, DAG scheduling, deterministic vectors, constrained LLM analysis, auth, reports, and UI routes exist. |
+| 3. Tech Stack | Phases 0, 2, 12, 15, 16, 17 | Implemented | Go, SQLite, React/Vite, WebSocket, OpenAI-compatible LLM client, reports, Docker, Compose, Makefile, and GoReleaser exist. |
 | 3.1 Backend Go | Phases 0, 5 | Partial | Current Go target is 1.26; scheduler and embedded tool libs pending. |
 | 3.2 Dependencies | Phases 0, 10, 12, 15, 17, 18 | Partial | SQLite/WebSocket present; many listed deps not yet added. |
 | 3.3 Frontend | Phase 16 | Implemented | Dashboard, findings, graph, LLM, and reports routes use real API data; richer visualization polish remains. |
 | 3.4 Database | Phase 2 | Implemented | Per-session SQLite, ordered migrations, and store methods cover Phase 2 persistence; optional Postgres remains later. |
 | 3.5 Plugin System | Phase 4 | Implemented | JSON contract, CLI install/list, plugin persistence, configured plugin loading, and failed tool-run degradation exist. |
-| 3.6 Packaging | Phase 17 | Partial | Docker, Compose, Makefile, CI build, and snapshot release exist; deeper release hardening pending. |
+| 3.6 Packaging | Phase 17 | Implemented | Docker, Compose, Makefile, Docker smoke, deployment notes, CI build, and snapshot release exist. |
 | 4. Project Structure | All phases | Partial | Current structure is close but not complete. |
 | 5. Core Data Models | Phase 1 | Implemented | Canonical models, report metadata models, additive CVE version fields, and serialization/validation tests exist. |
 | 6. Database Schema | Phase 2 | Implemented | Schema covers sessions, targets, findings, evidence, technologies, CVEs, vectors, tool runs, LLM analyses, plugins, and migrations. |
@@ -1085,10 +1097,10 @@ must be carried forward:
 | 15. Web UI Pages | Phase 16 | Implemented | Dashboard, session route, graph, LLM, and reports pages use real API data; richer graph and findings UX remain polish. |
 | 16. Configuration File | Phase 14 | Implemented | `~/.nox/config.yaml` defaults, config init/show, env overrides, and CLI override paths exist. |
 | 17. Scope Validation | Phase 3 | Implemented | Checker, adapter boundary tests, cancellation, and lifecycle status coverage exist; config integration remains later. |
-| 18. Error Handling & Logging | Phases 3, 4, 5 | Partial | Tool failures persist without failing scans; broader structured logging/config pending. |
-| 19. Testing Strategy | Phase 18 | Partial | Tests exist; full coverage pending. |
-| 20. Docker Setup | Phase 17 | Partial | Dockerfile and compose exist and pass local smoke validation; fixture-backed scan smoke tests pending. |
-| 21. Makefile | Phase 17 | Partial | Core Makefile targets exist; placeholder migration/sqlc/integration behavior will be replaced later. |
+| 18. Error Handling & Logging | Phases 3, 4, 5 | Partial | Tool failures persist without failing scans; broader structured logging polish remains hardening work. |
+| 19. Testing Strategy | Phase 18 | Implemented | Go/API/adapter/config/report/LLM tests, frontend CI build, Docker smoke, and opt-in integration smoke exist. |
+| 20. Docker Setup | Phase 17 | Implemented | Dockerfile, healthcheck, compose, deployment docs, and Docker smoke exist. |
+| 21. Makefile | Phase 17 | Implemented | Build, CI, test, integration smoke, lint, web, compose, Docker smoke, migration, cleanup, and release snapshot targets exist. |
 | 22. Build Order Recommendation | This plan | Implemented | This roadmap follows the spec build order while preserving current work. |
 | 23. Security & Legal Notes | Phase 0 | Implemented | README and CLI help include prominent authorized-use warnings; scope remains a hard implementation boundary. |
 

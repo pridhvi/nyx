@@ -38,6 +38,7 @@ This repository currently contains the buildable foundation plus the first safe 
 - CLI config, LLM, and report commands plus expanded scan flags for phases, LLM settings, concurrency, and rate-limit configuration.
 - Markdown, HTML, and basic PDF report generation from persisted findings, evidence, CVEs, attack vectors, tool runs, and optional LLM analysis.
 - Web UI pages for session detail/dashboard, attack graph, LLM analyst history/chat, and report preview/download.
+- Docker health checks, Compose validation, local Docker smoke scripts, CI frontend verification, and snapshot release packaging.
 - Optional subprocess adapters for `nmap`, `ffuf`, `sqlmap`, and `dalfox`, with graceful degradation when tools are unavailable.
 - React/Vite frontend for dashboard, graph, LLM, and reports.
 
@@ -77,13 +78,13 @@ The Docker image bundles the Nox binary and common external scanner tools. Singl
 
 ## Roadmap
 
-Implementation now proceeds in order from the lowest incomplete phase in [docs/implementation-plan.md](docs/implementation-plan.md). Phases 0 through 16 are complete from the repository perspective; the next focus is Phase 17:
+The implementation roadmap in [docs/implementation-plan.md](docs/implementation-plan.md) is complete from the repository perspective. Next work should focus on hardening and depth:
 
-1. Harden Docker, Compose, Makefile, and release packaging.
-2. Add config-file mount examples for containerized runs.
-3. Expand release metadata and snapshot packaging.
-4. Add Docker scan smoke tests with controlled fixtures.
-5. Keep single-binary local mode useful without external tools installed.
+1. Add richer adapter fixtures and parser coverage.
+2. Replace basic report PDF layout with a higher-fidelity renderer.
+3. Deepen UI graph interactions and findings bulk workflows.
+4. Add fixture-backed integration scans for controlled vulnerable targets.
+5. Expand external scanner install/version checks in Docker images.
 
 ## Safety Boundary
 

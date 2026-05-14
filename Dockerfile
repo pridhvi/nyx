@@ -38,5 +38,7 @@ USER nox
 WORKDIR /home/nox
 COPY --from=backend /out/nox /usr/local/bin/nox
 EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -fsS http://127.0.0.1:8080/api/health >/dev/null || exit 1
 ENTRYPOINT ["nox"]
 CMD ["serve", "--host", "0.0.0.0", "--port", "8080"]

@@ -28,6 +28,9 @@ jobs:
       - name: Run Go tests
         run: make test
 
+      - name: Lint and typecheck frontend
+        run: make lint
+
       - name: Build frontend assets
         run: make web
 
@@ -43,7 +46,10 @@ jobs:
         run: docker build -t nox:ci .
 
       - name: Validate Compose config
-        run: docker compose config
+        run: make compose-config
+
+      - name: Smoke Docker image
+        run: make docker-smoke
 
   release-snapshot:
     runs-on: ubuntu-latest

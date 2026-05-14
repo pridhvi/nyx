@@ -1,8 +1,10 @@
-.PHONY: build dev test test-integration lint web web-build run sqlc migrate-up clean release-snapshot
+.PHONY: build ci dev test test-integration lint web web-build run sqlc migrate-up docker-smoke compose-config clean release-snapshot
 
 build:
 	cd web && npm run build
 	go build -o bin/nox .
+
+ci: test web build compose-config
 
 dev:
 	@echo "Starting Nox API on http://127.0.0.1:8080"
@@ -12,7 +14,7 @@ test:
 	go test ./...
 
 test-integration:
-	@echo "Integration tests are opt-in and will be added with Docker vulnerable-target fixtures."
+	./scripts/integration-smoke.sh
 
 lint:
 	@if command -v golangci-lint >/dev/null 2>&1; then golangci-lint run; else echo "golangci-lint not installed; skipping Go lint"; fi
@@ -32,6 +34,12 @@ sqlc:
 migrate-up:
 	@echo "SQLite migrations are embedded and run automatically when sessions open."
 	go test ./internal/db
+
+docker-smoke:
+	./scripts/docker-smoke.sh
+
+compose-config:
+	docker compose config >/dev/null
 
 clean:
 	rm -rf bin coverage web/dist

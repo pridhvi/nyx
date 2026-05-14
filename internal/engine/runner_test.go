@@ -140,17 +140,46 @@ func TestAdapterLevelsDetectDependencyErrors(t *testing.T) {
 func TestRunnerRunsSameLevelAdaptersInParallel(t *testing.T) {
 	ctx := context.Background()
 	session, store := testRunnerStore(t, ctx)
-	sleep := 120 * time.Millisecond
-	runner := NewRunnerWithOptions(store, []adapters.Adapter{
-		fakeRunnerAdapter{id: "parallel-a", sleep: sleep},
-		fakeRunnerAdapter{id: "parallel-b", sleep: sleep},
-	}, nil, RunnerOptions{GlobalConcurrency: 2, PerToolConcurrency: 1})
-	started := time.Now()
-	if err := runner.Run(ctx, session); err != nil {
-		t.Fatal(err)
+	entered := make(chan string, 2)
+	release := make(chan struct{})
+	runFunc := func(id string) func(context.Context, adapters.AdapterInput) (adapters.AdapterOutput, error) {
+		return func(ctx context.Context, input adapters.AdapterInput) (adapters.AdapterOutput, error) {
+			entered <- id
+			select {
+			case <-ctx.Done():
+				return adapters.AdapterOutput{}, ctx.Err()
+			case <-release:
+			}
+			return adapters.AdapterOutput{ToolRun: models.ToolRun{
+				ID:        models.NewID(),
+				SessionID: input.Session.ID,
+				TargetID:  input.Target.ID,
+				ToolID:    id,
+				StartedAt: time.Now().UTC(),
+			}}, nil
+		}
 	}
-	if elapsed := time.Since(started); elapsed >= sleep*2 {
-		t.Fatalf("expected parallel execution under %s, got %s", sleep*2, elapsed)
+	runner := NewRunnerWithOptions(store, []adapters.Adapter{
+		fakeRunnerAdapter{id: "parallel-a", runFunc: runFunc("parallel-a")},
+		fakeRunnerAdapter{id: "parallel-b", runFunc: runFunc("parallel-b")},
+	}, nil, RunnerOptions{GlobalConcurrency: 2, PerToolConcurrency: 1})
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- runner.Run(ctx, session)
+	}()
+	seen := map[string]bool{}
+	deadline := time.After(2 * time.Second)
+	for len(seen) < 2 {
+		select {
+		case id := <-entered:
+			seen[id] = true
+		case <-deadline:
+			t.Fatalf("expected both same-level adapters to enter before release, saw %#v", seen)
+		}
+	}
+	close(release)
+	if err := <-errCh; err != nil {
+		t.Fatal(err)
 	}
 }
 
