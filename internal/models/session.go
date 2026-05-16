@@ -21,12 +21,22 @@ const (
 	ScanModeStealth ScanMode = "stealth"
 )
 
+type WorkloadMode string
+
+const (
+	WorkloadModeDynamic  WorkloadMode = "dynamic"
+	WorkloadModeStatic   WorkloadMode = "static"
+	WorkloadModeCombined WorkloadMode = "combined"
+)
+
 type Session struct {
 	ID             string                    `json:"id"`
 	Name           string                    `json:"name"`
 	Status         SessionStatus             `json:"status"`
 	Mode           ScanMode                  `json:"mode"`
+	WorkloadMode   WorkloadMode              `json:"workload_mode"`
 	TargetInput    string                    `json:"target_input"`
+	SourcePath     string                    `json:"source_path,omitempty"`
 	InScope        []string                  `json:"in_scope"`
 	OutOfScope     []string                  `json:"out_of_scope"`
 	EnabledPhases  []string                  `json:"enabled_phases"`

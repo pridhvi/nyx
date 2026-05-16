@@ -1,0 +1,1 @@
+-- SQLite down migration intentionally omitted for the audit/source schema expansion.

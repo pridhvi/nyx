@@ -729,13 +729,44 @@ tbody tr:hover, .selected-row {
   background: var(--surface-3);
 }
 
-.status, .severity {
+.status, .severity, .origin-badge, .source-kind {
   border-radius: 999px;
   display: inline-flex;
   font-size: 12px;
   line-height: 1;
   padding: 5px 8px;
   text-transform: capitalize;
+}
+
+.origin-badge {
+  background: var(--surface-2);
+  color: var(--text);
+  margin-right: 6px;
+}
+
+.origin-badge.static {
+  background: #f5f3ff;
+  color: #6d28d9;
+}
+
+.origin-badge.dynamic {
+  background: #ecfeff;
+  color: #0e7490;
+}
+
+.origin-badge.both {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.source-kind {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.source-kind.risky {
+  background: #fff7ed;
+  color: #9a3412;
 }
 
 .icon-status {
@@ -1044,6 +1075,10 @@ tbody tr:hover, .selected-row {
   background: #111827;
 }
 
+.legend-source {
+  background: #7c3aed;
+}
+
 .graph-summary {
   margin: 16px 0;
 }
@@ -1115,6 +1150,10 @@ tbody tr:hover, .selected-row {
 
 .vector-node {
   border-left: 4px solid #4f46e5;
+}
+
+.source-node {
+  border-left: 4px solid #7c3aed;
 }
 
 .finding-node.critical, .finding-node.high, .vector-node.critical, .vector-node.high {

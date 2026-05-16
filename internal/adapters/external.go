@@ -66,6 +66,22 @@ func failedToolRun(input AdapterInput, toolID string, args []string, message str
 	return run
 }
 
+func sourceValues(findings []models.SourceFinding, kind models.SourceFindingKind) []string {
+	seen := map[string]bool{}
+	var values []string
+	for _, finding := range findings {
+		if finding.Kind != kind || strings.TrimSpace(finding.Value) == "" {
+			continue
+		}
+		value := strings.TrimSpace(finding.Value)
+		if !seen[value] {
+			seen[value] = true
+			values = append(values, value)
+		}
+	}
+	return values
+}
+
 func toolParamString(input AdapterInput, name string) string {
 	if input.ToolParameters == nil {
 		return ""

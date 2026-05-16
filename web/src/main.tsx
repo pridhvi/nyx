@@ -2,7 +2,7 @@ import React, { Suspense, lazy, useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, NavLink, Route, Routes, useLocation } from "react-router-dom";
-import { Bot, FileText, Moon, Network, PackageSearch, Search, Settings as SettingsIcon, Shield, Sun, TerminalSquare, Wrench } from "lucide-react";
+import { Bot, FileCode2, FileText, Moon, Network, PackageSearch, Search, Settings as SettingsIcon, Shield, Sun, TerminalSquare, Wrench } from "lucide-react";
 import { scopedSessionPath } from "./sessionRoutes";
 import { SessionProvider, useSessionContext } from "./session";
 import "./styles.css";
@@ -11,6 +11,7 @@ const queryClient = new QueryClient();
 const Dashboard = lazy(() => import("./pages/Dashboard").then((module) => ({ default: module.Dashboard })));
 const ScanBuilder = lazy(() => import("./pages/ScanBuilder").then((module) => ({ default: module.ScanBuilder })));
 const Findings = lazy(() => import("./pages/Findings").then((module) => ({ default: module.Findings })));
+const Source = lazy(() => import("./pages/Source").then((module) => ({ default: module.Source })));
 const Tools = lazy(() => import("./pages/Tools").then((module) => ({ default: module.Tools })));
 const ToolRuns = lazy(() => import("./pages/ToolRuns").then((module) => ({ default: module.ToolRuns })));
 const AttackGraph = lazy(() => import("./pages/AttackGraph").then((module) => ({ default: module.AttackGraph })));
@@ -50,6 +51,7 @@ function OperatorShell() {
           <NavLink to={scoped("")}><Shield size={18} />Dashboard</NavLink>
           <NavLink to="/scan"><TerminalSquare size={18} />Scan Builder</NavLink>
           <NavLink to={scoped("/findings")}><Search size={18} />Findings</NavLink>
+          <NavLink to={scoped("/source")}><FileCode2 size={18} />Source</NavLink>
           <NavLink to={scoped("/tools")}><Wrench size={18} />Tools</NavLink>
           <NavLink to={scoped("/runs")}><PackageSearch size={18} />Tool Runs</NavLink>
           <NavLink to={scoped("/graph")}><Network size={18} />Attack Graph</NavLink>
@@ -83,6 +85,8 @@ function OperatorShell() {
               <Route path="/sessions/:sessionID" element={<Dashboard />} />
               <Route path="/findings" element={<Findings />} />
               <Route path="/sessions/:sessionID/findings" element={<Findings />} />
+              <Route path="/source" element={<Source />} />
+              <Route path="/sessions/:sessionID/source" element={<Source />} />
               <Route path="/sessions/:sessionID/tools" element={<Tools />} />
               <Route path="/runs" element={<ToolRuns />} />
               <Route path="/sessions/:sessionID/runs" element={<ToolRuns />} />

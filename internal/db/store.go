@@ -31,17 +31,27 @@ type SessionRecord struct {
 }
 
 type SessionStats struct {
-	SessionID      string         `json:"session_id"`
-	TargetCount    int            `json:"target_count"`
-	FindingCount   int            `json:"finding_count"`
-	ToolRunCount   int            `json:"tool_run_count"`
-	SeverityCounts map[string]int `json:"severity_counts"`
+	SessionID           string         `json:"session_id"`
+	TargetCount         int            `json:"target_count"`
+	FindingCount        int            `json:"finding_count"`
+	StaticFindingCount  int            `json:"static_finding_count"`
+	DynamicFindingCount int            `json:"dynamic_finding_count"`
+	ConfirmedByBoth     int            `json:"confirmed_by_both"`
+	SourceFindingCount  int            `json:"source_finding_count"`
+	ToolRunCount        int            `json:"tool_run_count"`
+	SeverityCounts      map[string]int `json:"severity_counts"`
 }
 
 type FindingFilter struct {
 	Severity string
 	ToolID   string
 	Type     string
+	Status   string
+	Origin   string
+}
+
+type SourceFindingFilter struct {
+	Kind string
 }
 
 func DefaultSessionsDir() string {
@@ -103,6 +113,10 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
+	if _, err := database.ExecContext(ctx, "PRAGMA busy_timeout = 5000"); err != nil {
+		database.Close()
+		return nil, err
+	}
 	store := &Store{db: database, path: path}
 	if err := store.migrate(ctx); err != nil {
 		database.Close()
@@ -146,15 +160,17 @@ func (s *Store) InsertSession(ctx context.Context, session models.Session) error
 	}
 	_, err = s.db.ExecContext(ctx, `
 INSERT INTO sessions (
-	id, name, status, mode, target_input, in_scope, out_of_scope, enabled_phases,
+	id, name, status, mode, workload_mode, target_input, source_path, in_scope, out_of_scope, enabled_phases,
 	enabled_tools, tool_parameters, runner_options, llm_model, llm_base_url,
 	target_count, finding_count, started_at, completed_at, created_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		session.ID,
 		session.Name,
 		string(session.Status),
 		string(session.Mode),
+		string(firstWorkloadMode(session.WorkloadMode)),
 		session.TargetInput,
+		session.SourcePath,
 		string(inScope),
 		string(outOfScope),
 		string(phases),
@@ -242,11 +258,11 @@ func (s *Store) InsertFinding(ctx context.Context, finding models.Finding) error
 INSERT INTO findings (
 	id, session_id, target_id, tool_id, type, severity, confidence, cvss_score,
 	title, description, remediation, url, parameter, method, evidence_raw,
-	evidence_normalized, tags, created_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	evidence_normalized, code_context, flow_summary, status, notes, tags, created_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		finding.ID,
 		finding.SessionID,
-		finding.TargetID,
+		nullableString(finding.TargetID),
 		finding.ToolID,
 		string(finding.Type),
 		string(finding.Severity),
@@ -260,6 +276,10 @@ INSERT INTO findings (
 		finding.Method,
 		finding.EvidenceRaw,
 		finding.EvidenceNormalized,
+		finding.CodeContext,
+		finding.FlowSummary,
+		firstNonEmpty(finding.Status, "pending"),
+		finding.Notes,
 		string(tags),
 		formatTime(finding.CreatedAt),
 	); err != nil {
@@ -302,6 +322,37 @@ func (s *Store) UpdateFinding(ctx context.Context, findingID string, severity mo
 	query += ` WHERE id = ?`
 	args = append(args, findingID)
 	result, err := s.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) UpdateFindingAuditFields(ctx context.Context, finding models.Finding) error {
+	result, err := s.db.ExecContext(ctx, `
+UPDATE findings
+SET severity = ?, confidence = ?, description = ?, remediation = ?,
+    evidence_normalized = ?, code_context = ?, flow_summary = ?, status = ?, notes = ?
+WHERE id = ? AND session_id = ?`,
+		string(finding.Severity),
+		finding.Confidence,
+		finding.Description,
+		finding.Remediation,
+		finding.EvidenceNormalized,
+		finding.CodeContext,
+		finding.FlowSummary,
+		firstNonEmpty(finding.Status, "pending"),
+		finding.Notes,
+		finding.ID,
+		finding.SessionID,
+	)
 	if err != nil {
 		return err
 	}
@@ -485,17 +536,20 @@ func insertCVEMatchTx(ctx context.Context, tx *sql.Tx, match models.CVEMatch) er
 	}
 	_, err = tx.ExecContext(ctx, `
 INSERT INTO cve_matches (
-	id, finding_id, technology_id, cve_id, cvss_v3_score, cvss_v3_vector,
-	description, affected_version, fixed_version, patch_available,
+	id, session_id, finding_id, technology_id, cve_id, cvss_v3_score, cvss_v3_vector,
+	description, package_name, package_version, affected_version, fixed_version, patch_available,
 	exploit_available, "references", source, confidence_score
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		match.ID,
+		match.SessionID,
 		nullableString(match.FindingID),
 		nullableString(match.TechnologyID),
 		match.CVEID,
 		match.CVSSv3Score,
 		match.CVSSv3Vector,
 		match.Description,
+		match.PackageName,
+		match.PackageVersion,
 		match.AffectedVersion,
 		match.FixedVersion,
 		match.PatchAvailable,
@@ -549,7 +603,7 @@ WHERE id = ?`,
 func (s *Store) GetSession(ctx context.Context) (models.Session, error) {
 	row := s.db.QueryRowContext(ctx, `
 SELECT id, name, status, mode, target_input, in_scope, out_of_scope, enabled_phases,
-       enabled_tools, tool_parameters, runner_options, llm_model, llm_base_url,
+       workload_mode, source_path, enabled_tools, tool_parameters, runner_options, llm_model, llm_base_url,
        target_count, finding_count, started_at, completed_at, created_at
 FROM sessions
 ORDER BY created_at ASC
@@ -605,9 +659,9 @@ ORDER BY created_at ASC`, targetID)
 
 func (s *Store) ListFindings(ctx context.Context, sessionID string, filter FindingFilter) ([]models.Finding, error) {
 	query := `
-SELECT id, session_id, target_id, tool_id, type, severity, confidence, cvss_score,
+SELECT id, session_id, COALESCE(target_id, ''), tool_id, type, severity, confidence, cvss_score,
        title, description, remediation, url, parameter, method, evidence_raw,
-       evidence_normalized, tags, created_at
+       evidence_normalized, code_context, flow_summary, status, notes, tags, created_at
 FROM findings
 WHERE session_id = ?`
 	args := []any{sessionID}
@@ -622,6 +676,16 @@ WHERE session_id = ?`
 	if filter.Type != "" {
 		query += ` AND type = ?`
 		args = append(args, filter.Type)
+	}
+	if filter.Status != "" {
+		query += ` AND status = ?`
+		args = append(args, filter.Status)
+	}
+	switch filter.Origin {
+	case "static":
+		query += ` AND tool_id LIKE 'audit/%'`
+	case "dynamic":
+		query += ` AND tool_id NOT LIKE 'audit/%'`
 	}
 	query += ` ORDER BY created_at ASC`
 	rows, err := s.db.QueryContext(ctx, query, args...)
@@ -671,19 +735,20 @@ func (s *Store) ListCVEMatchesByTechnology(ctx context.Context, technologyID str
 
 func (s *Store) ListCVEMatchesBySession(ctx context.Context, sessionID string) ([]models.CVEMatch, error) {
 	return s.listCVEMatches(ctx, `
-(finding_id IN (SELECT id FROM findings WHERE session_id = ?)
+(session_id = ?
+ OR finding_id IN (SELECT id FROM findings WHERE session_id = ?)
  OR technology_id IN (
 	SELECT technologies.id
 	FROM technologies
 	JOIN targets ON targets.id = technologies.target_id
 	WHERE targets.session_id = ?
-))`, sessionID, sessionID)
+))`, sessionID, sessionID, sessionID)
 }
 
 func (s *Store) listCVEMatches(ctx context.Context, where string, args ...any) ([]models.CVEMatch, error) {
 	query := `
-SELECT id, COALESCE(finding_id, ''), COALESCE(technology_id, ''), cve_id,
-       cvss_v3_score, cvss_v3_vector, description, affected_version,
+SELECT id, session_id, COALESCE(finding_id, ''), COALESCE(technology_id, ''), cve_id,
+       cvss_v3_score, cvss_v3_vector, description, package_name, package_version, affected_version,
        fixed_version, patch_available, exploit_available, "references",
        source, confidence_score
 FROM cve_matches
@@ -725,6 +790,103 @@ ORDER BY created_at ASC`, sessionID)
 		vectors = append(vectors, vector)
 	}
 	return vectors, rows.Err()
+}
+
+func (s *Store) InsertSourceFinding(ctx context.Context, finding models.SourceFinding) error {
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO source_findings (
+	id, session_id, kind, language, framework, file_path, line_number,
+	value, method, context, notes, confirmed_by_dynamic, created_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		finding.ID,
+		finding.SessionID,
+		string(finding.Kind),
+		finding.Language,
+		finding.Framework,
+		finding.FilePath,
+		finding.LineNumber,
+		finding.Value,
+		finding.Method,
+		finding.Context,
+		finding.Notes,
+		finding.ConfirmedByDynamic,
+		formatTime(finding.CreatedAt),
+	)
+	return err
+}
+
+func (s *Store) ListSourceFindings(ctx context.Context, sessionID string, filter SourceFindingFilter) ([]models.SourceFinding, error) {
+	query := `
+SELECT id, session_id, kind, language, framework, file_path, line_number,
+       value, method, context, notes, confirmed_by_dynamic, created_at
+FROM source_findings
+WHERE session_id = ?`
+	args := []any{sessionID}
+	if strings.TrimSpace(filter.Kind) != "" {
+		query += ` AND kind = ?`
+		args = append(args, filter.Kind)
+	}
+	query += ` ORDER BY kind ASC, file_path ASC, line_number ASC`
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var findings []models.SourceFinding
+	for rows.Next() {
+		finding, err := scanSourceFinding(rows)
+		if err != nil {
+			return nil, err
+		}
+		findings = append(findings, finding)
+	}
+	return findings, rows.Err()
+}
+
+func (s *Store) MarkSourceFindingConfirmed(ctx context.Context, sourceFindingID string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE source_findings SET confirmed_by_dynamic = TRUE WHERE id = ?`, sourceFindingID)
+	return err
+}
+
+func (s *Store) InsertAttackGraphEdge(ctx context.Context, edge models.AttackGraphEdge) error {
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO attack_graph_edges (id, session_id, from_id, to_id, relation, confidence, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		edge.ID,
+		edge.SessionID,
+		edge.FromID,
+		edge.ToID,
+		string(edge.Relation),
+		edge.Confidence,
+		formatTime(edge.CreatedAt),
+	)
+	return err
+}
+
+func (s *Store) DeleteAttackGraphEdges(ctx context.Context, sessionID string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM attack_graph_edges WHERE session_id = ?`, sessionID)
+	return err
+}
+
+func (s *Store) ListAttackGraphEdges(ctx context.Context, sessionID string) ([]models.AttackGraphEdge, error) {
+	rows, err := s.db.QueryContext(ctx, `
+SELECT id, session_id, from_id, to_id, relation, confidence, created_at
+FROM attack_graph_edges
+WHERE session_id = ?
+ORDER BY created_at ASC`, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var edges []models.AttackGraphEdge
+	for rows.Next() {
+		edge, err := scanAttackGraphEdge(rows)
+		if err != nil {
+			return nil, err
+		}
+		edges = append(edges, edge)
+	}
+	return edges, rows.Err()
 }
 
 func (s *Store) ListLLMAnalyses(ctx context.Context, sessionID string) ([]models.LLMAnalysis, error) {
@@ -796,9 +958,13 @@ func (s *Store) Stats(ctx context.Context, sessionID string) (SessionStats, erro
 SELECT
   (SELECT COUNT(*) FROM targets WHERE session_id = ?),
   (SELECT COUNT(*) FROM findings WHERE session_id = ?),
+  (SELECT COUNT(*) FROM findings WHERE session_id = ? AND tool_id LIKE 'audit/%'),
+  (SELECT COUNT(*) FROM findings WHERE session_id = ? AND tool_id NOT LIKE 'audit/%'),
+  (SELECT COUNT(DISTINCT to_id) FROM attack_graph_edges WHERE session_id = ? AND relation = 'confirms'),
+  (SELECT COUNT(*) FROM source_findings WHERE session_id = ?),
   (SELECT COUNT(*) FROM tool_runs WHERE session_id = ?)`,
-		sessionID, sessionID, sessionID,
-	).Scan(&stats.TargetCount, &stats.FindingCount, &stats.ToolRunCount)
+		sessionID, sessionID, sessionID, sessionID, sessionID, sessionID, sessionID,
+	).Scan(&stats.TargetCount, &stats.FindingCount, &stats.StaticFindingCount, &stats.DynamicFindingCount, &stats.ConfirmedByBoth, &stats.SourceFindingCount, &stats.ToolRunCount)
 	if err != nil {
 		return SessionStats{}, err
 	}
@@ -988,6 +1154,8 @@ func scanSession(row rowScanner) (models.Session, error) {
 		&inScope,
 		&outOfScope,
 		&phases,
+		&session.WorkloadMode,
+		&session.SourcePath,
 		&tools,
 		&parameters,
 		&runnerOptions,
@@ -1005,6 +1173,7 @@ func scanSession(row rowScanner) (models.Session, error) {
 		}
 		return models.Session{}, err
 	}
+	session.WorkloadMode = firstWorkloadMode(session.WorkloadMode)
 	if err := json.Unmarshal([]byte(inScope), &session.InScope); err != nil {
 		return models.Session{}, err
 	}
@@ -1108,6 +1277,10 @@ func scanFinding(row rowScanner) (models.Finding, error) {
 		&finding.Method,
 		&finding.EvidenceRaw,
 		&finding.EvidenceNormalized,
+		&finding.CodeContext,
+		&finding.FlowSummary,
+		&finding.Status,
+		&finding.Notes,
 		&tags,
 		&createdAt,
 	)
@@ -1148,12 +1321,15 @@ func scanCVEMatch(row rowScanner) (models.CVEMatch, error) {
 	var references string
 	err := row.Scan(
 		&match.ID,
+		&match.SessionID,
 		&match.FindingID,
 		&match.TechnologyID,
 		&match.CVEID,
 		&match.CVSSv3Score,
 		&match.CVSSv3Vector,
 		&match.Description,
+		&match.PackageName,
+		&match.PackageVersion,
 		&match.AffectedVersion,
 		&match.FixedVersion,
 		&match.PatchAvailable,
@@ -1169,6 +1345,58 @@ func scanCVEMatch(row rowScanner) (models.CVEMatch, error) {
 		return models.CVEMatch{}, err
 	}
 	return match, nil
+}
+
+func scanSourceFinding(row rowScanner) (models.SourceFinding, error) {
+	var finding models.SourceFinding
+	var createdAt string
+	err := row.Scan(
+		&finding.ID,
+		&finding.SessionID,
+		&finding.Kind,
+		&finding.Language,
+		&finding.Framework,
+		&finding.FilePath,
+		&finding.LineNumber,
+		&finding.Value,
+		&finding.Method,
+		&finding.Context,
+		&finding.Notes,
+		&finding.ConfirmedByDynamic,
+		&createdAt,
+	)
+	if err != nil {
+		return models.SourceFinding{}, err
+	}
+	created, err := parseTime(createdAt)
+	if err != nil {
+		return models.SourceFinding{}, err
+	}
+	finding.CreatedAt = created
+	return finding, nil
+}
+
+func scanAttackGraphEdge(row rowScanner) (models.AttackGraphEdge, error) {
+	var edge models.AttackGraphEdge
+	var createdAt string
+	err := row.Scan(
+		&edge.ID,
+		&edge.SessionID,
+		&edge.FromID,
+		&edge.ToID,
+		&edge.Relation,
+		&edge.Confidence,
+		&createdAt,
+	)
+	if err != nil {
+		return models.AttackGraphEdge{}, err
+	}
+	created, err := parseTime(createdAt)
+	if err != nil {
+		return models.AttackGraphEdge{}, err
+	}
+	edge.CreatedAt = created
+	return edge, nil
 }
 
 func scanAttackVector(row rowScanner) (models.AttackVector, error) {
@@ -1322,6 +1550,24 @@ func firstJSON(value, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func firstWorkloadMode(mode models.WorkloadMode) models.WorkloadMode {
+	switch mode {
+	case models.WorkloadModeStatic, models.WorkloadModeCombined:
+		return mode
+	default:
+		return models.WorkloadModeDynamic
+	}
 }
 
 func parseTime(value string) (time.Time, error) {

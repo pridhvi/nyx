@@ -20,9 +20,10 @@ export function Findings() {
     enabled: selected !== "",
   });
   const findings = findingsQuery.data ?? [];
-  type FindingSortKey = "severity" | "type" | "tool" | "title" | "cves" | "evidence";
+  type FindingSortKey = "severity" | "origin" | "type" | "tool" | "title" | "cves" | "evidence";
   const accessors = useMemo<Record<FindingSortKey, (finding: Finding) => string | number>>(() => ({
     severity: (finding: Finding) => severityRank(finding.severity),
+    origin: (finding: Finding) => findingOrigin(finding),
     type: (finding: Finding) => finding.type,
     tool: (finding: Finding) => finding.tool_id,
     title: (finding: Finding) => finding.title,
@@ -153,6 +154,7 @@ export function Findings() {
                   />
                 </th>
                 <SortableHeader label="Severity" active={sort.key === "severity"} direction={sort.direction} onClick={() => toggleSort("severity")} />
+                <SortableHeader label="Source" active={sort.key === "origin"} direction={sort.direction} onClick={() => toggleSort("origin")} />
                 <SortableHeader label="Type" active={sort.key === "type"} direction={sort.direction} onClick={() => toggleSort("type")} />
                 <SortableHeader label="Tool" active={sort.key === "tool"} direction={sort.direction} onClick={() => toggleSort("tool")} />
                 <SortableHeader label="Title" active={sort.key === "title"} direction={sort.direction} onClick={() => toggleSort("title")} />
@@ -172,6 +174,7 @@ export function Findings() {
                     />
                   </td>
                   <td><span className={`severity ${finding.severity}`}>{finding.severity}</span></td>
+                  <td><span className={`origin-badge ${findingOrigin(finding)}`}>{originLabel(findingOrigin(finding))}</span>{finding.status ? <small>{finding.status}</small> : null}</td>
                   <td>{finding.type}</td>
                   <td>{finding.tool_id}</td>
                   <td>{finding.title}<small>{finding.url}</small></td>
@@ -179,7 +182,7 @@ export function Findings() {
                   <td><code>{finding.evidence_normalized || finding.evidence_raw || "-"}</code></td>
                 </tr>
               ))}
-              {findings.length === 0 ? <tr><td colSpan={7}>No findings for the selected filters.</td></tr> : null}
+              {findings.length === 0 ? <tr><td colSpan={8}>No findings for the selected filters.</td></tr> : null}
             </tbody>
           </table>
         </div>
@@ -189,7 +192,7 @@ export function Findings() {
           <div className="detail-header">
             <div>
               <h2>{selectedFinding.title}</h2>
-              <p>{selectedFinding.tool_id} · {selectedFinding.type} · {selectedFinding.url || "no URL"}</p>
+              <p>{selectedFinding.tool_id} · {selectedFinding.type} · {originLabel(findingOrigin(selectedFinding))} · {selectedFinding.url || "no URL"}</p>
             </div>
             <button className="secondary" onClick={() => setSelectedFinding(null)}>Close</button>
           </div>
@@ -230,6 +233,10 @@ export function Findings() {
               <h3>HTTP Response</h3>
               <pre>{selectedFinding.http_evidence?.response_raw || "-"}</pre>
             </article>
+            <article>
+              <h3>Code Context</h3>
+              <pre>{selectedFinding.code_context || selectedFinding.flow_summary || selectedFinding.notes || "-"}</pre>
+            </article>
           </div>
         </section>
       ) : null}
@@ -243,4 +250,16 @@ function SortableHeader({ label, active, direction, onClick }: { label: string; 
 
 function severityRank(severity: string) {
   return { info: 1, low: 2, medium: 3, high: 4, critical: 5 }[severity] ?? 0;
+}
+
+function findingOrigin(finding: Finding) {
+  const isStatic = finding.tool_id.startsWith("audit/") || !finding.target_id;
+  const hasDynamic = Boolean(finding.target_id);
+  if (isStatic && hasDynamic) return "both";
+  return isStatic ? "static" : "dynamic";
+}
+
+function originLabel(origin: string) {
+  if (origin === "both") return "Static + Dynamic";
+  return origin === "static" ? "Static" : "Dynamic";
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/pridhvi/nox/internal/config"
 	"github.com/pridhvi/nox/internal/db"
 	"github.com/pridhvi/nox/internal/engine"
+	llmintel "github.com/pridhvi/nox/internal/llm"
 	"github.com/pridhvi/nox/internal/models"
 )
 
@@ -16,6 +17,7 @@ func runScan(args []string) error {
 	fs := flag.NewFlagSet("scan", flag.ContinueOnError)
 	cfgPath := fs.String("config", "", "config file path")
 	target := fs.String("target", "", "target host, URL, or CIDR")
+	sourcePath := fs.String("source", "", "source repository path for static or combined analysis")
 	name := fs.String("name", "", "engagement name")
 	mode := fs.String("mode", "", "scan mode: passive, active, stealth")
 	outOfScope := fs.String("out-of-scope", "", "comma-separated hosts or CIDRs to exclude")
@@ -34,8 +36,8 @@ func runScan(args []string) error {
 	if err != nil {
 		return err
 	}
-	if *target == "" {
-		return fmt.Errorf("--target is required")
+	if *target == "" && strings.TrimSpace(*sourcePath) == "" {
+		return fmt.Errorf("--target or --source is required")
 	}
 	selectedMode := firstNonEmpty(*mode, cfg.Scan.Mode, string(models.ScanModeActive))
 	selectedLLMURL := firstNonEmpty(*llmURL, cfg.LLM.BaseURL)
@@ -48,8 +50,9 @@ func runScan(args []string) error {
 	selectedTools := splitCSV(firstNonEmpty(*tools, strings.Join(cfg.Scan.Tools, ",")))
 	selectedRateLimit := firstNonEmpty(*rateLimit, cfg.Scan.RateLimit)
 
-	session, initialTargets, err := engine.NewPendingSessionWithTargets(engine.NewSessionInput{
+	input := engine.NewSessionInput{
 		Target:        *target,
+		SourcePath:    *sourcePath,
 		Name:          *name,
 		Mode:          models.ScanMode(selectedMode),
 		OutOfScope:    splitCSV(*outOfScope),
@@ -58,7 +61,17 @@ func runScan(args []string) error {
 		RunnerOptions: models.ScanRunnerOptions{Concurrency: *concurrency, PerToolConcurrency: 1, RateLimit: selectedRateLimit},
 		LLMModel:      selectedLLMModel,
 		LLMBaseURL:    selectedLLMURL,
-	})
+	}
+	var session models.Session
+	var initialTargets []models.Target
+	if *target == "" {
+		session, err = engine.NewPendingSourceSession(input)
+	} else {
+		if strings.TrimSpace(*sourcePath) != "" {
+			input.WorkloadMode = models.WorkloadModeCombined
+		}
+		session, initialTargets, err = engine.NewPendingSessionWithTargets(input)
+	}
 	if err != nil {
 		return err
 	}
@@ -72,11 +85,12 @@ func runScan(args []string) error {
 		return err
 	}
 	defer store.Close()
-	runner := engine.NewRunner(store)
-	if *concurrency > 0 || *lean {
-		runner = engine.NewRunnerWithOptions(store, engine.DefaultSafeAdapters(), nil, engine.RunnerOptions{GlobalConcurrency: *concurrency, PerToolConcurrency: 1, Lean: *lean})
-	}
-	scanErr := runner.Run(context.Background(), record.Session)
+	scanErr := runScanWorkload(context.Background(), store, record.Session, engine.RunnerOptions{GlobalConcurrency: *concurrency, PerToolConcurrency: 1, Lean: *lean}, llmintel.Config{
+		Provider: "openai-compatible",
+		BaseURL:  selectedLLMURL,
+		APIKey:   cfg.LLM.APIKey,
+		Model:    selectedLLMModel,
+	})
 
 	fmt.Printf("created session %s for %s (%s mode)\n", record.Session.ID, record.Session.TargetInput, record.Session.Mode)
 	fmt.Printf("db: %s\n", record.DBPath)
@@ -90,6 +104,46 @@ func runScan(args []string) error {
 	}
 	fmt.Printf("status: %s; targets=%d findings=%d\n", updated.Status, updated.TargetCount, updated.FindingCount)
 	return nil
+}
+
+func runScanWorkload(ctx context.Context, store *db.Store, session models.Session, options engine.RunnerOptions, llmConfig llmintel.Config) error {
+	switch session.WorkloadMode {
+	case models.WorkloadModeStatic:
+		audit := engine.NewAuditRunner(store, engine.AuditOptions{Tools: auditToolIDs(session.EnabledTools), LLMConfig: llmConfig})
+		return audit.Run(ctx, session, session.SourcePath)
+	case models.WorkloadModeCombined:
+		audit := engine.NewAuditRunner(store, engine.AuditOptions{Tools: auditToolIDs(session.EnabledTools), LLMConfig: llmConfig, KeepSessionOpen: true})
+		if err := audit.Run(ctx, session, session.SourcePath); err != nil {
+			return err
+		}
+		dynamicSession := session
+		dynamicSession.EnabledTools = dynamicToolIDs(session.EnabledTools)
+		runner := engine.NewRunnerWithOptions(store, engine.DefaultSafeAdapters(), nil, options)
+		return runner.Run(ctx, dynamicSession)
+	default:
+		runner := engine.NewRunnerWithOptions(store, engine.DefaultSafeAdapters(), nil, options)
+		return runner.Run(ctx, session)
+	}
+}
+
+func auditToolIDs(tools []string) []string {
+	var out []string
+	for _, tool := range tools {
+		if strings.HasPrefix(strings.TrimSpace(tool), "audit/") {
+			out = append(out, tool)
+		}
+	}
+	return out
+}
+
+func dynamicToolIDs(tools []string) []string {
+	var out []string
+	for _, tool := range tools {
+		if !strings.HasPrefix(strings.TrimSpace(tool), "audit/") {
+			out = append(out, tool)
+		}
+	}
+	return out
 }
 
 func firstNonEmpty(values ...string) string {

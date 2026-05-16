@@ -15,7 +15,7 @@ import (
 func runReport(args []string) error {
 	fs := flag.NewFlagSet("report", flag.ContinueOnError)
 	cfgPath := fs.String("config", "", "config file path")
-	format := fs.String("format", string(models.ReportFormatHTML), "report format: html, pdf, md")
+	format := fs.String("format", string(models.ReportFormatHTML), "report format: html, pdf, md, sarif")
 	output := fs.String("output", "", "output path; stdout when empty")
 	mode := fs.String("mode", string(models.ReportModeTechnical), "report mode: executive or technical")
 	sessionID, flagArgs := splitLeadingSessionID(args)

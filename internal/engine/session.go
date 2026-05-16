@@ -10,8 +10,10 @@ import (
 
 type NewSessionInput struct {
 	Target         string
+	SourcePath     string
 	Name           string
 	Mode           models.ScanMode
+	WorkloadMode   models.WorkloadMode
 	OutOfScope     []string
 	EnabledPhases  []string
 	EnabledTools   []string
@@ -27,6 +29,40 @@ func NewPendingSession(input NewSessionInput) (models.Session, models.Target, er
 		return models.Session{}, models.Target{}, err
 	}
 	return session, targets[0], nil
+}
+
+func NewPendingSourceSession(input NewSessionInput) (models.Session, error) {
+	sourcePath := strings.TrimSpace(input.SourcePath)
+	if sourcePath == "" {
+		return models.Session{}, fmt.Errorf("source path is required")
+	}
+	mode := input.Mode
+	if mode == "" {
+		mode = models.ScanModePassive
+	}
+	switch mode {
+	case models.ScanModePassive, models.ScanModeActive, models.ScanModeStealth:
+	default:
+		return models.Session{}, fmt.Errorf("unsupported scan mode %q", mode)
+	}
+	name := input.Name
+	if strings.TrimSpace(name) == "" {
+		name = fmt.Sprintf("Audit %s", sourcePath)
+	}
+	return models.Session{
+		ID:             models.NewID(),
+		Name:           name,
+		Status:         models.SessionStatusPending,
+		Mode:           mode,
+		WorkloadMode:   models.WorkloadModeStatic,
+		SourcePath:     sourcePath,
+		EnabledTools:   input.EnabledTools,
+		ToolParameters: input.ToolParameters,
+		RunnerOptions:  input.RunnerOptions,
+		LLMModel:       input.LLMModel,
+		LLMBaseURL:     input.LLMBaseURL,
+		CreatedAt:      time.Now().UTC(),
+	}, nil
 }
 
 func NewPendingSessionWithTargets(input NewSessionInput) (models.Session, []models.Target, error) {
@@ -49,7 +85,9 @@ func NewPendingSessionWithTargets(input NewSessionInput) (models.Session, []mode
 		Name:           input.Name,
 		Status:         models.SessionStatusPending,
 		Mode:           mode,
+		WorkloadMode:   firstWorkloadMode(input.WorkloadMode),
 		TargetInput:    targetInput,
+		SourcePath:     strings.TrimSpace(input.SourcePath),
 		InScope:        targetsInput,
 		OutOfScope:     input.OutOfScope,
 		EnabledPhases:  input.EnabledPhases,
@@ -76,4 +114,13 @@ func NewPendingSessionWithTargets(input NewSessionInput) (models.Session, []mode
 		targets = append(targets, NewInitialTarget(session.ID, targetInput))
 	}
 	return session, targets, nil
+}
+
+func firstWorkloadMode(mode models.WorkloadMode) models.WorkloadMode {
+	switch mode {
+	case models.WorkloadModeStatic, models.WorkloadModeCombined:
+		return mode
+	default:
+		return models.WorkloadModeDynamic
+	}
 }

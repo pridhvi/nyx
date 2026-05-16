@@ -33,6 +33,7 @@ export function ScanBuilder() {
   const profilesQuery = useQuery({ queryKey: ["scan-profiles"], queryFn: listScanProfiles });
   const tools = toolsQuery.data ?? [];
   const [targets, setTargets] = useState("");
+  const [sourcePath, setSourcePath] = useState("");
   const [name, setName] = useState("");
   const [mode, setMode] = useState("active");
   const [outOfScope, setOutOfScope] = useState("");
@@ -57,9 +58,11 @@ export function ScanBuilder() {
   const installedSelectedTools = selectedToolRecords.filter((tool) => tool.installed);
   const selectedEnabledPhaseCount = selectedPhases.length;
   const parsedTargets = useMemo(() => splitTargets(targets), [targets]);
-  const targetError = targets.trim() === "" ? "Add at least one target." : parsedTargets.length === 0 ? "Enter valid http:// or https:// targets, separated by commas or new lines." : "";
-  const phaseError = selectedEnabledPhaseCount === 0 ? "Select at least one scan phase." : "";
-  const toolError = selectedTools.length === 0 ? "Select at least one tool." : installedSelectedTools.length === 0 ? "Select at least one installed or built-in tool." : "";
+  const hasSource = sourcePath.trim() !== "";
+  const hasTargets = targets.trim() !== "";
+  const targetError = !hasTargets && !hasSource ? "Add at least one target or source repository." : hasTargets && parsedTargets.length === 0 ? "Enter valid http:// or https:// targets, separated by commas or new lines." : "";
+  const phaseError = hasTargets && selectedEnabledPhaseCount === 0 ? "Select at least one scan phase." : "";
+  const toolError = hasTargets && selectedTools.length === 0 ? "Select at least one tool." : hasTargets && installedSelectedTools.length === 0 ? "Select at least one installed or built-in tool." : "";
   const canStartBase = !targetError && !phaseError && !toolError;
 
   const mutation = useMutation({
@@ -147,6 +150,7 @@ export function ScanBuilder() {
     return {
       target: parsedTargets.join("\n"),
       targets: parsedTargets,
+      source_path: sourcePath.trim() || undefined,
       name,
       mode,
       out_of_scope: splitLines(outOfScope),
@@ -181,6 +185,7 @@ export function ScanBuilder() {
     if (request.target || request.targets?.length) {
       setTargets(request.targets?.join("\n") ?? request.target ?? "");
     }
+    setSourcePath(request.source_path ?? "");
   }
 
   function saveProfile() {
@@ -267,8 +272,9 @@ export function ScanBuilder() {
         <section className="panel">
           <h2>Scope</h2>
           <div className="form-grid">
-            <label className="span-2">Targets <Required /><textarea value={targets} onChange={(event) => setTargets(event.target.value)} rows={4} placeholder={"https://example.com\nhttps://example.org"} required /></label>
+            <label className="span-2">Targets {sourcePath.trim() ? null : <Required />}<textarea value={targets} onChange={(event) => setTargets(event.target.value)} rows={4} placeholder={"https://example.com\nhttps://example.org"} required={!sourcePath.trim()} /></label>
             {targetError ? <p className="field-error span-2">{targetError}</p> : null}
+            <label className="span-2">Source Repository <input value={sourcePath} onChange={(event) => setSourcePath(event.target.value)} placeholder="/path/to/repository" /></label>
             <label>Name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Engagement name" /></label>
             <label>Mode
               <span className="inline-help-control">
@@ -304,7 +310,7 @@ export function ScanBuilder() {
           </div>
         </section>
         <section className="panel span-2">
-          <h2>Phases <Required /></h2>
+          <h2>Phases {hasTargets ? <Required /> : null}</h2>
           <div className="phase-grid">
             {phases.map((phase) => (
               <label key={phase.id} className={`phase-option ${selectedPhases.includes(phase.id) ? "selected" : ""}`}>
@@ -316,7 +322,7 @@ export function ScanBuilder() {
           {phaseError ? <p className="field-error">{phaseError}</p> : null}
         </section>
         <section className="panel span-2">
-          <h2>Tools <Required /></h2>
+          <h2>Tools {hasTargets ? <Required /> : null}</h2>
           <div className="tool-phase-grid">
             {phases.map((phase) => (
               <article key={phase.id} className={!selectedPhases.includes(phase.id) ? "disabled-tool-phase" : ""}>
@@ -340,7 +346,7 @@ export function ScanBuilder() {
         <section className="panel span-2 action-panel">
           {mutation.error ? <p className="error-text">{mutation.error.message}</p> : null}
           <button className="primary" type="submit" disabled={!canStart}><Play size={16} />{mutation.isPending ? "Starting" : "Start Scan"}</button>
-          <span><ShieldCheck size={16} /> Scope validation is enforced before adapters run.</span>
+          <span><ShieldCheck size={16} /> {hasTargets && hasSource ? "Combined mode runs source analysis and dynamic adapters in one session." : hasSource ? "Static audit runs without executing repository code." : "Scope validation is enforced before adapters run."}</span>
         </section>
       </form>
       {configuredTool ? (

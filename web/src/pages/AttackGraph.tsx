@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import cytoscape from "cytoscape";
-import { listFindings, listTargets, listVectors, type AttackVector, type Finding, type Target } from "../api/client";
+import { listAttackGraphEdges, listFindings, listSourceFindings, listTargets, listVectors, type AttackGraphEdge, type AttackVector, type Finding, type SourceFinding, type Target } from "../api/client";
 import { useSessionContext } from "../session";
 
 export function AttackGraph() {
@@ -10,13 +10,17 @@ export function AttackGraph() {
   const targetsQuery = useQuery({ queryKey: ["targets", selected], queryFn: () => listTargets(selected), enabled: selected !== "" });
   const findingsQuery = useQuery({ queryKey: ["findings", selected], queryFn: () => listFindings(selected), enabled: selected !== "" });
   const vectorsQuery = useQuery({ queryKey: ["vectors", selected], queryFn: () => listVectors(selected), enabled: selected !== "" });
+  const sourceQuery = useQuery({ queryKey: ["source-findings", selected], queryFn: () => listSourceFindings(selected), enabled: selected !== "" });
+  const edgesQuery = useQuery({ queryKey: ["attack-graph-edges", selected], queryFn: () => listAttackGraphEdges(selected), enabled: selected !== "" });
 
   const nodes = useMemo(() => {
     const targets = targetsQuery.data ?? [];
     const findings = (findingsQuery.data ?? []).filter((finding) => !severity || finding.severity === severity);
     const vectors = vectorsQuery.data ?? [];
-    return { targets, findings, vectors };
-  }, [findingsQuery.data, severity, targetsQuery.data, vectorsQuery.data]);
+    const sourceFindings = sourceQuery.data ?? [];
+    const edges = edgesQuery.data ?? [];
+    return { targets, findings, vectors, sourceFindings, edges };
+  }, [edgesQuery.data, findingsQuery.data, severity, sourceQuery.data, targetsQuery.data, vectorsQuery.data]);
   const graphRef = useRef<HTMLDivElement | null>(null);
   const [selectedNode, setSelectedNode] = useState<{ label: string; detail: string } | null>(null);
 
@@ -24,7 +28,7 @@ export function AttackGraph() {
     if (!graphRef.current) {
       return;
     }
-    const { elements } = graphElements(nodes.targets, nodes.findings, nodes.vectors);
+    const { elements } = graphElements(nodes.targets, nodes.findings, nodes.vectors, nodes.sourceFindings, nodes.edges);
     const graph = cytoscape({
       container: graphRef.current,
       elements,
@@ -35,6 +39,7 @@ export function AttackGraph() {
         { selector: "node[type='tech']", style: { "background-color": "#2563eb", color: "#2563eb", shape: "ellipse" } },
         { selector: "node[type='finding']", style: { "background-color": "data(color)", color: "data(color)", shape: "diamond" } },
         { selector: "node[type='vector']", style: { "background-color": "#111827", color: "#111827", shape: "hexagon" } },
+        { selector: "node[type='source']", style: { "background-color": "#7c3aed", color: "#7c3aed", shape: "tag" } },
         { selector: "node:selected", style: { "border-color": "#f59e0b", "border-width": "5px" } },
         { selector: "edge", style: { width: "2px", "line-color": "#9aa8b7", "target-arrow-color": "#9aa8b7", "target-arrow-shape": "triangle", "curve-style": "bezier", opacity: 0.78 } },
         { selector: "edge[type='attack']", style: { width: "3px", "line-color": "#111827", "target-arrow-color": "#111827" } },
@@ -47,14 +52,14 @@ export function AttackGraph() {
     return () => graph.destroy();
   }, [nodes]);
 
-  const graphData = useMemo(() => graphElements(nodes.targets, nodes.findings, nodes.vectors), [nodes]);
+  const graphData = useMemo(() => graphElements(nodes.targets, nodes.findings, nodes.vectors, nodes.sourceFindings, nodes.edges), [nodes]);
 
   return (
     <section className="page wide-page">
       <header className="page-header">
         <div>
           <h1>Attack Graph</h1>
-          <p>Targets, findings, technologies, and deterministic attack chains.</p>
+          <p>Targets, source findings, dynamic findings, and labelled attack-chain edges.</p>
         </div>
         <label className="compact-control">
           Severity
@@ -76,6 +81,7 @@ export function AttackGraph() {
             <span><i className="legend-tech" />Technology</span>
             <span><i className="legend-finding" />Finding</span>
             <span><i className="legend-vector" />Attack Vector</span>
+            <span><i className="legend-source" />Source</span>
           </div>
         </div>
         <div className="cy-graph" ref={graphRef} />
@@ -91,6 +97,7 @@ export function AttackGraph() {
         <article><span>Targets</span><strong>{nodes.targets.length}</strong></article>
         <article><span>Findings</span><strong>{nodes.findings.length}</strong></article>
         <article><span>Attack Vectors</span><strong>{nodes.vectors.length}</strong></article>
+        <article><span>Source Findings</span><strong>{nodes.sourceFindings.length}</strong></article>
       </div>
       <div className="graph-layout">
         <section className="graph-column">
@@ -110,6 +117,7 @@ export function AttackGraph() {
           {nodes.findings.map((finding) => (
             <article key={finding.id} className={`graph-node finding-node ${finding.severity}`}>
               <span className={`severity ${finding.severity}`}>{finding.severity}</span>
+              <span className={`origin-badge ${finding.tool_id.startsWith("audit/") ? "static" : "dynamic"}`}>{finding.tool_id.startsWith("audit/") ? "Static" : "Dynamic"}</span>
               <strong>{finding.title}</strong>
               <small>{finding.tool_id} · {finding.type}</small>
             </article>
@@ -126,12 +134,23 @@ export function AttackGraph() {
             </article>
           ))}
         </section>
+        <section className="graph-column">
+          <h2>Source</h2>
+          {nodes.sourceFindings.map((finding) => (
+            <article key={finding.id} className="graph-node source-node">
+              <span className={finding.confirmed_dynamic ? "origin-badge both" : "origin-badge static"}>{finding.confirmed_dynamic ? "Static + Dynamic" : "Static"}</span>
+              <strong>{finding.kind}</strong>
+              <small>{finding.file_path}:{finding.line_number}</small>
+              <small>{finding.value}</small>
+            </article>
+          ))}
+        </section>
       </div>
     </section>
   );
 }
 
-export function graphElements(targets: Target[], findings: Finding[], vectors: AttackVector[]) {
+export function graphElements(targets: Target[], findings: Finding[], vectors: AttackVector[], sourceFindings: SourceFinding[] = [], graphEdges: AttackGraphEdge[] = []) {
   const elements: cytoscape.ElementDefinition[] = [];
   const nodeIDs = new Set<string>();
   let skippedEdges = 0;
@@ -163,6 +182,12 @@ export function graphElements(targets: Target[], findings: Finding[], vectors: A
     if (finding.target_id) {
       addEdge({ data: { id: `edge:${finding.target_id}:${finding.id}`, source: `target:${finding.target_id}`, target: `finding:${finding.id}` } });
     }
+  }
+  for (const finding of sourceFindings) {
+    addNode({ data: { id: `source:${finding.id}`, label: finding.kind, type: "source", weight: finding.confirmed_dynamic ? 3 : 2, detail: `${finding.file_path}:${finding.line_number} ${finding.value}` } });
+  }
+  for (const edge of graphEdges) {
+    addEdge({ data: { id: `graph:${edge.id}`, source: edge.from_id, target: edge.to_id, label: edge.relation, type: "attack" } });
   }
   for (const vector of vectors) {
     addNode({ data: { id: `vector:${vector.id}`, label: vector.title, type: "vector", weight: severityWeight(vector.severity), detail: `${vector.severity} confidence ${Math.round(vector.confidence * 100)}%. ${vector.narrative}` } });

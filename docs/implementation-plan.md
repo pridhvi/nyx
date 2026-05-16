@@ -45,16 +45,18 @@ scanner-specific improvements rather than adding new roadmap phases.
 
 The current repo is not greenfield. Sessions use `<session-id>/session.db` with
 tool run sidecar logs in `<session-id>/runs/`; `nox scan --lean` deletes those
-logs after normalization, and `nox sessions export` packages the directory. These
-items are valuable baseline work and
-must be carried forward:
+logs after normalization, and `nox sessions export` packages the directory.
+Sessions preserve `mode` for scan aggressiveness and use `workload_mode` for
+`dynamic`, `static`, and `combined` workloads. These items are valuable baseline
+work and must be carried forward:
 
 - **Foundation:** Buildable Go module at `github.com/pridhvi/nox` and CLI
-  entrypoint with `scan`, `serve`, `sessions`, `plugins`, `report`, and
-  `version` command surfaces.
+  entrypoint with `scan`, `audit`, `serve`, `sessions`, `plugins`, `report`,
+  and `version` command surfaces.
 - **Models and persistence:** Canonical model structs for sessions, targets,
-  findings, CVEs, tool runs, attack vectors, report metadata, LLM analyses, and
-  plugin records, plus per-session SQLite migrations and typed store methods.
+  findings, source findings, graph edges, CVEs, tool runs, attack vectors,
+  report metadata, LLM analyses, and plugin records, plus per-session SQLite
+  migrations and typed store methods.
 - **Session store:** Per-session SQLite persistence defaults to the absolute
   state path `$HOME/.nox/sessions`, with create/list/show/delete support and
   config-relative resolution for explicit relative paths.
@@ -82,26 +84,39 @@ must be carried forward:
   findings, global plugin loading, cancellation, and cooperative pause/resume
   before starting the next tool. This should keep evolving incrementally into
   the full spec DAG scheduler instead of being thrown away.
+- **Audit and source-aware mode:** Static extractors cover Python,
+  JavaScript/TypeScript, Go, PHP, Ruby, and Java for routes, parameters, SQL
+  sinks, file uploads, auth middleware, secrets, SSRF sinks, deserialization
+  sinks, and unprotected routes. `nox audit` runs built-in and optional
+  `audit/<tool>` adapters with `.nox-audit-ignore` suppression, sidecar logs,
+  optional LLM triage/dataflow/narrative passes, and terminal/JSON/SARIF/HTML/MD
+  output. `nox scan --source` runs static-only without a target and combined
+  source-aware mode with a target; combined orchestration currently runs the
+  audit phase first, then dynamic adapters consume the persisted source hints in
+  the same session.
 - **LLM analyst:** Optional local-first OpenAI-compatible client implemented
   through `github.com/sashabaranov/go-openai`, structured scan context builder,
   constrained LLM tools, evidence truncation, and persisted
   conversation/tool-call audit trails.
-- **API:** Health, tools, sessions, targets, findings, tool runs, stats, scan
-  start/status/pause/resume/stop, vectors, CVEs, reports, LLM
-  history/analysis/chat, session deletion, scan profiles, global plugins, LLM
-  model probing, optional API-key auth, and scan lifecycle WebSocket event
-  stream. Scan start accepts both legacy `target` and multi-target `targets`.
+- **API:** Health, tools, sessions, targets, findings, source findings, tool
+  runs, stats, scan start/status/pause/resume/stop, vectors, attack graph edges,
+  CVEs, reports, LLM history/analysis/chat, session deletion, scan profiles,
+  global plugins, LLM model probing, optional API-key auth, and scan lifecycle
+  WebSocket event stream. Scan start accepts legacy `target`, multi-target
+  `targets`, `source_path`, and combined target+source requests.
 - **WebSocket progress:** Current endpoint is `GET /api/scan/{id}/events` with
   bounded event replay. The spec route `WS /ws/scan/{id}` is also available as
   a compatibility alias.
-- **Reporting and UI:** Markdown/HTML/paginated-PDF report generation,
+- **Reporting and UI:** Markdown/HTML/SARIF/paginated-PDF report generation,
   CLI/API/UI report access, and React/Vite dark-default operator console with a
   Nox logo/favicon, dashboard controls and live terminal feed, multi-target scan
-  builder, per-tool configuration modals, profile import/export, Recharts
-  severity chart, Cytoscape attack graph with safe edge filtering, sortable
-  finding/CVE tables, bulk finding workflow, finding evidence/edit workflow,
-  global plugin registration, LLM model probing, settings health panels, and
-  report pages backed by real API data. Built assets are embedded into
+  and source scan builder, per-tool configuration modals, profile import/export,
+  Recharts severity chart, Cytoscape attack graph with safe edge filtering,
+  source nodes and labelled graph edges, source finding page, sortable
+  finding/CVE tables with static/dynamic badges, bulk finding workflow, finding
+  evidence/edit workflow, global plugin registration, LLM model probing,
+  settings health panels, and report pages backed by real API data. Built assets
+  are embedded into
   `internal/api/web/dist`.
 - **Verification:** `go test ./...` and `npm run build` pass for the current
   working set.

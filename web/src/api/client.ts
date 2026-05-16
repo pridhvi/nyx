@@ -5,7 +5,9 @@ export type Session = {
   name: string;
   status: SessionStatus;
   mode: string;
+  workload_mode?: "dynamic" | "static" | "combined";
   target_input: string;
+  source_path?: string;
   in_scope?: string[];
   out_of_scope?: string[];
   enabled_phases?: string[];
@@ -57,8 +59,11 @@ export type Target = {
 
 export type CVEMatch = {
   id: string;
+  session_id?: string;
   finding_id: string;
   technology_id?: string;
+  package_name?: string;
+  package_version?: string;
   cve_id: string;
   cvss_v3_score: number;
   description: string;
@@ -78,7 +83,7 @@ export type HTTPEvidence = {
 export type Finding = {
   id: string;
   session_id: string;
-  target_id: string;
+  target_id?: string;
   tool_id: string;
   type: string;
   severity: string;
@@ -92,6 +97,36 @@ export type Finding = {
   evidence_normalized?: string;
   http_evidence?: HTTPEvidence;
   cve_matches?: CVEMatch[];
+  code_context?: string;
+  flow_summary?: string;
+  status?: string;
+  notes?: string;
+  created_at: string;
+};
+
+export type SourceFinding = {
+  id: string;
+  session_id: string;
+  kind: string;
+  language: string;
+  framework: string;
+  file_path: string;
+  line_number: number;
+  value: string;
+  method?: string;
+  context?: string;
+  notes?: string;
+  confirmed_dynamic?: boolean;
+  created_at: string;
+};
+
+export type AttackGraphEdge = {
+  id: string;
+  session_id: string;
+  from_id: string;
+  to_id: string;
+  relation: "enables" | "amplifies" | "requires" | "confirms";
+  confidence: number;
   created_at: string;
 };
 
@@ -158,6 +193,10 @@ export type SessionStats = {
   session_id: string;
   target_count: number;
   finding_count: number;
+  static_finding_count: number;
+  dynamic_finding_count: number;
+  confirmed_by_both: number;
+  source_finding_count: number;
   tool_run_count: number;
   severity_counts: Record<string, number>;
 };
@@ -165,6 +204,7 @@ export type SessionStats = {
 export type StartScanRequest = {
   target: string;
   targets?: string[];
+  source_path?: string;
   name?: string;
   mode: string;
   out_of_scope?: string[];
@@ -306,6 +346,12 @@ export function listFindings(sessionID: string, params: Record<string, string> =
   return api<Finding[]>(`/api/sessions/${sessionID}/findings${suffix}`);
 }
 
+export function listSourceFindings(sessionID: string, params: Record<string, string> = {}) {
+  const search = new URLSearchParams(params);
+  const suffix = search.toString() ? `?${search}` : "";
+  return api<SourceFinding[]>(`/api/sessions/${sessionID}/source-findings${suffix}`);
+}
+
 export function updateFinding(sessionID: string, findingID: string, payload: { severity?: string; remediation?: string }) {
   return api<Finding>(`/api/sessions/${sessionID}/findings/${findingID}`, {
     method: "PATCH",
@@ -378,6 +424,10 @@ export async function uploadPluginBinary(file: File) {
 
 export function listVectors(sessionID: string) {
   return api<AttackVector[]>(`/api/sessions/${sessionID}/vectors`);
+}
+
+export function listAttackGraphEdges(sessionID: string) {
+  return api<AttackGraphEdge[]>(`/api/sessions/${sessionID}/attack-graph-edges`);
 }
 
 export function listCVEs(sessionID: string) {

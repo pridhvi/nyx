@@ -22,9 +22,40 @@ type AdapterInput struct {
 	Session           models.Session
 	PriorFindings     []models.Finding
 	PriorTechnologies []models.Technology
+	SourceFindings    []models.SourceFinding
 	ToolParameters    map[string]any
 	Scope             ScopeValidator
 	HTTPClient        HTTPDoer
+}
+
+type StaticAdapterInput struct {
+	SessionID        string
+	RepoPath         string
+	Language         string
+	Framework        string
+	DiffPaths        []string
+	SuppressionRules []SuppressionRule
+	Offline          bool
+}
+
+type StaticAdapterOutput struct {
+	Findings []models.Finding
+	CVEs     []models.CVEMatch
+	ToolRun  models.ToolRun
+}
+
+type SuppressionRule struct {
+	ToolID   string
+	RuleID   string
+	PathGlob string
+}
+
+type StaticAdapter interface {
+	ID() string
+	Name() string
+	Languages() []string
+	Available() bool
+	Run(ctx context.Context, input StaticAdapterInput) (StaticAdapterOutput, error)
 }
 
 type AdapterOutput struct {

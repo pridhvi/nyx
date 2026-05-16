@@ -6,9 +6,9 @@ A local-first web application penetration testing framework that chains 20+ secu
 
 ## What it does
 
-nox is for pentesters, bug bounty hunters, and security researchers who want one local workspace for web app reconnaissance, fingerprinting, enumeration, vulnerability checks, evidence review, and reporting. It keeps each engagement scoped, stores the scan state in SQLite, keeps full tool stdout/stderr as sidecar logs beside the session database, and lets optional external tools contribute findings without making those tools mandatory.
+nox is for pentesters, bug bounty hunters, and security researchers who want one local workspace for web app reconnaissance, fingerprinting, enumeration, vulnerability checks, source-aware audit, evidence review, and reporting. It keeps each engagement scoped, stores the scan state in SQLite, keeps full tool stdout/stderr as sidecar logs beside the session database, and lets optional external tools contribute findings without making those tools mandatory.
 
-At a high level, nox creates a scoped session, runs a dependency-aware tool pipeline, normalizes tool output into common target/finding/evidence models, correlates CVEs, builds deterministic attack vectors, lets a local OpenAI-compatible model annotate the results, and generates Markdown, HTML, or PDF reports.
+At a high level, nox creates a scoped session, runs a dependency-aware tool pipeline, normalizes tool output into common target/finding/evidence models, correlates CVEs, builds deterministic and graph-derived attack vectors, lets a local OpenAI-compatible model annotate the results, and generates Markdown, HTML, SARIF, or PDF reports.
 
 It runs entirely locally by default. There is no telemetry, no required cloud service, and no required hosted LLM. Ollama, LM Studio, llama.cpp, and OpenAI-compatible endpoints can be used when LLM analysis is enabled.
 
@@ -25,13 +25,22 @@ After building the binary, you can also run:
 ./bin/nox serve --host 127.0.0.1 --port 6767
 ```
 
+Static and combined source-aware modes use the same session database and report pipeline:
+
+```sh
+./bin/nox audit /path/to/repo --no-llm --format sarif --output audit.sarif
+./bin/nox scan --target https://example.com --source /path/to/repo --no-llm
+```
+
 ## Features
 
 - **Scan pipeline:** DAG-driven execution across reconnaissance, fingerprinting, enumeration, and vulnerability phases with optional subprocess tools.
+- **Built-in audit:** `nox audit` performs static extraction and optional SAST/dependency tool execution for Python, JavaScript/TypeScript, Go, PHP, Ruby, and Java repositories without executing repository code.
+- **Combined mode:** `nox scan --source <repo>` seeds dynamic adapters with source-discovered routes and parameters, then stores static and dynamic findings in one session.
 - **Findings & evidence:** Normalized findings, sidecar stdout/stderr retention, HTTP request/response evidence, technologies, CVE correlation, and tool-run history.
-- **Attack vector engine:** Rule-based chains with confidence scoring, ordered steps, prerequisite findings, and OWASP mapping.
+- **Attack vector engine:** Rule-based and graph-derived chains with confidence scoring, ordered steps, labelled edges, prerequisite findings, and OWASP mapping.
 - **LLM analysis:** OpenAI-compatible local model support, constrained tool calling, persisted audit trail, post-scan analysis, and interactive chat.
-- **Reporting:** Markdown, HTML, and PDF output in executive or technical modes.
+- **Reporting:** Markdown, HTML, SARIF 2.1.0, and PDF output in executive or technical modes.
 - **Plugin system:** Subprocess JSON contract so adapters can be written in any language.
 - **Web UI:** Scan builder, session dashboard, findings workflow, attack graph, CVE table, tool status, LLM chat, settings, and report preview.
 
@@ -45,6 +54,8 @@ All external tools are optional. Missing tools are recorded as tool runs and the
 | Fingerprinting | `whatweb`, `nuclei-tech`, `testssl.sh`, GraphQL introspection, OpenAPI/Swagger discovery, `wpscan`, `droopescan` |
 | Enumeration | `ffuf`, `arjun`, `linkfinder`, `gitleaks`, JavaScript secret scanning, CORS checks, scoped cloud bucket checks |
 | Vulnerability | `nuclei-vuln`, `sqlmap`, `dalfox`, SSRFmap, `jwt_tool`, OAuth checks, SSTI checks, XXE fuzzing, `nikto` |
+
+Static audit tools are registered as `audit/<id>`. Built-in source analyzers always run; optional tools such as `semgrep`, `bandit`, `gosec`, `govulncheck`, `npm audit`, `retire.js`, `safety`, `brakeman`, `spotbugs`, `psalm`, `trufflehog`, `gitleaks`, and `grype` run when installed.
 
 ## Configuration
 

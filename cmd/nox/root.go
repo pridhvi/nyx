@@ -22,6 +22,8 @@ func Execute() {
 	switch os.Args[1] {
 	case "scan":
 		err = runScan(os.Args[2:])
+	case "audit":
+		err = runAudit(os.Args[2:])
 	case "serve":
 		err = runServe(os.Args[2:])
 	case "report":
@@ -56,6 +58,8 @@ written permission to test. Unauthorized scanning or exploitation may be illegal
 
 Usage:
   nox scan --target <host-or-url> [--mode passive|active|stealth]
+  nox scan --source <repo-path>
+  nox audit <repo-path> [--format terminal|json|sarif|html|md]
   nox serve [--host 127.0.0.1] [--port 6767]
   nox sessions list
   nox sessions show <id>

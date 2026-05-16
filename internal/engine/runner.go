@@ -17,6 +17,7 @@ import (
 	"github.com/pridhvi/nox/internal/db"
 	llmintel "github.com/pridhvi/nox/internal/llm"
 	"github.com/pridhvi/nox/internal/models"
+	"github.com/pridhvi/nox/internal/source"
 	"github.com/pridhvi/nox/internal/vectors"
 )
 
@@ -171,6 +172,10 @@ func (r *Runner) Run(ctx context.Context, session models.Session) error {
 	if err != nil {
 		return err
 	}
+	sourceFindings, err := r.loadSourceFindings(ctx, session)
+	if err != nil {
+		return err
+	}
 	scanAdapters, err := selectedAdapters(r.adapters, session.EnabledTools, session.EnabledPhases)
 	if err != nil {
 		return err
@@ -207,7 +212,7 @@ func (r *Runner) Run(ctx context.Context, session models.Session) error {
 			Message:   fmt.Sprintf("Phase %s started", phaseName),
 			At:        time.Now().UTC(),
 		})
-		results := r.runLevel(ctx, session, level, targets, scope, priorFindings, priorTechnologies, globalSem, toolSems)
+		results := r.runLevel(ctx, session, level, targets, scope, priorFindings, priorTechnologies, sourceFindings, globalSem, toolSems)
 		for _, result := range results {
 			if result.ctxErr != nil {
 				cancelled = true
@@ -306,6 +311,10 @@ func (r *Runner) runAttackVectorEngine(ctx context.Context, session models.Sessi
 	if err != nil {
 		return err
 	}
+	sourceFindings, err := r.store.ListSourceFindings(ctx, session.ID, db.SourceFindingFilter{})
+	if err != nil {
+		return err
+	}
 	existing, err := r.store.ListAttackVectors(ctx, session.ID)
 	if err != nil {
 		return err
@@ -314,7 +323,21 @@ func (r *Runner) runAttackVectorEngine(ctx context.Context, session models.Sessi
 	for _, vector := range existing {
 		seen[attackVectorKey(vector)] = true
 	}
-	for _, vector := range vectors.NewEngine().Generate(session.ID, findings, cves) {
+	generated := vectors.NewEngine().Generate(session.ID, findings, cves)
+	graph := vectors.BuildAttackGraph(session.ID, findings, sourceFindings)
+	if err := r.store.DeleteAttackGraphEdges(ctx, session.ID); err != nil {
+		return err
+	}
+	for _, edge := range graph.Edges {
+		if strings.HasPrefix(edge.FromID, "source:") && edge.Relation == models.RelationConfirms {
+			_ = r.store.MarkSourceFindingConfirmed(ctx, strings.TrimPrefix(edge.FromID, "source:"))
+		}
+		if err := r.store.InsertAttackGraphEdge(ctx, edge); err != nil {
+			return err
+		}
+	}
+	generated = append(generated, vectors.VectorsFromGraph(session.ID, graph)...)
+	for _, vector := range generated {
 		if seen[attackVectorKey(vector)] {
 			continue
 		}
@@ -460,7 +483,24 @@ type adapterRunResult struct {
 	ctxErr error
 }
 
-func (r *Runner) runLevel(ctx context.Context, session models.Session, level []adapters.Adapter, targets []models.Target, scope *ScopeChecker, priorFindings []models.Finding, priorTechnologies []models.Technology, globalSem chan struct{}, toolSems map[string]chan struct{}) []adapterRunResult {
+func (r *Runner) loadSourceFindings(ctx context.Context, session models.Session) ([]models.SourceFinding, error) {
+	if strings.TrimSpace(session.SourcePath) != "" {
+		r.emit(ScanEvent{Type: ScanEventPhaseStarted, SessionID: session.ID, Phase: "source_analysis", Message: "Source analysis started", At: time.Now().UTC()})
+		result, err := source.Analyse(session.SourcePath, session.ID)
+		if err != nil {
+			slog.Warn("source analysis skipped", "session_id", session.ID, "error", err)
+		}
+		for _, finding := range result.Findings {
+			if err := r.store.InsertSourceFinding(ctx, finding); err != nil {
+				return nil, err
+			}
+		}
+		r.emit(ScanEvent{Type: ScanEventPhaseCompleted, SessionID: session.ID, Phase: "source_analysis", Message: "Source analysis completed", FindingCount: len(result.Findings), At: time.Now().UTC()})
+	}
+	return r.store.ListSourceFindings(ctx, session.ID, db.SourceFindingFilter{})
+}
+
+func (r *Runner) runLevel(ctx context.Context, session models.Session, level []adapters.Adapter, targets []models.Target, scope *ScopeChecker, priorFindings []models.Finding, priorTechnologies []models.Technology, sourceFindings []models.SourceFinding, globalSem chan struct{}, toolSems map[string]chan struct{}) []adapterRunResult {
 	results := make(chan adapterRunResult, len(level)*max(1, len(targets)))
 	var wg sync.WaitGroup
 	for _, adapter := range level {
@@ -473,6 +513,7 @@ func (r *Runner) runLevel(ctx context.Context, session models.Session, level []a
 				Target:            target,
 				PriorFindings:     append([]models.Finding(nil), priorFindings...),
 				PriorTechnologies: append([]models.Technology(nil), priorTechnologies...),
+				SourceFindings:    append([]models.SourceFinding(nil), sourceFindings...),
 				ToolParameters:    session.ToolParameters[adapter.ID()],
 				Scope:             scope,
 				HTTPClient:        r.httpClient,

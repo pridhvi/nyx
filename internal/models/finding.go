@@ -38,6 +38,10 @@ type Finding struct {
 	Method             string        `json:"method,omitempty"`
 	EvidenceRaw        string        `json:"evidence_raw"`
 	EvidenceNormalized string        `json:"evidence_normalized"`
+	CodeContext        string        `json:"code_context,omitempty"`
+	FlowSummary        string        `json:"flow_summary,omitempty"`
+	Status             string        `json:"status,omitempty"`
+	Notes              string        `json:"notes,omitempty"`
 	HTTPEvidence       *HTTPEvidence `json:"http_evidence,omitempty"`
 	Tags               []string      `json:"tags"`
 	CVEMatches         []CVEMatch    `json:"cve_matches,omitempty"`

@@ -35,7 +35,7 @@ Nox improves on this concept in every dimension:
 | Attack chain reasoning | None | Multi-step attack vector engine with confidence scoring |
 | Plugin system | None | Subprocess JSON-RPC contract, any language |
 | Scope management | None | Whitelist/blacklist, per-tool rate limiting, passive/active modes |
-| Reporting | HTML/PDF export | CVSS-scored reports, executive + technical modes, Markdown/HTML/PDF |
+| Reporting | HTML/PDF export | CVSS-scored reports, executive + technical modes, Markdown/HTML/SARIF/PDF |
 
 ---
 
@@ -47,7 +47,8 @@ Nox improves on this concept in every dimension:
 4. **DAG, not sequence.** Tools run in dependency order. Phase 1 results unlock Phase 2 tools automatically. Phases parallelize where safe.
 5. **LLM augments, rules decide.** The attack vector engine is rule-based first, LLM-enhanced second. Don't rely on LLM reasoning for correctness-critical logic.
 6. **One directory per engagement.** Each session directory contains `session.db` plus optional `runs/` sidecar logs, and can be exported as a zip for sharing.
-7. **Zero required config.** `nox scan --target example.com` should work out of the box with sensible defaults. Everything else is opt-in.
+7. **Workload-aware sessions.** `sessions.mode` records scan aggressiveness (`passive`, `active`, `stealth`) while `sessions.workload_mode` records the workload (`dynamic`, `static`, `combined`). Static-only sessions may have zero targets.
+8. **Zero required config.** `nox scan --target example.com` and `nox audit ./repo --no-llm` should work out of the box with sensible defaults. Everything else is opt-in.
 8. **Air-gap capable.** Can run fully offline with a local LLM and an offline CVE mirror. No external dependencies required.
 
 ---
@@ -1385,6 +1386,7 @@ WS     /ws/scan/{id}               WebSocket — real-time scan events
 
 ```
 nox scan --target <host/CIDR/URL>     Start a scan (most common command)
+         --source /path/to/repo       Source-aware combined mode when target is present; static-only when target is absent
          --name "Engagement name"      Label for this session
          --mode passive|active|stealth Scan mode (default: active)
          --phases recon,fingerprint,...  Limit to specific phases
@@ -1396,6 +1398,19 @@ nox scan --target <host/CIDR/URL>     Start a scan (most common command)
          --concurrency 5               Max concurrent tools (default: 3)
          --rate-limit 100              Max requests/second globally
 
+nox audit <path>                      Run built-in static audit against source code
+          --name "Audit name"         Label for this static session
+          --format terminal|json|sarif|html|md
+          --output audit.sarif        Output file (default: stdout for report formats)
+          --fail-on critical|high|medium|low
+          --diff path1,path2          Restrict audit findings to changed paths
+          --tools audit/semgrep,...   Limit static adapters
+          --offline                   Prefer offline-safe audit execution
+          --no-llm                    Skip audit triage/dataflow/narrative LLM passes
+nox audit findings <session-id>       List audit findings from a session
+nox audit report <session-id>         Generate a report from an audit session
+nox audit tools                       List built-in and external audit adapters
+
 nox serve                             Start the web UI and API server
          --port 8080                  (default: 8080)
          --host 127.0.0.1            (default: localhost only)
@@ -1405,7 +1420,7 @@ nox sessions show <id>                Show session details
 nox sessions delete <id>              Delete a session
 
 nox report <session-id>               Generate report
-          --format html|pdf|md        Output format (default: html)
+          --format html|pdf|md|sarif  Output format (default: html)
           --output report.html        Output file (default: stdout)
           --mode executive|technical  Report depth (default: technical)
 
@@ -1429,6 +1444,8 @@ The frontend is a React SPA embedded in the Go binary. Routes:
 - Active and recent sessions list
 - Quick-start new scan form (target input, mode selector, name)
 - Global stats: total findings by severity across all sessions
+- Combined-mode sessions show static and dynamic progress tracks through the
+  same scan event stream.
 
 ### 15.2 Session Detail (`/sessions/:id`)
 - Session metadata (target, mode, duration, status)
@@ -1439,17 +1456,25 @@ The frontend is a React SPA embedded in the Go binary. Routes:
 
 ### 15.3 Attack Graph (`/sessions/:id/graph`)
 - Cytoscape.js force-directed graph
-- Nodes: targets, technologies, findings, attack vectors
-- Edges: "discovered by", "exploits", "leads to", "affects"
-- Node colors: red = critical finding, orange = high, yellow = medium, blue = info, purple = attack vector
+- Nodes: targets, technologies, findings, source findings, audit findings, attack vectors
+- Edges: "discovered by", "exploits", "leads to", "affects", plus labelled source/audit graph edges (`enables`, `amplifies`, `requires`, `confirms`)
+- Node colors: red = critical finding, orange = high, yellow = medium, blue = info, purple = attack vector/source
 - Click any node to see full details in a side panel
 - Filter by: severity, OWASP category, phase
+- Highlight top graph-derived paths and static + dynamic confirmations.
 
 ### 15.4 Findings (`/sessions/:id/findings`)
 - Full findings table with all fields
 - Expandable rows showing raw evidence, HTTP request/response, CVE matches
 - Bulk actions: export selected, change severity, add notes
 - Filters: severity, type, tool, OWASP category, has CVE, has exploit
+- Origin badges distinguish dynamic, static, and static + dynamic findings.
+- Audit fields include status, notes, code context, and flow summary.
+
+### 15.4a Source (`/sessions/:id/source`)
+- Source finding table with context snippets, language/framework, kind, method,
+  file path, line number, and risky-kind severity styling.
+- Static + dynamic badges mark source findings confirmed by dynamic evidence.
 
 ### 15.5 LLM Chat (`/sessions/:id/llm`)
 - Chat interface with the LLM analyst
@@ -1464,14 +1489,17 @@ The frontend is a React SPA embedded in the Go binary. Routes:
 ### 15.6 Reports (`/sessions/:id/report`)
 - Report preview (HTML rendered in iframe)
 - Toggle: executive summary / full technical report
-- Download as PDF or Markdown
+- Download as PDF, Markdown, HTML, or SARIF
 - Report sections:
   - Executive summary (LLM-generated narrative)
   - Scope and methodology
+  - Static source findings and audit coverage
   - Critical & high findings (full detail)
   - Medium & low findings (summary table)
-  - Attack vectors (with step-by-step chains)
-  - CVE matches with patch availability
+  - Attack vectors (with step-by-step chains and graph-derived paths)
+  - CVE matches with patch availability and dependency package metadata
+  - Dismissed and suppressed audit findings
+  - Cross-confirmed static/dynamic findings
   - Remediation roadmap (prioritised by severity)
   - Appendix: raw tool output
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -32,6 +33,19 @@ func (a FFUF) Run(ctx context.Context, input AdapterInput) (AdapterOutput, error
 	wordlist := commonWordlistPath()
 	if configured := toolParamString(input, "wordlist"); configured != "" {
 		wordlist = configured
+	}
+	var tempWordlist string
+	if routes := sourceValues(input.SourceFindings, models.SourceKindRoute); len(routes) > 0 {
+		file, err := os.CreateTemp("", "nox-routes-*.txt")
+		if err == nil {
+			for _, route := range routes {
+				_, _ = fmt.Fprintln(file, strings.TrimPrefix(route, "/"))
+			}
+			_ = file.Close()
+			tempWordlist = file.Name()
+			wordlist = tempWordlist
+			defer os.Remove(tempWordlist)
+		}
 	}
 	baseURL := strings.TrimRight(targetBaseURL(input.Target), "/") + "/FUZZ"
 	args := []string{"-u", baseURL, "-w", wordlist, "-of", "json", "-noninteractive", "-t", "5", "-rate", "25"}

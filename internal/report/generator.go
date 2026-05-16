@@ -2,6 +2,7 @@ package report
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"html"
 	"sort"
@@ -76,13 +77,19 @@ func Generate(ctx context.Context, store Store, options Options) (Artifact, erro
 		return Artifact{}, err
 	}
 	sections := buildSections(session, targets, findings, cves, vectors, runs, analyses, stats, options.Mode)
+	summary := sections[0].Content
+	if options.Format == models.ReportFormatSARIF {
+		if body, err := json.Marshal(findings); err == nil {
+			summary = string(body)
+		}
+	}
 	report := models.Report{
 		ID:              models.NewID(),
 		SessionID:       session.ID,
 		Title:           fmt.Sprintf("Nox report for %s", session.TargetInput),
 		Format:          options.Format,
 		Mode:            options.Mode,
-		Summary:         sections[0].Content,
+		Summary:         summary,
 		Sections:        sections,
 		FindingIDs:      findingIDs(findings),
 		CVEMatchIDs:     cveIDs(cves),
@@ -225,6 +232,8 @@ func render(report models.Report) ([]byte, string) {
 		return []byte(renderMarkdown(report)), "text/markdown; charset=utf-8"
 	case models.ReportFormatPDF:
 		return renderPDF(renderMarkdown(report)), "application/pdf"
+	case models.ReportFormatSARIF:
+		return renderSARIF(report), "application/sarif+json"
 	default:
 		return []byte(renderHTML(report)), "text/html; charset=utf-8"
 	}

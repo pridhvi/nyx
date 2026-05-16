@@ -3,12 +3,14 @@ package api
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/pridhvi/nox/internal/adapters"
 	"github.com/pridhvi/nox/internal/db"
 	"github.com/pridhvi/nox/internal/engine"
+	llmintel "github.com/pridhvi/nox/internal/llm"
 	"github.com/pridhvi/nox/internal/models"
 )
 
@@ -72,16 +74,67 @@ func (m *ScanManager) Start(session models.Session) {
 			return
 		}
 		defer store.Close()
-		runner := engine.NewRunnerWithOptions(store, engine.DefaultSafeAdapters(), m.httpClient, runnerOptionsFromSession(session))
-		runner.SetPauseController(m.pauseController(session.ID))
-		for _, plugin := range m.enabledPlugins() {
-			runner.AddAdapters(adapters.NewConfiguredPlugin(plugin))
-		}
-		runner.OnEvent(m.Publish)
-		if err := runner.Run(ctx, session); err != nil {
+		if err := m.runSession(ctx, store, session); err != nil {
 			slog.Error("async scan failed", "session_id", session.ID, "error", err)
 		}
 	}()
+}
+
+func (m *ScanManager) runSession(ctx context.Context, store *db.Store, session models.Session) error {
+	switch session.WorkloadMode {
+	case models.WorkloadModeStatic:
+		audit := engine.NewAuditRunner(store, engine.AuditOptions{
+			Tools:     session.EnabledTools,
+			LLMConfig: llmintel.ConfigFromSession(session),
+		})
+		audit.OnEvent(m.Publish)
+		return audit.Run(ctx, session, session.SourcePath)
+	case models.WorkloadModeCombined:
+		audit := engine.NewAuditRunner(store, engine.AuditOptions{
+			Tools:           auditTools(session.EnabledTools),
+			KeepSessionOpen: true,
+			LLMConfig:       llmintel.ConfigFromSession(session),
+		})
+		audit.OnEvent(m.Publish)
+		if err := audit.Run(ctx, session, session.SourcePath); err != nil {
+			return err
+		}
+		dynamicErr := m.runDynamic(ctx, store, session)
+		return dynamicErr
+	default:
+		return m.runDynamic(ctx, store, session)
+	}
+}
+
+func (m *ScanManager) runDynamic(ctx context.Context, store *db.Store, session models.Session) error {
+	session.EnabledTools = dynamicTools(session.EnabledTools)
+	runner := engine.NewRunnerWithOptions(store, engine.DefaultSafeAdapters(), m.httpClient, runnerOptionsFromSession(session))
+	runner.SetPauseController(m.pauseController(session.ID))
+	for _, plugin := range m.enabledPlugins() {
+		runner.AddAdapters(adapters.NewConfiguredPlugin(plugin))
+	}
+	runner.OnEvent(m.Publish)
+	return runner.Run(ctx, session)
+}
+
+func auditTools(tools []string) []string {
+	var out []string
+	for _, tool := range tools {
+		if strings.HasPrefix(strings.TrimSpace(tool), "audit/") {
+			out = append(out, tool)
+		}
+	}
+	return out
+}
+
+func dynamicTools(tools []string) []string {
+	var out []string
+	for _, tool := range tools {
+		if !strings.HasPrefix(strings.TrimSpace(tool), "audit/") {
+			out = append(out, tool)
+		}
+	}
+	return out
 }
 
 func (m *ScanManager) Pause(sessionID string) bool {

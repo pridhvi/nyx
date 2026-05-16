@@ -8,6 +8,7 @@ const (
 	ReportFormatMarkdown ReportFormat = "md"
 	ReportFormatHTML     ReportFormat = "html"
 	ReportFormatPDF      ReportFormat = "pdf"
+	ReportFormatSARIF    ReportFormat = "sarif"
 )
 
 type ReportMode string

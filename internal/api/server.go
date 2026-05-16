@@ -99,6 +99,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/sessions/{id}", s.deleteSession)
 	mux.HandleFunc("GET /api/sessions/{id}/targets", s.listTargets)
 	mux.HandleFunc("GET /api/sessions/{id}/findings", s.listFindings)
+	mux.HandleFunc("GET /api/sessions/{id}/source-findings", s.listSourceFindings)
 	mux.HandleFunc("PATCH /api/sessions/{id}/findings/{finding_id}", s.updateFinding)
 	mux.HandleFunc("GET /api/sessions/{id}/tool-runs", s.listToolRuns)
 	mux.HandleFunc("GET /api/sessions/{id}/tool-runs/{run_id}/stdout", s.toolRunLog("stdout"))
@@ -108,6 +109,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PATCH /api/sessions/{id}/plugins/{plugin_id}", s.updatePlugin)
 	mux.HandleFunc("GET /api/sessions/{id}/stats", s.sessionStats)
 	mux.HandleFunc("GET /api/sessions/{id}/vectors", s.listAttackVectors)
+	mux.HandleFunc("GET /api/sessions/{id}/attack-graph-edges", s.listAttackGraphEdges)
 	mux.HandleFunc("GET /api/sessions/{id}/cves", s.listCVEs)
 	mux.HandleFunc("GET /api/sessions/{id}/report", s.generateReport)
 	mux.HandleFunc("POST /api/sessions/{id}/llm/chat", s.llmChat)
@@ -534,6 +536,8 @@ func (s *Server) listFindings(w http.ResponseWriter, r *http.Request) {
 		Severity: r.URL.Query().Get("severity"),
 		ToolID:   firstNonEmpty(r.URL.Query().Get("tool_id"), r.URL.Query().Get("tool")),
 		Type:     r.URL.Query().Get("type"),
+		Status:   r.URL.Query().Get("status"),
+		Origin:   r.URL.Query().Get("origin"),
 	})
 	if err != nil {
 		writeDBError(w, err)
@@ -542,6 +546,20 @@ func (s *Server) listFindings(w http.ResponseWriter, r *http.Request) {
 	findings = filterFindings(findings, r.URL.Query().Get("cve"), r.URL.Query().Get("exploit"))
 	if page, limit := pagination(r); limit > 0 {
 		findings = paginate(findings, page, limit)
+	}
+	writeJSON(w, findings)
+}
+
+func (s *Server) listSourceFindings(w http.ResponseWriter, r *http.Request) {
+	store, session, ok := s.openSession(w, r)
+	if !ok {
+		return
+	}
+	defer store.Close()
+	findings, err := store.ListSourceFindings(r.Context(), session.ID, db.SourceFindingFilter{Kind: r.URL.Query().Get("kind")})
+	if err != nil {
+		writeDBError(w, err)
+		return
 	}
 	writeJSON(w, findings)
 }
@@ -1069,6 +1087,20 @@ func (s *Server) listAttackVectors(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, vectors)
 }
 
+func (s *Server) listAttackGraphEdges(w http.ResponseWriter, r *http.Request) {
+	store, session, ok := s.openSession(w, r)
+	if !ok {
+		return
+	}
+	defer store.Close()
+	edges, err := store.ListAttackGraphEdges(r.Context(), session.ID)
+	if err != nil {
+		writeDBError(w, err)
+		return
+	}
+	writeJSON(w, edges)
+}
+
 func (s *Server) listCVEs(w http.ResponseWriter, r *http.Request) {
 	store, session, ok := s.openSession(w, r)
 	if !ok {
@@ -1263,6 +1295,7 @@ func (s *Server) runLLM(w http.ResponseWriter, r *http.Request, prompt string) {
 type startScanRequest struct {
 	Target             string                    `json:"target"`
 	Targets            []string                  `json:"targets"`
+	SourcePath         string                    `json:"source_path"`
 	Name               string                    `json:"name"`
 	Mode               models.ScanMode           `json:"mode"`
 	OutOfScope         []string                  `json:"out_of_scope"`
@@ -1285,6 +1318,7 @@ func (s *Server) startScan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.Target = strings.TrimSpace(req.Target)
+	req.SourcePath = strings.TrimSpace(req.SourcePath)
 	if len(req.Targets) > 0 {
 		req.Target = strings.Join(req.Targets, "\n")
 	}
@@ -1296,8 +1330,9 @@ func (s *Server) startScan(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	session, targets, err := engine.NewPendingSessionWithTargets(engine.NewSessionInput{
+	input := engine.NewSessionInput{
 		Target:         req.Target,
+		SourcePath:     req.SourcePath,
 		Name:           req.Name,
 		Mode:           req.Mode,
 		OutOfScope:     req.OutOfScope,
@@ -1313,7 +1348,18 @@ func (s *Server) startScan(w http.ResponseWriter, r *http.Request) {
 		},
 		LLMModel:   req.LLMModel,
 		LLMBaseURL: req.LLMBaseURL,
-	})
+	}
+	var session models.Session
+	var targets []models.Target
+	var err error
+	if req.Target == "" && req.SourcePath != "" {
+		session, err = engine.NewPendingSourceSession(input)
+	} else {
+		if req.SourcePath != "" {
+			input.WorkloadMode = models.WorkloadModeCombined
+		}
+		session, targets, err = engine.NewPendingSessionWithTargets(input)
+	}
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err)
 		return
@@ -1380,6 +1426,12 @@ func validateTools(toolIDs []string) error {
 			continue
 		}
 		if strings.HasPrefix(id, "plugin:") {
+			continue
+		}
+		if strings.HasPrefix(id, "audit/") {
+			if _, ok := adapters.GetStatic(strings.TrimPrefix(id, "audit/")); !ok {
+				return fmt.Errorf("unknown tool %q", id)
+			}
 			continue
 		}
 		if _, ok := adapters.Get(id); !ok {

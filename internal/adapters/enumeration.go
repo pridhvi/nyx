@@ -25,6 +25,9 @@ func (Arjun) ShouldRun(input AdapterInput) bool { return activeOnly(input) && li
 func (a Arjun) Run(ctx context.Context, input AdapterInput) (AdapterOutput, error) {
 	rawURL := targetURL(input.Target)
 	args := []string{"-u", rawURL, "-oJ", "-"}
+	if params := sourceValues(input.SourceFindings, models.SourceKindParameter); len(params) > 0 {
+		args = append(args, "--params", strings.Join(params, ","))
+	}
 	if ok, reason := targetInScope(input, input.Target.Host); !ok {
 		return AdapterOutput{ToolRun: failedToolRun(input, a.ID(), args, reason, 1)}, nil
 	}
