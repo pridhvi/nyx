@@ -16,6 +16,7 @@ export function Findings() {
   const [editRemediation, setEditRemediation] = useState("");
   const [bulkSeverity, setBulkSeverity] = useState("");
   const [bulkRemediation, setBulkRemediation] = useState("");
+  const [evidenceTab, setEvidenceTab] = useState<"normalized" | "raw" | "http" | "cves" | "code">("normalized");
   const findingsQuery = useQuery({
     queryKey: ["findings-page", selected, severity, origin, status],
     queryFn: () => listFindings(selected, cleanFilters({ severity, origin, status })),
@@ -66,6 +67,7 @@ export function Findings() {
     setSelectedFinding(finding);
     setEditSeverity(finding.severity);
     setEditRemediation(finding.remediation ?? "");
+    setEvidenceTab("normalized");
   }
 
   function toggleFindingSelection(findingID: string) {
@@ -106,9 +108,11 @@ export function Findings() {
     <section className="page">
       <header className="page-header">
         <div>
-          <h1>Findings</h1>
+          <h1>Triage</h1>
           <p>Review normalized findings, CVEs, remediation, and persisted evidence.</p>
         </div>
+      </header>
+      <section className="filter-bar">
         <label className="compact-control">
           Severity
           <select value={severity} onChange={(event) => setSeverity(event.target.value)}>
@@ -138,7 +142,7 @@ export function Findings() {
             <option value="dismissed">Dismissed</option>
           </select>
         </label>
-      </header>
+      </section>
       <section className="panel bulk-panel">
         <div>
           <h2>Bulk Workflow</h2>
@@ -170,6 +174,7 @@ export function Findings() {
         {selectedCount > 0 ? <button className="secondary" type="button" onClick={() => setSelectedFindingIDs(new Set())}>Clear</button> : null}
         {bulkUpdateMutation.error ? <p className="error-text">{bulkUpdateMutation.error.message}</p> : null}
       </section>
+      <div className="split-workspace triage-workspace">
       <section className="panel">
         <div className="table-wrap">
           <table>
@@ -218,8 +223,7 @@ export function Findings() {
         </div>
       </section>
       {selectedFinding ? (
-        <div className="drawer-backdrop" onMouseDown={() => setSelectedFinding(null)}>
-          <aside className="drawer finding-detail-panel" onMouseDown={(event) => event.stopPropagation()} aria-label="Finding details">
+          <aside className="panel detail-pane finding-detail-panel" aria-label="Finding details">
             <div className="detail-header">
               <div>
                 <span className={`severity ${selectedFinding.severity}`}>{selectedFinding.severity}</span>
@@ -248,37 +252,29 @@ export function Findings() {
               </button>
             </div>
             {updateMutation.error ? <p className="error-text">{updateMutation.error.message}</p> : null}
-            <div className="evidence-grid">
-              <article>
-                <h3>Normalized Evidence</h3>
-                <pre>{selectedFinding.evidence_normalized || "-"}</pre>
-              </article>
-              <article>
-                <h3>Raw Evidence</h3>
-                <pre>{selectedFinding.evidence_raw || "-"}</pre>
-              </article>
-              <article>
-                <h3>HTTP Request</h3>
-                <pre>{selectedFinding.http_evidence?.request_raw || "-"}</pre>
-              </article>
-              <article>
-                <h3>HTTP Response</h3>
-                <pre>{selectedFinding.http_evidence?.response_raw || "-"}</pre>
-              </article>
-              <article>
-                <h3>CVSS / CVEs</h3>
-                <pre>{`CVSS: ${selectedFinding.cvss_score || "-"}\n${(selectedFinding.cve_matches ?? []).map((cve) => `${cve.cve_id} ${cve.cvss_v3_score}`).join("\n") || "-"}`}</pre>
-              </article>
-              <article>
-                <h3>Code Context</h3>
-                <pre>{selectedFinding.code_context || selectedFinding.flow_summary || selectedFinding.notes || "-"}</pre>
-              </article>
+            <div className="tab-row" role="tablist" aria-label="Evidence views">
+              {[
+                ["normalized", "Normalized"],
+                ["raw", "Raw"],
+                ["http", "HTTP"],
+                ["cves", "CVSS/CVEs"],
+                ["code", "Code"],
+              ].map(([id, label]) => <button key={id} className={evidenceTab === id ? "active" : ""} type="button" onClick={() => setEvidenceTab(id as typeof evidenceTab)}>{label}</button>)}
             </div>
+            <EvidenceTab finding={selectedFinding} tab={evidenceTab} />
           </aside>
-        </div>
       ) : null}
+      </div>
     </section>
   );
+}
+
+function EvidenceTab({ finding, tab }: { finding: Finding; tab: "normalized" | "raw" | "http" | "cves" | "code" }) {
+  if (tab === "raw") return <pre>{finding.evidence_raw || "-"}</pre>;
+  if (tab === "http") return <div className="evidence-grid"><article><h3>Request</h3><pre>{finding.http_evidence?.request_raw || "-"}</pre></article><article><h3>Response</h3><pre>{finding.http_evidence?.response_raw || "-"}</pre></article></div>;
+  if (tab === "cves") return <pre>{`CVSS: ${finding.cvss_score || "-"}\n${(finding.cve_matches ?? []).map((cve) => `${cve.cve_id} ${cve.cvss_v3_score}`).join("\n") || "-"}`}</pre>;
+  if (tab === "code") return <pre>{finding.code_context || finding.flow_summary || finding.notes || "-"}</pre>;
+  return <pre>{finding.evidence_normalized || "-"}</pre>;
 }
 
 function SortableHeader({ label, active, direction, onClick }: { label: string; active: boolean; direction: "asc" | "desc"; onClick: () => void }) {

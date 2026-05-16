@@ -2,8 +2,6 @@
 
 A local-first web application penetration testing framework that chains 20+ security tools, normalizes findings into a shared database, and uses a local LLM to map attack vectors.
 
-<!-- TODO: Add demo GIF here -->
-
 ## What it does
 
 nox is for pentesters, bug bounty hunters, and security researchers who want one local workspace for web app reconnaissance, fingerprinting, enumeration, vulnerability checks, source-aware audit, evidence review, and reporting. It keeps each engagement scoped, stores the scan state in SQLite, keeps full tool stdout/stderr as sidecar logs beside the session database, and lets optional external tools contribute findings without making those tools mandatory.
@@ -44,7 +42,7 @@ Static and combined source-aware modes use the same session database and report 
 - **LLM analysis:** OpenAI-compatible local model support, constrained tool calling, persisted audit trail, post-scan analysis, and interactive chat.
 - **Reporting:** Markdown, HTML, SARIF 2.1.0, and PDF output with source findings, tool coverage, dependency CVEs, suppressed findings, and cross-confirmed evidence.
 - **Plugin system:** Subprocess JSON contract so adapters can be written in any language.
-- **Web UI:** Midnight/violet operator console with bundled local fonts, scan builder, live pipeline dashboard, findings drawer, attack graph, CVE table, tool status/log drawers, LLM chat with tool-call cards, settings, and report preview.
+- **Web UI:** Dense midnight/violet operator console with bundled local fonts, command-center dashboard, scan builder rail, triage split panes, source evidence, attack paths, CVE table, tool status/log drawers, LLM analyst workspace, system health, and report composer.
 
 ## Supported tools
 
@@ -58,6 +56,8 @@ All external tools are optional. Missing tools are recorded as tool runs and the
 | Vulnerability | `nuclei-vuln`, `sqlmap`, `dalfox`, SSRFmap, `jwt_tool`, OAuth checks, SSTI checks, XXE fuzzing, `nikto` |
 
 Static audit tools are registered as `audit/<id>`. Built-in source analyzers always run; optional tools such as `semgrep`, `bandit`, `gosec`, `govulncheck`, `npm audit`, `retire.js`, `safety`, `brakeman`, `spotbugs`, `psalm`, `trufflehog`, `gitleaks`, and `grype` run when installed. Their native outputs are parsed into normalized findings or package CVEs where possible, with a generic JSON fallback for future adapter shapes.
+
+The Docker image bundles a baseline scanner set (`curl`, `dig`, `ffuf`, `nikto`, `nmap`, `python3`, `sqlmap`, `whatweb`, and `whois`) and verifies those tools during Docker smoke tests. Other external scanners remain optional user-installed tools in single-binary mode and are reported by the tool-version smoke script when present. ProjectDiscovery tools currently run as subprocess adapters; native Go-library integrations are intentionally deferred until they prove worth the added dependency and in-process resource risk.
 
 ## Configuration
 
@@ -74,6 +74,10 @@ llm:
   api_key: ollama
   model: llama3:8b
 
+logging:
+  level: info
+  format: text
+
 tools:
   nmap: /usr/bin/nmap
   ffuf: /usr/bin/ffuf
@@ -85,6 +89,8 @@ Sessions are stored as directories under `database.session_dir`: `<session-id>/s
 
 For stricter local deployments, set `NOX_SOURCE_ROOTS` to a comma-separated list of allowed repository roots for API-triggered source scans, and `NOX_LLM_ALLOWED_HOSTS` to allowed LLM probe hosts such as `127.0.0.1,localhost,ollama`.
 
+Structured logs use Go `slog`. Set `NOX_LOG_LEVEL=debug|info|warn|error` and `NOX_LOG_FORMAT=text|json` for CLI/server internals without changing human-readable command output.
+
 Run the deeper local fixture integration suite with:
 
 ```sh
@@ -92,6 +98,12 @@ NOX_RUN_INTEGRATION=1 make test-integration
 ```
 
 It starts the built-in vulnerable fixture and verifies dynamic scans, static audits, combined source-aware correlation, reports, and lean sidecar-log behavior. The same suite runs in GitHub Actions on a nightly schedule and on manual dispatch.
+
+Docker smoke validation builds the image, starts the API, checks health/tools endpoints, runs `nox version`, and verifies bundled scanner versions:
+
+```sh
+make docker-smoke
+```
 
 See [docs/](docs/) for the project spec and implementation roadmap.
 

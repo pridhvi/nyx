@@ -29,7 +29,7 @@ func runConfig(args []string) error {
 		if err := fs.Parse(args[1:]); err != nil {
 			return err
 		}
-		cfg, err := config.Load(*path)
+		cfg, err := loadConfig(*path)
 		if err != nil {
 			return err
 		}

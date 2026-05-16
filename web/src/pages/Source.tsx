@@ -22,9 +22,11 @@ export function Source() {
     <section className="page wide-page">
       <header className="page-header">
         <div>
-          <h1>Source</h1>
+          <h1>Source Evidence</h1>
           <p>Static source discoveries used by audit tools and source-aware dynamic adapters.</p>
         </div>
+      </header>
+      <section className="filter-bar">
         <label className="compact-control">
           Kind
           <select value={kind} onChange={(event) => setKind(event.target.value)}>
@@ -40,7 +42,9 @@ export function Source() {
             <option value="static">Static Only</option>
           </select>
         </label>
-      </header>
+        <span className="badge">{findings.length} visible</span>
+        <span className="badge">{allFindings.filter((finding) => finding.confirmed_dynamic).length} confirmed</span>
+      </section>
       <section className="panel">
         <div className="table-wrap">
           <table>

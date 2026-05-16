@@ -10,7 +10,6 @@ import (
 	"text/tabwriter"
 
 	"github.com/pridhvi/nox/internal/adapters"
-	"github.com/pridhvi/nox/internal/config"
 	"github.com/pridhvi/nox/internal/db"
 	"github.com/pridhvi/nox/internal/engine"
 	llmintel "github.com/pridhvi/nox/internal/llm"
@@ -55,7 +54,7 @@ func auditRunCommand(args []string) error {
 	if strings.TrimSpace(sourcePath) == "" {
 		return fmt.Errorf("audit requires a source path")
 	}
-	cfg, err := config.Load(*cfgPath)
+	cfg, err := loadConfig(*cfgPath)
 	if err != nil {
 		return err
 	}

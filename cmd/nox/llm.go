@@ -9,7 +9,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/pridhvi/nox/internal/config"
 	"github.com/pridhvi/nox/internal/db"
 	llmintel "github.com/pridhvi/nox/internal/llm"
 )
@@ -76,7 +75,7 @@ func runLLMAnalyse(args []string) error {
 }
 
 func runLLMPrompt(configPath, sessionID, prompt string) error {
-	cfg, err := config.Load(configPath)
+	cfg, err := loadConfig(configPath)
 	if err != nil {
 		return err
 	}

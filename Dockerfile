@@ -37,6 +37,7 @@ RUN useradd --create-home --shell /usr/sbin/nologin nox \
 USER nox
 WORKDIR /home/nox
 COPY --from=backend /out/nox /usr/local/bin/nox
+COPY scripts/tool-version-smoke.sh /usr/local/bin/nox-tool-version-smoke
 EXPOSE 6767
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD sh -c 'curl -fsS ${NOX_API_KEY:+-H "X-Nox-API-Key: $NOX_API_KEY"} http://127.0.0.1:6767/api/health >/dev/null || exit 1'

@@ -248,8 +248,12 @@ export function ScanBuilder() {
           <p>Configure scope, phases, tools, runtime options, and per-scan parameters.</p>
         </div>
       </header>
-      <form className="operator-grid" onSubmit={submit}>
-        <section className="panel span-2">
+      <form className="builder-workspace" onSubmit={submit}>
+        <aside className="builder-rail" aria-label="Scan builder sections">
+          {["Scope", "Profiles", "Runtime", "LLM", "Phases", "Tools", "Launch"].map((item) => <a key={item} href={`#${item.toLowerCase()}`}>{item}</a>)}
+        </aside>
+        <div className="builder-main">
+        <section className="panel span-2" id="profiles">
           <h2>Profiles</h2>
           <div className="profile-bar">
             <label>Preset
@@ -270,7 +274,7 @@ export function ScanBuilder() {
           {createProfileMutation.error ? <p className="error-text">{createProfileMutation.error.message}</p> : null}
           {selectedProfile ? <p className="profile-description">{selectedProfile.description}</p> : null}
         </section>
-        <section className="panel">
+        <section className="panel" id="scope">
           <h2>Scope <span className={`origin-badge ${workloadMode === "combined" ? "both" : workloadMode === "static" ? "static" : "dynamic"}`}>{workloadMode}</span></h2>
           <div className="form-grid">
             <label className="span-2">Targets {sourcePath.trim() ? null : <Required />}<textarea value={targets} onChange={(event) => setTargets(event.target.value)} rows={4} placeholder={"https://example.com\nhttps://example.org"} required={!sourcePath.trim()} /></label>
@@ -286,7 +290,7 @@ export function ScanBuilder() {
             <label>Out of Scope<textarea value={outOfScope} onChange={(event) => setOutOfScope(event.target.value)} rows={3} placeholder="one host or CIDR per line" /></label>
           </div>
         </section>
-        <section className="panel">
+        <section className="panel" id="runtime">
           <h2>Runtime</h2>
           <div className="form-grid compact">
             <HelpLabel label="Concurrency" help={runtimeHelp.concurrency}><input type="number" min={1} value={concurrency} onChange={(event) => setConcurrency(Number(event.target.value))} /></HelpLabel>
@@ -296,7 +300,7 @@ export function ScanBuilder() {
             <HelpLabel label="Rate Limit" help={runtimeHelp.rateLimit}><input value={rateLimit} onChange={(event) => setRateLimit(event.target.value)} placeholder="optional label" /></HelpLabel>
           </div>
         </section>
-        <section className="panel">
+        <section className="panel" id="llm">
           <h2>LLM</h2>
           <div className="form-grid">
             <label>Base URL<input value={llmBaseURL} onChange={(event) => setLLMBaseURL(event.target.value)} placeholder="http://localhost:11434/v1" /></label>
@@ -310,7 +314,7 @@ export function ScanBuilder() {
             {llmStatus !== "idle" ? <span className={`llm-state ${llmStatus}`}>{llmStatus === "checking" ? <span className="spinner" /> : llmStatus === "success" ? <CheckCircle2 size={16} /> : <XCircle size={16} />}{llmMessage}</span> : null}
           </div>
         </section>
-        <section className="panel span-2">
+        <section className="panel span-2" id="phases">
           <h2>Phases {hasTargets ? <Required /> : null}</h2>
           <div className="phase-grid">
             {phases.map((phase) => (
@@ -322,7 +326,7 @@ export function ScanBuilder() {
           </div>
           {phaseError ? <p className="field-error">{phaseError}</p> : null}
         </section>
-        <section className="panel span-2">
+        <section className="panel span-2" id="tools">
           <h2>Tools {hasTargets ? <Required /> : null}</h2>
           <div className="tool-phase-grid">
             {phases.map((phase) => (
@@ -344,11 +348,19 @@ export function ScanBuilder() {
           {toolError ? <p className="field-error">{toolError}</p> : null}
           <p className="profile-description">Selecting a tool automatically selects required dependency tools when available.</p>
         </section>
-        <section className="panel span-2 action-panel">
+        <section className="panel span-2 action-panel launch-panel" id="launch">
+          <div className="launch-summary">
+            <span className={`origin-badge ${workloadMode === "combined" ? "both" : workloadMode === "static" ? "static" : "dynamic"}`}>{workloadMode}</span>
+            <span>{parsedTargets.length} target{parsedTargets.length === 1 ? "" : "s"}</span>
+            <span>{selectedTools.length} tool{selectedTools.length === 1 ? "" : "s"}</span>
+            <span>{selectedPhases.length} phase{selectedPhases.length === 1 ? "" : "s"}</span>
+            {targetError || phaseError || toolError ? <strong>{targetError || phaseError || toolError}</strong> : <strong>Ready to launch with scope validation.</strong>}
+          </div>
           {mutation.error ? <p className="error-text">{mutation.error.message}</p> : null}
           <button className="primary" type="submit" disabled={!canStart}><Play size={16} />{mutation.isPending ? "Starting" : "Start Scan"}</button>
           <span><ShieldCheck size={16} /> {workloadMode === "combined" ? "Combined mode runs audit first, then source-aware dynamic adapters in one session." : workloadMode === "static" ? "Static audit runs without executing repository code." : "Scope validation is enforced before adapters run."}</span>
         </section>
+        </div>
       </form>
       {configuredTool ? (
         <div className="modal-backdrop" role="dialog" aria-modal="true">

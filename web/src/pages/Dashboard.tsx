@@ -92,6 +92,18 @@ export function Dashboard() {
       value: counts[severity] ?? 0,
     })).filter((item) => item.value > 0);
   }, [statsQuery.data]);
+  const priorityFindings = useMemo(() => {
+    const rank: Record<string, number> = { critical: 5, high: 4, medium: 3, low: 2, info: 1 };
+    return [...(findingsQuery.data ?? [])].sort((a, b) => (rank[b.severity] ?? 0) - (rank[a.severity] ?? 0)).slice(0, 8);
+  }, [findingsQuery.data]);
+  const status = selectedRecord?.status ?? "";
+  const activeFindingCount = findingsQuery.data?.length ?? selectedRecord?.finding_count ?? 0;
+  const nextActions = useMemo(() => {
+    if (!selectedRecord) return ["Start a scoped scan", "Review tool readiness", "Configure local LLM if desired"];
+    if (selectedRecord.status === "running" || selectedRecord.status === "pending") return ["Watch active tool nodes", "Pause if scope needs adjustment", "Triage new high-risk findings"];
+    if (activeFindingCount > 0) return ["Open triage workspace", "Review attack paths", "Generate a technical report"];
+    return ["Review tool logs", "Run a broader profile", "Export the clean session record"];
+  }, [activeFindingCount, selectedRecord]);
 
   useEffect(() => {
     if (!selected) {
@@ -123,8 +135,6 @@ export function Dashboard() {
     }
     return lines.slice(0, 18);
   }, [scanEvents, toolRunsQuery.data]);
-  const status = selectedRecord?.status ?? "";
-  const activeFindingCount = findingsQuery.data?.length ?? selectedRecord?.finding_count ?? 0;
   const pipeline = useMemo(() => {
     const selectedTools = new Set(selectedRecord?.enabled_tools ?? []);
     const records = (toolsQuery.data ?? []).filter((tool) => selectedTools.size === 0 || selectedTools.has(tool.id));
@@ -158,9 +168,9 @@ export function Dashboard() {
 
   return (
     <section className="page">
-      <header className="page-header">
+      <header className="page-header command-header">
         <div>
-          <h1>Engagement Dashboard</h1>
+          <h1>Command Center</h1>
           <p>{selectedRecord ? `${selectedRecord.name || "Untitled engagement"} · ${selectedRecord.workload_mode ?? "dynamic"} workload · ${selectedRecord.target_count} target${selectedRecord.target_count === 1 ? "" : "s"}` : "Start scoped scans, monitor findings, and review attack paths."}</p>
         </div>
         <div className="action-row">
@@ -176,15 +186,25 @@ export function Dashboard() {
           <button className="secondary" onClick={refreshSessions}><RefreshCw size={16} />Refresh</button>
         </div>
       </header>
-      <div className="dashboard-grid">
+      <div className="command-layout">
         <section className="new-scan-card">
           <div>
-            <h2>Start a Scoped Run</h2>
-            <p>Build a dynamic, static, or combined scan with explicit scope boundaries and optional local LLM analysis.</p>
+            <h2>{selectedRecord ? "Active Engagement" : "Start a Scoped Run"}</h2>
+            <p>{selectedRecord ? selectedRecord.target_input || selectedRecord.source_path || "Selected session" : "Build a dynamic, static, or combined scan with explicit scope boundaries and optional local LLM analysis."}</p>
           </div>
           <div className="finding-count-display">{activeFindingCount}</div>
           <p>findings in the selected engagement</p>
           <Link className="primary link-button" to="/scan"><Radar size={16} />New Scan</Link>
+        </section>
+        <section className="panel">
+          <h2>Next Actions</h2>
+          <div className="action-stack">
+            {nextActions.map((action, index) => <span key={action}><strong>{index + 1}</strong>{action}</span>)}
+          </div>
+          <div className="target-strip command-targets">
+            {(targetsQuery.data ?? []).slice(0, 8).map((target) => <span key={target.id}>{target.protocol}://{target.host}{target.port ? `:${target.port}` : ""}</span>)}
+            {(targetsQuery.data ?? []).length === 0 ? <span>No targets discovered</span> : null}
+          </div>
         </section>
         <section className="panel">
           <h2>Selected Risk Mix</h2>
@@ -240,12 +260,12 @@ export function Dashboard() {
           </div>
         </section>
         <section className="panel">
-          <h2>Recent Findings</h2>
+          <h2>Priority Findings</h2>
           <div className="target-strip">
             {(targetsQuery.data ?? []).slice(0, 6).map((target) => <span key={target.id}>{target.protocol}://{target.host}{target.port ? `:${target.port}` : ""}</span>)}
           </div>
           <div className="finding-list scroll-panel">
-            {(findingsQuery.data ?? []).slice(0, 8).map((finding) => (
+            {priorityFindings.map((finding) => (
               <article key={finding.id} className="finding-item">
                 <span className={`severity ${finding.severity}`}>{finding.severity}</span>
                 <strong>{finding.title}</strong>

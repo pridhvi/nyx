@@ -19,7 +19,7 @@ export function Reports() {
     <section className="page">
       <header className="page-header">
         <div>
-          <h1>Reports</h1>
+          <h1>Report Composer</h1>
           <p>Generate executive or technical reports from stored evidence.</p>
         </div>
         <div className="action-row">

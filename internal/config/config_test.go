@@ -24,6 +24,9 @@ func TestWriteDefaultAndLoadConfig(t *testing.T) {
 	if cfg.LLM.Model != "llama3:8b" {
 		t.Fatalf("unexpected LLM default: %#v", cfg.LLM)
 	}
+	if cfg.Logging.Level != "info" || cfg.Logging.Format != "text" {
+		t.Fatalf("unexpected logging defaults: %#v", cfg.Logging)
+	}
 }
 
 func TestRelativeSessionDirResolvesFromConfigDir(t *testing.T) {
@@ -107,6 +110,8 @@ sqlmap = "/opt/sqlmap/sqlmap.py"
 func TestEnvOverridesConfig(t *testing.T) {
 	t.Setenv("NOX_LLM_BASE_URL", "http://localhost:11434/v1")
 	t.Setenv("NOX_SESSION_DIR", "/tmp/nox-sessions")
+	t.Setenv("NOX_LOG_LEVEL", "debug")
+	t.Setenv("NOX_LOG_FORMAT", "json")
 	cfg, err := Load(filepath.Join(t.TempDir(), "missing.yaml"))
 	if err != nil {
 		t.Fatal(err)
@@ -116,5 +121,8 @@ func TestEnvOverridesConfig(t *testing.T) {
 	}
 	if cfg.Database.SessionDir != "/tmp/nox-sessions" {
 		t.Fatalf("expected env session dir override, got %q", cfg.Database.SessionDir)
+	}
+	if cfg.Logging.Level != "debug" || cfg.Logging.Format != "json" {
+		t.Fatalf("expected env logging override, got %#v", cfg.Logging)
 	}
 }

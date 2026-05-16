@@ -50,7 +50,7 @@ Nox improves on this concept in every dimension:
 7. **Workload-aware sessions.** `sessions.mode` records scan aggressiveness (`passive`, `active`, `stealth`) while `sessions.workload_mode` records the workload (`dynamic`, `static`, `combined`). Static-only sessions may have zero targets.
 8. **Zero required config.** `nox scan --target example.com` and `nox audit ./repo --no-llm` should work out of the box with sensible defaults. Everything else is opt-in.
 9. **Source-aware correlation.** Combined sessions run source/audit first, dynamic scan second, and a final correlation phase that emits CVEs, graph edges, attack vectors, and static/dynamic confirmations.
-8. **Air-gap capable.** Can run fully offline with a local LLM and an offline CVE mirror. No external dependencies required.
+10. **Air-gap capable.** Can run fully offline with a local LLM and an offline CVE mirror. No external dependencies required.
 
 ---
 
@@ -59,47 +59,33 @@ Nox improves on this concept in every dimension:
 ### 3.1 Backend — Go
 
 Go is the primary language for all backend components. Rationale:
-- The ProjectDiscovery security tool suite (nuclei, httpx, subfinder, naabu, dnsx) is written in Go and publishes importable Go packages — embed them as libraries rather than shelling out and parsing stdout.
+- The scanner, API, persistence layer, and CLI share one type system and one release artifact.
 - Goroutines + channels map naturally to a parallel DAG scanner where many tools run concurrently.
 - A single statically linked binary is ideal for a security tool that needs to run on arbitrary machines.
 - `//go:embed` lets the compiled frontend assets be bundled into the binary — one file deployment.
 - CGO-free builds with `modernc.org/sqlite` enable true cross-compilation (`GOOS=windows go build` just works).
 
-**Minimum Go version:** 1.22
+**Current Go target:** 1.26
 
 ### 3.2 Complete Dependency List
 
 ```
-# CLI & config
-github.com/spf13/cobra
+# Config
 github.com/spf13/viper
 
 # HTTP router & middleware
-github.com/go-chi/chi/v5
-github.com/go-chi/chi/v5/middleware
-github.com/go-chi/cors
+net/http                                  # stdlib ServeMux router
 
 # WebSocket (live scan streaming)
 github.com/gorilla/websocket
 
 # Database
 modernc.org/sqlite                      # pure-Go SQLite, no CGO
-github.com/jackc/pgx/v5                 # PostgreSQL driver
-github.com/golang-migrate/migrate/v4    # schema migrations
-
-# Query generation (run sqlc to generate, not a runtime dep)
-# dev tool: github.com/sqlc-dev/sqlc
+# optional future team mode: github.com/jackc/pgx/v5
+# optional future query generation: github.com/sqlc-dev/sqlc
 
 # Concurrency
 golang.org/x/sync                       # errgroup, semaphore
-
-# Security tool libraries (embed as Go libs)
-github.com/projectdiscovery/nuclei/v3/lib
-github.com/projectdiscovery/httpx
-github.com/projectdiscovery/subfinder/v2/pkg/runner
-github.com/projectdiscovery/dnsx/libs/dnsx
-github.com/projectdiscovery/naabu/v2/pkg/runner
-github.com/Ullaakut/nmap/v3             # nmap Go wrapper
 
 # LLM client (OpenAI-compatible — works with Ollama, LM Studio, llama.cpp)
 github.com/sashabaranov/go-openai
@@ -108,7 +94,7 @@ github.com/sashabaranov/go-openai
 # stdlib net/http is sufficient
 
 # Structured logging
-log/slog                                # stdlib since Go 1.21
+log/slog                                # stdlib
 
 # Config file parsing
 # viper handles YAML/TOML/JSON/env
@@ -129,35 +115,43 @@ github.com/stretchr/testify
 ```
 react 18
 typescript 5
-vite 5                      # build tool
+vite                        # build tool
 react-router-dom v6         # routing within the SPA
 @tanstack/react-query       # data fetching + caching
 recharts                    # findings dashboard charts
-cytoscape + cytoscape-cola  # attack graph visualization
-shadcn/ui (copy-paste)      # component library (not a package dep)
-@radix-ui/react-*           # shadcn peer deps
+cytoscape                   # attack graph visualization
 lucide-react                # icons
 ```
 
-The frontend is built with `vite build` and the output `dist/` directory is embedded into the Go binary using `//go:embed web/dist`. The chi router serves it at `/` when `nox serve` is run.
+The frontend is built with `vite build` and the output `dist/` directory is embedded into the Go binary using `//go:embed web/dist`. The stdlib `net/http` server serves it at `/` when `nox serve` is run.
 
 ### 3.4 Database
 
 - **Default:** SQLite via `modernc.org/sqlite` (pure Go, no CGO, one `session.db` per session directory)
-- **Optional:** PostgreSQL via `pgx/v5` for multi-user team deployments
-- **Migration tool:** `golang-migrate` with numbered SQL files in `internal/db/migrations/`
-- **Query layer:** `sqlc` — write `.sql` query files, generate type-safe Go code. Do NOT use an ORM.
+- **Supported v1 model:** one directory per session under the configured session root, with `<session-id>/session.db` and optional `<session-id>/runs/*.log`
+- **Migrations:** ordered SQL migrations embedded under `internal/db/migrations/`
+- **Query layer:** handwritten typed store methods over `database/sql`
+- **Future team mode:** PostgreSQL via `pgx/v5` can be evaluated later if multi-user deployments need a shared database.
+- **Future query generation:** `sqlc` can be introduced later if query volume or review burden justifies generated accessors.
 
 ### 3.5 Plugin System
 
 Subprocess JSON-RPC. Each tool adapter is a standalone binary (any language). Nox spawns the binary, writes a JSON request to stdin, reads a JSON response from stdout. This is the initial plugin contract. The `hashicorp/go-plugin` (gRPC-based) system can replace this later for performance-critical adapters.
 
-Tools from the ProjectDiscovery suite (nuclei, httpx, subfinder, naabu, dnsx) are embedded as Go libraries, not subprocess plugins.
+ProjectDiscovery tools (`nuclei`, `httpx`, `subfinder`, `naabu`, `dnsx`) are subprocess adapters in v1. Native Go-library adapters are intentionally deferred: they may reduce installation dependency and stdout parsing fragility, but they also add dependency weight, in-process crash/resource risk, API stability risk, and more maintenance. If revisited, `httpx` is the safest first candidate; `nuclei` and `naabu` should remain deferred until a native adapter pattern proves stable.
 
 ### 3.6 Packaging
 
-- **Docker:** Multi-stage build. Stage 1: build frontend (`node:20-alpine`). Stage 2: build Go binary (`golang:1.22-alpine`). Stage 3: final image (`kalilinux/kali-rolling` or `parrotsec/core`) with all external tool dependencies (nmap, sqlmap, dalfox, testssl.sh, ffuf, etc.) pre-installed.
+- **Docker:** Multi-stage build. Stage 1 builds the frontend (`node:20-alpine`). Stage 2 builds the Go binary (`golang:1.26-alpine`). Stage 3 runs on `kalilinux/kali-rolling` with baseline external tools installed and a tool-version smoke script for bundled scanner checks.
 - **Single binary option:** `goreleaser` for cross-platform binary releases. The binary embeds the frontend. External tools (nmap etc.) must be installed separately in this mode.
+
+### 3.7 Current V1 Architecture Notes
+
+- API routing uses stdlib `net/http` with explicit auth, CSRF/origin checks for unsafe browser requests, and WebSocket replay at `GET /api/scan/{id}/events`.
+- Persistence uses per-session SQLite directories. Flat legacy `<session-id>.db` files are not auto-migrated; operators can manually place a database at `<session-dir>/<session-id>/session.db` if needed.
+- Full tool stdout/stderr is retained in `<session-id>/runs/` sidecars unless `nox scan --lean` is used.
+- Dynamic, static audit, and combined source-aware workloads share one session database and report pipeline.
+- Native ProjectDiscovery library integration is deferred. Subprocess adapters remain the supported v1 path because they preserve process isolation and reduce dependency risk.
 
 ---
 
@@ -166,54 +160,35 @@ Tools from the ProjectDiscovery suite (nuclei, httpx, subfinder, naabu, dnsx) ar
 ```
 nox/
 ├── cmd/
-│   ├── root.go              # cobra root command, global flags
+│   ├── root.go              # CLI dispatch, config load, logging bootstrap
 │   ├── scan.go              # `nox scan` command
-│   ├── serve.go             # `nox serve` — starts web UI + API
+│   ├── audit.go             # `nox audit` command group
 │   ├── report.go            # `nox report` — generate report from session
 │   ├── sessions.go          # `nox sessions list/show/delete`
-│   └── plugins.go           # `nox plugins list/install`
+│   ├── plugins.go           # `nox plugins list/install`
+│   ├── llm.go               # `nox llm` commands
+│   └── config.go            # config init/show
 │
 ├── internal/
-│   ├── engine/
-│   │   ├── dag.go           # DAG runner: topological sort, phase execution
-│   │   ├── scheduler.go     # concurrency control, rate limiting per tool
-│   │   ├── session.go       # session lifecycle management
-│   │   └── scope.go         # scope validation, in-scope checks
+│   ├── engine/              # sessions, scope, DAG runner, audit runner, events
 │   │
-│   ├── adapters/            # one file per tool — implements the Adapter interface
+│   ├── adapters/            # built-in, subprocess, HTTP, and static adapters
 │   │   ├── adapter.go       # Adapter interface definition
-│   │   ├── nuclei.go
-│   │   ├── nmap.go
-│   │   ├── httpx.go
-│   │   ├── subfinder.go
-│   │   ├── dnsx.go
-│   │   ├── naabu.go
-│   │   ├── ffuf.go          # subprocess
-│   │   ├── sqlmap.go        # subprocess
-│   │   ├── dalfox.go        # subprocess
-│   │   ├── ssrfmap.go       # subprocess
-│   │   ├── testssl.go       # subprocess
-│   │   ├── whatweb.go       # subprocess
-│   │   ├── wpscan.go        # subprocess
-│   │   ├── arjun.go         # subprocess
-│   │   ├── gitleaks.go      # subprocess
-│   │   ├── jwt_tool.go      # subprocess
-│   │   └── subprocess.go    # generic subprocess JSON-RPC runner
+│   │   ├── recon.go         # subfinder, dnsx, naabu, httpx, whois, nmap, crt.sh
+│   │   ├── fingerprint.go   # whatweb, nuclei-tech, GraphQL/OpenAPI, CMS probes
+│   │   ├── enumeration.go   # ffuf, arjun, linkfinder, secrets, CORS, buckets
+│   │   ├── vulnerability.go # nuclei-vuln, sqlmap, dalfox, SSRF/JWT/OAuth/SSTI/XXE
+│   │   └── audit*.go        # static/audit adapters and parsers
 │   │
 │   ├── db/
 │   │   ├── migrations/      # 001_initial.sql, 002_add_cve_matches.sql, ...
-│   │   ├── queries/         # .sql files read by sqlc
-│   │   ├── sqlc.yaml        # sqlc config
-│   │   └── db.go            # DB connection init, migration runner
-│   │   └── *.go             # sqlc-generated files (do not edit manually)
+│   │   ├── db.go            # connection init, migration runner, session helpers
+│   │   └── store.go         # handwritten typed store methods
 │   │
-│   ├── models/
-│   │   ├── finding.go       # Finding struct (the universal normalized type)
-│   │   ├── session.go       # Session struct
-│   │   ├── target.go        # Target struct
-│   │   ├── cve.go           # CVEMatch struct
-│   │   ├── attack_vector.go # AttackVector, AttackChain structs
-│   │   └── report.go        # Report struct
+│   ├── models/              # canonical sessions, targets, findings, CVEs, graph, reports
+│   ├── source/              # static source extractors
+│   ├── suppress/            # .nox-audit-ignore parsing
+│   ├── logging/             # slog configuration
 │   │
 │   ├── llm/
 │   │   ├── client.go        # OpenAI-compatible client init (Ollama/llama.cpp/etc)
@@ -230,20 +205,12 @@ nox/
 │   │   ├── exploitdb.go     # Exploit-DB offline mirror search
 │   │   └── correlator.go    # Match technologies+versions to CVEs
 │   │
-│   ├── vectors/
-│   │   ├── engine.go        # Attack vector engine: rule evaluation + LLM augmentation
-│   │   ├── rules.go         # Rule definitions (if X + Y → attack chain Z)
-│   │   └── scorer.go        # Confidence scoring for attack chains
+│   ├── vectors/             # deterministic rules, graph edges, vector scoring
 │   │
 │   ├── api/
-│   │   ├── server.go        # chi router setup, middleware, embed.FS serving
-│   │   ├── sessions.go      # /api/sessions endpoints
-│   │   ├── scan.go          # /api/scan endpoints
-│   │   ├── findings.go      # /api/findings endpoints
-│   │   ├── vectors.go       # /api/vectors endpoints
-│   │   ├── llm.go           # /api/llm endpoints (chat, analyse)
-│   │   ├── reports.go       # /api/reports endpoints
-│   │   └── ws.go            # WebSocket handler for live scan events
+│   │   ├── server.go        # stdlib router, auth middleware, embed.FS serving
+│   │   ├── scan_manager.go  # async scan lifecycle and WebSocket replay
+│   │   └── web/dist/        # embedded Vite build output
 │   │
 │   └── report/
 │       ├── generator.go     # Report orchestration
@@ -255,24 +222,23 @@ nox/
 │   ├── src/
 │   │   ├── pages/
 │   │   │   ├── Dashboard.tsx
-│   │   │   ├── Sessions.tsx
 │   │   │   ├── Findings.tsx
+│   │   │   ├── Source.tsx
 │   │   │   ├── AttackGraph.tsx
 │   │   │   ├── LLMChat.tsx
-│   │   │   └── Reports.tsx
-│   │   ├── components/
-│   │   ├── api/             # TanStack Query hooks + fetch wrappers
+│   │   │   ├── Reports.tsx
+│   │   │   ├── Tools.tsx
+│   │   │   └── ToolRuns.tsx
+│   │   ├── api.ts           # fetch wrappers
 │   │   └── main.tsx
 │   ├── package.json
 │   └── vite.config.ts
 │
-├── plugins/                 # External subprocess plugin specs + examples
-│   ├── spec.md              # JSON-RPC contract documentation
-│   └── example-python/     # Example Python plugin adapter
+├── scripts/                 # integration, Docker, fixture, and smoke scripts
 │
 ├── Dockerfile
 ├── docker-compose.yml
-├── goreleaser.yaml
+├── .goreleaser.yaml
 ├── Makefile
 └── README.md
 ```
@@ -281,7 +247,7 @@ nox/
 
 ## 5. Core Data Models (Go Structs)
 
-These are the canonical Go types. The database schema is derived from these. sqlc generates query functions that map to/from these types.
+These are the canonical Go types. The database schema is derived from these, and the handwritten store maps to and from these types.
 
 ### 5.1 Finding — The Universal Normalized Type
 
@@ -1334,7 +1300,7 @@ var DefaultRules = []Rule{
 
 ## 13. REST API Surface
 
-The chi router exposes these endpoints. All responses are JSON. Authentication is a local API key stored in the Nox config file. Nox refuses non-loopback serving without an API key, and host-privileged API operations such as plugin management, API source scans, and LLM endpoint probing require API-key authentication. Header authentication uses `X-Nox-API-Key` or `Authorization: Bearer`; query-string API keys are rejected. The browser console obtains an opaque HttpOnly same-origin session cookie through the login endpoint.
+The stdlib `net/http` router exposes these endpoints. All responses are JSON. Authentication is a local API key stored in the Nox config file. Nox refuses non-loopback serving without an API key, and host-privileged API operations such as plugin management, API source scans, and LLM endpoint probing require API-key authentication. Header authentication uses `X-Nox-API-Key` or `Authorization: Bearer`; query-string API keys are rejected. The browser console obtains an opaque HttpOnly same-origin session cookie through the login endpoint.
 
 ```
 POST   /api/auth/login              Exchange API key for HttpOnly browser session cookie
@@ -1533,27 +1499,24 @@ llm:
 
 # Database settings
 database:
-  driver: sqlite            # sqlite | postgres
-  path: ~/.nox/data/        # SQLite: directory where session directories are stored
-  # PostgreSQL only:
-  # host: localhost
-  # port: 5432
-  # name: nox
-  # user: nox
-  # password: ""
+  session_dir: ~/.nox/sessions
 
 # Web server settings
 server:
   host: 127.0.0.1
-  port: 8080
+  port: 6767
   api_key: ""               # Empty = no auth for loopback-only local use. Required for network access and privileged API operations. Never accepted from query strings.
+
+# Logging settings
+logging:
+  level: info               # debug | info | warn | error
+  format: text              # text | json
 
 # Default scan settings
 scan:
-  default_mode: active
-  default_concurrency: 3
-  default_rate_limit: 100   # requests/second globally
-  timeout_per_tool: 300     # seconds per tool run
+  mode: active
+  concurrency: 4
+  rate_limit: ""
 
 # CVE intelligence
 cve:
@@ -1617,7 +1580,7 @@ Any adapter that attempts to connect to an out-of-scope host must receive an err
 
 - **Unit tests** for: scope checker, DAG topological sort, Finding normalization helpers, CVE correlator matching logic, attack vector rule evaluation.
 - **Adapter tests** use fixture files: each adapter has a `testdata/` directory with sample raw tool output. Tests verify the adapter produces the expected normalized findings from the fixture.
-- **Integration tests** (opt-in, require Docker): spin up a vulnerable test target (e.g. DVWA, Juice Shop) and run a full scan, assert minimum finding counts.
+- **Integration tests** are opt-in with `NOX_RUN_INTEGRATION=1`: start the deterministic Go vulnerable fixture, run dynamic scans, static audits, combined source-aware scans, report generation, and lean sidecar-log checks.
 - **API tests** use `net/http/httptest` to test all REST endpoints against an in-memory SQLite DB.
 
 ---
@@ -1627,37 +1590,33 @@ Any adapter that attempts to connect to an out-of-scope host must receive an err
 ```dockerfile
 # Dockerfile
 
-# Stage 1: Build frontend
 FROM node:20-alpine AS frontend
-WORKDIR /app/web
+WORKDIR /src/web
 COPY web/package*.json ./
 RUN npm ci
 COPY web/ ./
 RUN npm run build
 
-# Stage 2: Build Go binary
-FROM golang:1.22-alpine AS builder
+FROM golang:1.26-alpine AS backend
 RUN apk add --no-cache git
-WORKDIR /app
+WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-COPY --from=frontend /app/web/dist ./web/dist
-RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o nox ./cmd/nox
+COPY --from=frontend /src/internal/api/web/dist ./internal/api/web/dist
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/nox .
 
-# Stage 3: Final image with all security tools
 FROM kalilinux/kali-rolling
-RUN apt-get update && apt-get install -y \
-    nmap nikto whatweb whois dnsutils curl \
-    python3 python3-pip sqlmap \
-    && pip3 install wpscan dalfox arjun trufflehog \
-    && apt-get clean
-
-COPY --from=builder /app/nox /usr/local/bin/nox
-
-EXPOSE 8080
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl dnsutils ffuf nikto nmap python3 python3-pip \
+    sqlmap whatweb whois \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
+COPY --from=backend /out/nox /usr/local/bin/nox
+COPY scripts/tool-version-smoke.sh /usr/local/bin/nox-tool-version-smoke
+EXPOSE 6767
 ENTRYPOINT ["nox"]
-CMD ["serve"]
+CMD ["serve", "--host", "0.0.0.0", "--port", "6767"]
 ```
 
 ```yaml
@@ -1716,7 +1675,7 @@ web:
 	cd web && npm run build
 
 sqlc:
-	sqlc generate
+	@if command -v sqlc >/dev/null 2>&1; then sqlc generate; else echo "sqlc not installed; handwritten store is currently used"; fi
 
 migrate-up:
 	go run ./cmd/nox/main.go migrate up
@@ -1732,11 +1691,11 @@ clean:
 Build in this order to have working, testable code at each step:
 
 1. **Data models** (`internal/models/`) — all Go structs, no deps
-2. **Database** (`internal/db/`) — migrations, sqlc schema, connection init
+2. **Database** (`internal/db/`) — migrations, session helpers, handwritten store
 3. **Scope checker** (`internal/engine/scope.go`) — test independently
 4. **Adapter interface + registry** (`internal/adapters/adapter.go`, `registry.go`)
 5. **Subprocess runner** (`internal/adapters/subprocess.go`) — generic JSON-RPC runner
-6. **First adapters** — start with `httpx`, `subfinder`, `nmap` (Go libraries)
+6. **First adapters** — start with built-in probes and subprocess adapters
 7. **DAG engine** (`internal/engine/dag.go`, `scheduler.go`) — wire up with first adapters
 8. **REST API** (`internal/api/`) — CRUD for sessions/findings, WebSocket
 9. **CVE correlator** (`internal/cve/`)

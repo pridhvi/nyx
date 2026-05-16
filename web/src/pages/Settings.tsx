@@ -13,7 +13,7 @@ export function Settings() {
     <section className="page">
       <header className="page-header">
         <div>
-          <h1>Settings</h1>
+          <h1>System Health</h1>
           <p>Read-only effective configuration and environment health.</p>
         </div>
       </header>

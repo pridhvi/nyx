@@ -570,6 +570,7 @@ func (r *Runner) runLevel(ctx context.Context, session models.Session, level []a
 				})
 				output, err := adapter.Run(runCtx, input)
 				if err != nil {
+					slog.Warn("adapter failed", "session_id", session.ID, "target_id", target.ID, "tool_id", adapter.ID(), "phase", adapter.Phase(), "error", err)
 					r.emit(ScanEvent{
 						Type:      ScanEventToolError,
 						SessionID: session.ID,

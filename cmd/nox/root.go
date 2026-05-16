@@ -8,11 +8,16 @@ import (
 
 	"github.com/pridhvi/nox/internal/api"
 	"github.com/pridhvi/nox/internal/config"
+	noxlog "github.com/pridhvi/nox/internal/logging"
 )
 
 const version = "0.1.0-dev"
 
 func Execute() {
+	if err := noxlog.ConfigureFromEnv(); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
 	if len(os.Args) < 2 {
 		printUsage()
 		os.Exit(2)
@@ -50,6 +55,17 @@ func Execute() {
 	}
 }
 
+func loadConfig(path string) (config.Config, error) {
+	cfg, err := config.Load(path)
+	if err != nil {
+		return config.Config{}, err
+	}
+	if err := noxlog.Configure(noxlog.Options{Level: cfg.Logging.Level, Format: cfg.Logging.Format}); err != nil {
+		return config.Config{}, err
+	}
+	return cfg, nil
+}
+
 func printUsage() {
 	fmt.Fprintln(os.Stderr, `Nox - local web application penetration testing framework
 
@@ -85,7 +101,7 @@ func runServe(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	cfg, err := config.Load(*cfgPath)
+	cfg, err := loadConfig(*cfgPath)
 	if err != nil {
 		return err
 	}

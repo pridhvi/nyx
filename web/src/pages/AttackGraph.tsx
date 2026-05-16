@@ -7,6 +7,7 @@ import { useSessionContext } from "../session";
 export function AttackGraph() {
   const { selectedSessionID: selected } = useSessionContext();
   const [severity, setSeverity] = useState("");
+  const [density, setDensity] = useState<"compact" | "readable">("readable");
   const targetsQuery = useQuery({ queryKey: ["targets", selected], queryFn: () => listTargets(selected), enabled: selected !== "" });
   const findingsQuery = useQuery({ queryKey: ["findings", selected], queryFn: () => listFindings(selected), enabled: selected !== "" });
   const vectorsQuery = useQuery({ queryKey: ["vectors", selected], queryFn: () => listVectors(selected), enabled: selected !== "" });
@@ -30,19 +31,22 @@ export function AttackGraph() {
       return;
     }
     const { elements } = graphElements(nodes.targets, nodes.findings, nodes.vectors, nodes.sourceFindings, nodes.edges);
+    const nodeFontSize = density === "compact" ? "8px" : "10px";
+    const nodeMin = density === "compact" ? 42 : 54;
+    const nodeMax = density === "compact" ? 68 : 88;
     const graph = cytoscape({
       container: graphRef.current,
       elements,
       layout: { name: "cose", animate: false, padding: 36, nodeRepulsion: 9000, idealEdgeLength: 140, componentSpacing: 90 },
       style: [
-        { selector: "node", style: { label: "data(label)", "font-family": "JetBrains Mono", "font-size": "10px", "font-weight": "600", color: "#e4e7f0", "text-valign": "bottom", "text-halign": "center", "text-margin-y": "10px", width: "mapData(weight, 1, 5, 54, 88)", height: "mapData(weight, 1, 5, 54, 88)", "text-wrap": "wrap", "text-max-width": "120px", "border-width": "2px", "border-color": "#2a2e47", "background-color": "#191c2b" } },
+        { selector: "node", style: { label: "data(label)", "font-family": "JetBrains Mono", "font-size": nodeFontSize, "font-weight": "600", color: "#f3f5ff", "text-valign": "bottom", "text-halign": "center", "text-margin-y": "10px", width: `mapData(weight, 1, 5, ${nodeMin}, ${nodeMax})`, height: `mapData(weight, 1, 5, ${nodeMin}, ${nodeMax})`, "text-wrap": "wrap", "text-max-width": "120px", "border-width": "2px", "border-color": "#2a2e47", "background-color": "#191c2b" } },
         { selector: "node[type='target']", style: { "background-color": "#7968f2", color: "#9585f8", shape: "round-rectangle" } },
         { selector: "node[type='tech']", style: { "background-color": "#4ca8ff", color: "#4ca8ff", shape: "ellipse" } },
         { selector: "node[type='finding']", style: { "background-color": "data(color)", color: "data(color)", shape: "diamond" } },
         { selector: "node[type='vector']", style: { "background-color": "#f0c040", color: "#f0c040", shape: "hexagon" } },
         { selector: "node[type='source']", style: { "background-color": "#30d58c", color: "#30d58c", shape: "tag" } },
         { selector: "node:selected", style: { "border-color": "#ffffff", "border-width": "5px" } },
-        { selector: "edge", style: { "font-family": "JetBrains Mono", "font-size": "9px", color: "#a9b0c4", "text-background-color": "#07080e", "text-background-opacity": 0.9, "text-background-padding": "3px", width: "2px", "line-color": "#4e5468", "target-arrow-color": "#4e5468", "target-arrow-shape": "triangle", "curve-style": "bezier", "line-style": "dotted", opacity: 0.82 } },
+        { selector: "edge", style: { "font-family": "JetBrains Mono", "font-size": "9px", color: "#d8def2", "text-background-color": "#07080e", "text-background-opacity": 0.92, "text-background-padding": "3px", width: "2px", "line-color": "#69708a", "target-arrow-color": "#69708a", "target-arrow-shape": "triangle", "curve-style": "bezier", "line-style": "dotted", opacity: 0.86 } },
         { selector: "edge[label]", style: { label: "data(label)" } },
         { selector: "edge[type='attack']", style: { width: "3px", "line-color": "#7968f2", "target-arrow-color": "#7968f2" } },
       ] as any,
@@ -52,7 +56,7 @@ export function AttackGraph() {
       setSelectedNode({ label: node.data("label"), detail: node.data("detail") });
     });
     return () => graph.destroy();
-  }, [nodes]);
+  }, [density, nodes]);
 
   const graphData = useMemo(() => graphElements(nodes.targets, nodes.findings, nodes.vectors, nodes.sourceFindings, nodes.edges), [nodes]);
 
@@ -60,7 +64,7 @@ export function AttackGraph() {
     <section className="page wide-page">
       <header className="page-header">
         <div>
-          <h1>Attack Graph</h1>
+          <h1>Attack Paths</h1>
           <p>Targets, source findings, dynamic findings, and labelled attack-chain edges.</p>
         </div>
         <label className="compact-control">
@@ -75,9 +79,14 @@ export function AttackGraph() {
           </select>
         </label>
       </header>
+      <div className="attack-workspace">
       <section className="panel">
         <div className="graph-toolbar">
           <h2>Interactive Graph</h2>
+          <div className="tab-row">
+            <button className={density === "readable" ? "active" : ""} type="button" onClick={() => setDensity("readable")}>Readable</button>
+            <button className={density === "compact" ? "active" : ""} type="button" onClick={() => setDensity("compact")}>Compact</button>
+          </div>
           <div className="graph-legend">
             <span><i className="legend-target" />Target</span>
             <span><i className="legend-tech" />Technology</span>
@@ -95,6 +104,18 @@ export function AttackGraph() {
           </div>
         ) : null}
       </section>
+      <aside className="panel vector-chain-panel">
+        <h2>Ranked Chains</h2>
+        {nodes.vectors.map((vector) => (
+          <button key={vector.id} className={`vector-chain ${selectedVectorID === vector.id ? "active" : ""}`} type="button" onClick={() => setSelectedVectorID(vector.id)}>
+            <span className={`severity ${vector.severity}`}>{vector.severity}</span>
+            <strong>{vector.title}</strong>
+            <small>score {vectorScore(vector)} · confidence {Math.round(vector.confidence * 100)}%</small>
+          </button>
+        ))}
+        {nodes.vectors.length === 0 ? <p className="empty-line">No attack vectors for this session.</p> : null}
+      </aside>
+      </div>
       <div className="graph-summary">
         <article><span>Targets</span><strong>{nodes.targets.length}</strong></article>
         <article><span>Findings</span><strong>{nodes.findings.length}</strong></article>

@@ -1,22 +1,32 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/pridhvi/nox/internal/adapters"
 	"github.com/pridhvi/nox/internal/db"
+	noxlog "github.com/pridhvi/nox/internal/logging"
 	"github.com/pridhvi/nox/internal/models"
 )
 
 func TestRunnerTreatsAdapterErrorAsNonFatal(t *testing.T) {
 	ctx := context.Background()
 	session, store := testRunnerStore(t, ctx)
+	var logs bytes.Buffer
+	if err := noxlog.Configure(noxlog.Options{Level: "warn", Format: "json", Output: &logs}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = noxlog.Configure(noxlog.Options{})
+	})
 	runner := NewRunnerWithAdapters(store, []adapters.Adapter{
 		fakeRunnerAdapter{
 			id:  "nonfatal",
@@ -58,6 +68,9 @@ func TestRunnerTreatsAdapterErrorAsNonFatal(t *testing.T) {
 	}
 	if string(body) != "tool failed" {
 		t.Fatalf("expected stderr sidecar content, got %q", string(body))
+	}
+	if !strings.Contains(logs.String(), `"msg":"adapter failed"`) || !strings.Contains(logs.String(), `"tool_id":"nonfatal"`) {
+		t.Fatalf("expected structured adapter failure log, got %q", logs.String())
 	}
 }
 

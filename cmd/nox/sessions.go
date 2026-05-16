@@ -12,7 +12,6 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/pridhvi/nox/internal/config"
 	"github.com/pridhvi/nox/internal/db"
 )
 
@@ -276,7 +275,7 @@ func exportSession(args []string) error {
 }
 
 func configuredSessionDir(configPath string) (string, error) {
-	cfg, err := config.Load(configPath)
+	cfg, err := loadConfig(configPath)
 	if err != nil {
 		return "", err
 	}

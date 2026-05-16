@@ -22,7 +22,7 @@ export function CVEs() {
     <section className="page wide-page">
       <header className="page-header">
         <div>
-          <h1>CVEs</h1>
+          <h1>CVE Intelligence</h1>
           <p>Correlated CVE intelligence, exploit signals, patch status, and references.</p>
         </div>
       </header>

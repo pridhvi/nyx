@@ -143,23 +143,24 @@ work and must be carried forward:
 - Repository guidance exists in `AGENTS.md`.
 - README describes local-first purpose and safety boundary.
 - README and CLI help include authorized-testing legal guidance.
-- Makefile targets exist for build, dev, test, integration-test placeholder,
-  lint, web, sqlc placeholder, migration placeholder, cleanup, and release
-  snapshot.
+- Makefile targets exist for build, dev, test, opt-in integration smoke, tool
+  version smoke, lint, web, sqlc placeholder, migration placeholder, cleanup,
+  and release snapshot.
 - Dockerfile and docker-compose exist for Nox plus Ollama services.
 - GoReleaser snapshot configuration exists for embedded-frontend single-binary
   release artifacts.
 - GitHub Actions CI runs Makefile test/web/build workflows, Docker image build,
   Compose config validation, and GoReleaser snapshot release.
-- Local Docker validation now covers image build, `nox version`, CLI help,
-  docker-compose startup, and `/api/health` with writable session storage.
+- Local Docker validation now covers image build, `nox version`, bundled scanner
+  version checks, CLI help, docker-compose startup, `/api/health`, and
+  `/api/tools` with writable session storage.
 
 ### Remaining Work
 
-- Replace placeholder `test-integration`, `sqlc`, and `migrate-up` Makefile
-  behavior when those later systems are fully implemented.
-- Add deeper Docker smoke tests once the scan pipeline has deterministic
-  fixture targets.
+- Keep `sqlc` and PostgreSQL as explicitly deferred architecture tracks unless
+  query complexity or team-deployment requirements justify them.
+- Expand Docker-bundled tool coverage only when a scanner has stable packaging
+  and deterministic smoke behavior.
 
 ### Spec Alignment Follow-ups
 
@@ -448,9 +449,11 @@ work and must be carried forward:
 - Do not remove current `http-probe`; it can remain as a safe built-in probe
   beside or before full `httpx`.
 - Keep current subprocess `nmap` useful until Go-wrapper parity is implemented.
-- Keep current subprocess ProjectDiscovery tools useful until Go-library
-  migration is needed for richer streaming output, structured config, or
-  distribution constraints.
+- Keep current subprocess ProjectDiscovery tools as the supported v1 path.
+  Native Go-library migration is explicitly deferred because it increases
+  dependency weight, in-process resource risk, upstream API instability, and
+  maintenance burden. If revisited, evaluate `httpx` first and keep `nuclei`
+  and `naabu` deferred until the pattern proves stable.
 - Add configuration controls before enabling passive third-party sources such
   as `crt.sh` by default.
 - Add deeper service/version parsing for `nmap` and `httpx` when later phases
@@ -973,11 +976,15 @@ work and must be carried forward:
 ### Implemented Work
 
 - React/Vite app exists.
-- Implemented midnight/violet operator shell with self-hosted Syne, Outfit, and
-  JetBrains Mono assets, grouped navigation, global session selection, status
-  pills, and route recovery that drives dashboard, findings, tools, runs, graph,
+- Implemented dense midnight/violet operator shell with self-hosted Outfit and
+  JetBrains Mono assets, command/build/triage/evidence/attack-path/analyst/export/system
+  navigation, compact session command strip, status pills, responsive sidebar,
+  and route recovery that drives command center, findings, tools, runs, graph,
   CVEs, LLM, and report pages.
 - Implemented Scan Builder `/scan`:
+  - dense section rail for scope, profiles, runtime, LLM, phases, tools, and launch
+  - sticky launch summary with workload, targets, selected tools, selected phases,
+    and validation state
   - target, name, mode, and out-of-scope controls
   - built-in and API-backed saved scan profiles
   - phase cards with short descriptions
@@ -1003,7 +1010,7 @@ work and must be carried forward:
     executables, and non-executable paths before registration
 - Implemented Tool Runs `/runs` and `/sessions/:id/runs`:
   - per-session tool run table
-  - stdout/stderr/raw argument slide-in log drawer
+  - stdout/stderr/raw argument slide-in log drawer with compact log tabs
 - Implemented Settings `/settings` for storage, server, tool, plugin, LLM,
   frontend, and CVE visibility without exposing API-key values.
 - Added lazy-loaded route chunks for graph, chart, report, LLM, findings, tools,
@@ -1012,7 +1019,7 @@ work and must be carried forward:
   leave the operator console as a blank white page.
 - Added frontend unit tests for route scoping, scan-profile payload helpers, and
   attack graph edge filtering.
-- Dashboard lists sessions, stats, findings, and live progress.
+- Command Center lists sessions, stats, priority findings, next actions, and live progress.
 - Implemented Dashboard `/` and `/sessions/:id`:
   - ambient new-scan card and active/recent session cards with severity strips
   - selected-session stats
@@ -1031,8 +1038,8 @@ work and must be carried forward:
   - severity distribution chart
   - tool coverage matrix
 - Implemented Attack Graph `/sessions/:id/graph`:
-  - interactive dark-canvas Cytoscape graph plus target, finding, technology,
-    and vector columns
+  - interactive dark-canvas Cytoscape attack path graph plus ranked vector chain
+    panel and target, finding, technology, and vector columns
   - target, technology, finding, and attack vector nodes
   - severity/category filters
   - weighted severity styling, attack/finding edge styling, legend, and summary
@@ -1041,8 +1048,8 @@ work and must be carried forward:
 - Implemented Findings `/sessions/:id/findings`:
   - sortable findings table
   - bulk severity/remediation workflow for selected findings
-  - slide-in finding detail drawer with persisted evidence preview
-  - raw HTTP request/response expansion
+  - split finding detail workspace with persisted evidence tabs
+  - raw HTTP request/response evidence view
   - persisted severity/remediation edits
   - severity/type/tool/OWASP/CVE/exploit filters
   - CVE matches
@@ -1089,7 +1096,8 @@ work and must be carried forward:
   runtime image with common optional scanner tools installed.
 - docker-compose starts Nox and Ollama with persistent volumes.
 - Makefile covers build, dev, test, web build, lint, opt-in integration tests,
-  placeholder migrations/sqlc, cleanup, and release snapshots.
+  tool-version smoke, placeholder migrations/sqlc, cleanup, and release
+  snapshots.
 - GoReleaser snapshot configuration exists for embedded-frontend binaries.
 
 ### Implemented Work
@@ -1099,6 +1107,8 @@ work and must be carried forward:
 - Added `make docker-smoke` and `scripts/docker-smoke.sh` to build the image,
   start Nox, verify `/api/health`, verify `/api/tools`, and run `nox version`
   inside the container.
+- Added `scripts/tool-version-smoke.sh` and `make tool-version-smoke` to verify
+  Docker-bundled baseline scanners and report optional scanner versions.
 - Replaced the placeholder `test-integration` target with an opt-in
   `scripts/integration-smoke.sh` flow guarded by `NOX_RUN_INTEGRATION=1`.
   The suite starts a deterministic vulnerable app, then validates dynamic,
@@ -1114,6 +1124,8 @@ work and must be carried forward:
 
 - External scanner availability in Docker should be better than single-binary
   mode, but single-binary mode must remain useful with graceful degradation.
+- ProjectDiscovery native adapters remain deferred; subprocess adapters are the
+  supported v1 integration path.
 - Fixture-backed vulnerable-target scan tests are opt-in and use controlled
   local targets by default.
 
@@ -1182,6 +1194,24 @@ work and must be carried forward:
 
 ---
 
+## Architecture Deviations And Rationale
+
+The canonical spec now reflects the current v1 architecture rather than older
+greenfield assumptions:
+
+- `net/http` remains the API router. The route surface is explicit and stable,
+  and a `chi` migration would be churn unless routing complexity changes.
+- The handwritten SQLite store remains the query layer. `sqlc` is deferred until
+  query volume or review burden makes generated accessors worth the migration.
+- Per-session SQLite directories remain the supported persistence model.
+  PostgreSQL is deferred for a future team/multi-user deployment mode.
+- ProjectDiscovery tools remain subprocess adapters. Native Go-library adapters
+  can be evaluated later, starting with `httpx`; `nuclei` and `naabu` remain
+  deferred because they add the most dependency, template, privilege, and
+  resource-management risk.
+
+---
+
 ## Phase 19: Spec Traceability Matrix
 
 **Status:** Implemented
@@ -1192,17 +1222,17 @@ work and must be carried forward:
 | 1. Project Overview | Phase 0 | Implemented | Local-first CLI and web UI, scoped sessions, normalized persistence, LLM, reporting, packaging, and CI exist. |
 | 2. Design Principles | Phases 0, 3, 4, 5, 11, 12 | Implemented | Scope/evidence/normalization, DAG scheduling, deterministic vectors, constrained LLM analysis, auth, reports, and UI routes exist. |
 | 3. Tech Stack | Phases 0, 2, 12, 15, 16, 17 | Implemented | Go, SQLite, React/Vite, WebSocket, OpenAI-compatible LLM client, reports, Docker, Compose, Makefile, and GoReleaser exist. |
-| 3.1 Backend Go | Phases 0, 5 | Implemented | Current Go target is 1.26; scheduler exists. ProjectDiscovery Go-library migration remains an optional hardening path. |
-| 3.2 Dependencies | Phases 0, 10, 12, 15, 17, 18 | Implemented | SQLite, WebSocket, Viper, gofpdf, x/sync, testify, Cytoscape, and Recharts are present; chi/cobra/sqlc remain architectural choices deferred until they add value. |
+| 3.1 Backend Go | Phases 0, 5 | Implemented | Current Go target is 1.26; scheduler exists. Native ProjectDiscovery migration is intentionally deferred. |
+| 3.2 Dependencies | Phases 0, 10, 12, 15, 17, 18 | Implemented | SQLite, stdlib `net/http`, WebSocket, Viper, gofpdf, x/sync, slog, testify, Cytoscape, and Recharts are present; chi/sqlc/PostgreSQL are deferred architecture tracks. |
 | 3.3 Frontend | Phase 16 | Implemented | Dashboard, findings, Cytoscape graph, Recharts severity chart, LLM, and reports routes use real API data. |
 | 3.4 Database | Phase 2 | Implemented | Per-session SQLite, ordered migrations, and store methods cover Phase 2 persistence; optional Postgres remains later. |
 | 3.5 Plugin System | Phase 4 | Implemented | JSON contract, CLI install/list, plugin persistence, configured plugin loading, and failed tool-run degradation exist. |
 | 3.6 Packaging | Phase 17 | Implemented | Docker, Compose, Makefile, Docker smoke, deployment notes, CI build, and snapshot release exist. |
-| 4. Project Structure | All phases | Partial | Current structure is close but not complete. |
+| 4. Project Structure | All phases | Implemented | Current structure is documented as the v1 architecture; old chi/sqlc/generated-query layout is no longer treated as mandatory. |
 | 5. Core Data Models | Phase 1 | Implemented | Canonical models, report metadata models, additive CVE version fields, and serialization/validation tests exist. |
 | 6. Database Schema | Phase 2 | Implemented | Schema covers sessions, targets, findings, evidence, technologies, CVEs, vectors, tool runs, LLM analyses, plugins, and migrations. |
 | 7. Tool Adapter System | Phase 4 | Implemented | Built-in registry and configured subprocess plugin adapters coexist; broader ecosystem docs remain later. |
-| 8. Tool Pipeline | Phases 6-9 | Implemented | Recon, fingerprinting, enumeration, and vulnerability-scanning adapter slices now cover Phases 6-9; deeper Go-library migrations and richer targeting remain follow-ups. |
+| 8. Tool Pipeline | Phases 6-9 | Implemented | Recon, fingerprinting, enumeration, and vulnerability-scanning adapter slices now cover Phases 6-9; ProjectDiscovery subprocess adapters remain the supported v1 path. |
 | 9. DAG Engine | Phase 5 | Implemented | Dependency levels, same-level concurrency, semaphores, timeout/delay controls, prior-result propagation, and phase events exist. |
 | 10. LLM Integration | Phase 12 | Implemented | Optional OpenAI-compatible client, config, structured context builder, constrained tools, analyst loop, evidence truncation, persisted audit trails, vector annotations, API endpoints, CLI commands, and UI history/chat exist. |
 | 11. CVE Intelligence | Phase 10 | Implemented | Correlator, offline JSON source, Exploit-DB CSV source, cache, NVD/OSV/CIRCL/Vulners/GitHub parsers, evidence CVE extraction, persisted matches, and draft vectors exist. |
@@ -1210,12 +1240,12 @@ work and must be carried forward:
 | 13. REST API Surface | Phase 13 | Implemented | Spec endpoints for sessions, scans, findings, finding updates, vectors, CVEs, LLM, reports, health, tools, auth, and WebSocket alias exist. |
 | 14. CLI Commands | Phase 14 | Implemented | Scan flags, report generation, LLM commands, config init/show, plugins, sessions, serve, and version exist. |
 | 15. Web UI Pages | Phase 16 | Implemented | Dashboard, session route, Cytoscape graph, Recharts severity chart, finding evidence/edit workflow, LLM, and reports pages use real API data. |
-| 16. Configuration File | Phase 14 | Implemented | Viper-backed `~/.nox/config.yaml` defaults, YAML/TOML/JSON parsing, config init/show, env overrides, tool path maps, plugin directories, CVE settings, and CLI override paths exist. |
-| 17. Scope Validation | Phase 3 | Implemented | Checker, adapter boundary tests, cancellation, and lifecycle status coverage exist; config integration remains later. |
-| 18. Error Handling & Logging | Phases 3, 4, 5 | Partial | Tool failures persist without failing scans; broader structured logging polish remains hardening work. |
+| 16. Configuration File | Phase 14 | Implemented | Viper-backed `~/.nox/config.yaml` defaults, YAML/TOML/JSON parsing, config init/show, env overrides, logging settings, tool path maps, plugin directories, CVE settings, and CLI override paths exist. |
+| 17. Scope Validation | Phase 3 | Implemented | Checker, adapter boundary tests, cancellation, lifecycle status coverage, and privileged API source/LLM allowlist controls exist. |
+| 18. Error Handling & Logging | Phases 3, 4, 5 | Implemented | Tool failures persist without failing scans; structured slog configuration supports `NOX_LOG_LEVEL` and `NOX_LOG_FORMAT`, and non-fatal adapter failures are logged. |
 | 19. Testing Strategy | Phase 18 | Implemented | Go/API/adapter/config/report/LLM tests, frontend CI build, Docker smoke, and scheduled/manual fixture-backed integration smoke exist. |
-| 20. Docker Setup | Phase 17 | Implemented | Dockerfile, healthcheck, compose, deployment docs, and Docker smoke exist. |
-| 21. Makefile | Phase 17 | Implemented | Build, CI, test, integration smoke, lint, web, compose, Docker smoke, migration, cleanup, and release snapshot targets exist. |
+| 20. Docker Setup | Phase 17 | Implemented | Dockerfile, healthcheck, compose, deployment docs, bundled scanner version smoke, and Docker smoke exist. |
+| 21. Makefile | Phase 17 | Implemented | Build, CI, test, integration smoke, tool-version smoke, lint, web, compose, Docker smoke, migration, cleanup, and release snapshot targets exist. |
 | 22. Build Order Recommendation | This plan | Implemented | This roadmap follows the spec build order while preserving current work. |
 | 23. Security & Legal Notes | Phase 0 | Implemented | README and CLI help include prominent authorized-use warnings; scope remains a hard implementation boundary. |
 

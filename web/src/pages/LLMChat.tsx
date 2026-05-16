@@ -38,7 +38,7 @@ export function LLMChat() {
     <section className="page">
       <header className="page-header">
         <div>
-          <h1>LLM Analyst</h1>
+          <h1>Analyst</h1>
           <p>Session-bound analysis with persisted tool-call audit trails.</p>
         </div>
         <button className="primary" onClick={() => analyseMutation.mutate()} disabled={!selected || analyseMutation.isPending}>
@@ -80,7 +80,12 @@ export function LLMChat() {
             </section>
             <section>
               <h2>Audit Trail</h2>
-              <p>{analyses.length} analyses · {messages.filter((item) => item.tool_calls?.length).length} tool-call messages</p>
+              <div className="settings-grid compact-health">
+                <dl><dt>Analyses</dt><dd>{analyses.length}</dd></dl>
+                <dl><dt>Messages</dt><dd>{messages.filter((item) => item.role !== "system").length}</dd></dl>
+                <dl><dt>Tool Calls</dt><dd>{messages.filter((item) => item.tool_calls?.length).length}</dd></dl>
+                <dl><dt>Model</dt><dd>{analyses[0]?.model_id ?? "not selected"}</dd></dl>
+              </div>
             </section>
             {chatMutation.error ? <p className="error-text">{chatMutation.error.message}</p> : null}
             {analyseMutation.error ? <p className="error-text">{analyseMutation.error.message}</p> : null}

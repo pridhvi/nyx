@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -82,7 +83,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	}
 	errCh := make(chan error, 1)
 	go func() {
-		fmt.Printf("Nox listening on http://%s\n", server.Addr)
+		slog.Info("nox api listening", "address", server.Addr)
 		errCh <- server.ListenAndServe()
 	}()
 	select {

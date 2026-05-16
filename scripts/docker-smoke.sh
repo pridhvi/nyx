@@ -19,6 +19,7 @@ deadline=$(($(date +%s) + 45))
 while [ "$(date +%s)" -lt "$deadline" ]; do
   if curl -fsS -H "X-Nox-API-Key: ${api_key}" "http://127.0.0.1:${port}/api/health" >/dev/null; then
     docker exec "$container" nox version
+    docker exec "$container" nox-tool-version-smoke docker
     curl -fsS -H "X-Nox-API-Key: ${api_key}" "http://127.0.0.1:${port}/api/tools" >/dev/null
     echo "Docker smoke passed on http://127.0.0.1:${port}"
     exit 0

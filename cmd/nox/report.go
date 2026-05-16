@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/pridhvi/nox/internal/config"
 	"github.com/pridhvi/nox/internal/db"
 	"github.com/pridhvi/nox/internal/models"
 	reportgen "github.com/pridhvi/nox/internal/report"
@@ -28,7 +27,7 @@ func runReport(args []string) error {
 	if sessionID == "" {
 		return fmt.Errorf("report requires a session id")
 	}
-	cfg, err := config.Load(*cfgPath)
+	cfg, err := loadConfig(*cfgPath)
 	if err != nil {
 		return err
 	}

@@ -1,8 +1,8 @@
 import React, { Suspense, lazy, useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, NavLink, Route, Routes, useLocation } from "react-router-dom";
-import { Bot, FileCode2, FileText, Moon, Network, PackageSearch, Search, Settings as SettingsIcon, Shield, Sun, TerminalSquare, Wrench } from "lucide-react";
+import { BrowserRouter, Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { Bot, Boxes, FileCode2, FileText, Menu, Moon, Network, PackageSearch, Search, Settings as SettingsIcon, Shield, Sun, TerminalSquare, Wrench, X } from "lucide-react";
 import { login as loginAPI } from "./api/client";
 import { scopedSessionPath } from "./sessionRoutes";
 import { SessionProvider, useSessionContext } from "./session";
@@ -113,48 +113,77 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 function OperatorShell() {
   const { sessions, selectedSessionID, selected, setSelectedSessionID, refreshSessions } = useSessionContext();
   const [theme, setTheme] = useState(() => localStorage.getItem("nox-theme") ?? "dark");
+  const [navOpen, setNavOpen] = useState(false);
   const location = useLocation();
   const scoped = (suffix: string) => scopedSessionPath(selectedSessionID, suffix);
+  const selectedSession = selected?.session;
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("nox-theme", theme);
   }, [theme]);
 
+  useEffect(() => {
+    setNavOpen(false);
+  }, [location.pathname]);
+
+  const navGroups = [
+    { label: "Command", items: [{ to: scoped(""), label: "Command Center", icon: Shield, active: location.pathname === scoped("") }] },
+    { label: "Build", items: [{ to: "/scan", label: "Scan Builder", icon: TerminalSquare }] },
+    { label: "Triage", items: [{ to: scoped("/findings"), label: "Findings", icon: Search }, { to: scoped("/source"), label: "Source", icon: FileCode2 }] },
+    { label: "Evidence", items: [{ to: scoped("/runs"), label: "Tool Runs", icon: PackageSearch }, { to: scoped("/tools"), label: "Tools", icon: Wrench }] },
+    { label: "Attack Paths", items: [{ to: scoped("/graph"), label: "Attack Paths", icon: Network }, { to: scoped("/cves"), label: "CVEs", icon: Boxes }] },
+    { label: "Analyst", items: [{ to: scoped("/llm"), label: "LLM Analyst", icon: Bot }] },
+    { label: "Export", items: [{ to: scoped("/report"), label: "Reports", icon: FileText }] },
+    { label: "System", items: [{ to: "/settings", label: "Settings", icon: SettingsIcon }] },
+  ];
+
   return (
     <div className="shell">
-      <aside className="sidebar">
-        <div className="brand"><img src="/nox-logo.svg" alt="" />NOX</div>
-        <nav>
-          <span className="nav-group-label">Operate</span>
-          <NavLink to={scoped("")} className={() => location.pathname === scoped("") ? "active" : ""}><Shield size={18} />Dashboard</NavLink>
-          <NavLink to="/scan"><TerminalSquare size={18} />Scan Builder</NavLink>
-          <NavLink to={scoped("/findings")}><Search size={18} />Findings</NavLink>
-          <NavLink to={scoped("/source")}><FileCode2 size={18} />Source</NavLink>
-          <span className="nav-group-label">Analyze</span>
-          <NavLink to={scoped("/tools")}><Wrench size={18} />Tools</NavLink>
-          <NavLink to={scoped("/runs")}><PackageSearch size={18} />Tool Runs</NavLink>
-          <NavLink to={scoped("/graph")}><Network size={18} />Attack Graph</NavLink>
-          <NavLink to={scoped("/cves")}><Shield size={18} />CVEs</NavLink>
-          <NavLink to={scoped("/llm")}><Bot size={18} />LLM</NavLink>
-          <span className="nav-group-label">Export</span>
-          <NavLink to={scoped("/report")}><FileText size={18} />Reports</NavLink>
-          <NavLink to="/settings"><SettingsIcon size={18} />Settings</NavLink>
+      <aside className={`sidebar ${navOpen ? "open" : ""}`}>
+        <div className="brand"><img src="/nox-logo.svg" alt="" /><span>NOX</span></div>
+        <nav aria-label="Primary">
+          {navGroups.map((group) => (
+            <div className="nav-section" key={group.label}>
+              <span className="nav-group-label">{group.label}</span>
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <NavLink key={item.to} to={item.to} end={item.to === "/" || item.to === scoped("")} className={({ isActive }) => ("active" in item && item.active) || isActive ? "active" : ""}>
+                    <Icon size={17} /><span>{item.label}</span>
+                  </NavLink>
+                );
+              })}
+            </div>
+          ))}
         </nav>
       </aside>
+      {navOpen ? <button className="nav-scrim" aria-label="Close navigation" onClick={() => setNavOpen(false)} /> : null}
       <main>
         <header className="topbar">
-          <label>Session
+          <button className="icon-button mobile-menu" aria-label="Open navigation" onClick={() => setNavOpen(true)}><Menu size={18} /></button>
+          <label className="session-select">Session
             <select value={selectedSessionID} onChange={(event) => setSelectedSessionID(event.target.value)}>
               <option value="">No session</option>
               {sessions.map((record) => <option key={record.session.id} value={record.session.id}>{record.session.name || record.session.target_input} · {record.session.status}</option>)}
             </select>
           </label>
-          <span className={`status ${selected?.session.status ?? "pending"}`}>{selected?.session.status ?? "no session"}</span>
+          <div className="session-strip" aria-label="Selected session summary">
+            <span className={`status ${selectedSession?.status ?? "pending"}`}>{selectedSession?.status ?? "no session"}</span>
+            {selectedSession ? (
+              <>
+                <span>{selectedSession.workload_mode ?? "dynamic"}</span>
+                <span>{selectedSession.target_count} target{selectedSession.target_count === 1 ? "" : "s"}</span>
+                <span>{selectedSession.finding_count} findings</span>
+              </>
+            ) : null}
+          </div>
+          <Link className="secondary link-button topbar-action" to={selectedSessionID ? scoped("/findings") : "/scan"}>{selectedSessionID ? "Triage" : "New Scan"}</Link>
           <button className="icon-button theme-toggle" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
             {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
           </button>
           <button className="secondary" onClick={refreshSessions}>Refresh</button>
+          <button className="icon-button close-mobile-nav" aria-label="Close navigation" onClick={() => setNavOpen(false)}><X size={18} /></button>
         </header>
         <RouteErrorBoundary key={location.pathname}>
           <Suspense fallback={<section className="panel route-loading">Loading</section>}>

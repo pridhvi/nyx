@@ -12,6 +12,7 @@ export function Tools() {
   const [pluginPhase, setPluginPhase] = useState("vuln_scan");
   const [pluginDescription, setPluginDescription] = useState("");
   const [pluginHomepageURL, setPluginHomepageURL] = useState("");
+  const [toolFilter, setToolFilter] = useState("all");
   const createMutation = useMutation({
     mutationFn: () => createPlugin({ name: pluginName, binary: pluginBinary, phase: pluginPhase, description: pluginDescription, homepage_url: pluginHomepageURL, enabled: true }),
     onSuccess: () => {
@@ -34,6 +35,9 @@ export function Tools() {
       createMutation.mutate();
     }
   }
+  const tools = toolsQuery.data ?? [];
+  const visibleTools = tools.filter((tool) => toolFilter === "all" || (toolFilter === "ready" ? tool.installed : !tool.installed));
+  const readyCount = tools.filter((tool) => tool.installed).length;
 
   return (
     <section className="page wide-page">
@@ -45,12 +49,19 @@ export function Tools() {
         <button className="primary" onClick={() => toolsQuery.refetch()}><RefreshCw size={16} />Refresh</button>
       </header>
       <section className="panel">
-        <h2>Registered Tools</h2>
+        <div className="graph-toolbar">
+          <h2>Registered Tools</h2>
+          <div className="tab-row">
+            <button className={toolFilter === "all" ? "active" : ""} type="button" onClick={() => setToolFilter("all")}>All {tools.length}</button>
+            <button className={toolFilter === "ready" ? "active" : ""} type="button" onClick={() => setToolFilter("ready")}>Ready {readyCount}</button>
+            <button className={toolFilter === "missing" ? "active" : ""} type="button" onClick={() => setToolFilter("missing")}>Missing {tools.length - readyCount}</button>
+          </div>
+        </div>
         <div className="table-wrap">
           <table>
             <thead><tr><th>Status</th><th>Tool</th><th>Phase</th><th>Kind</th><th>Binary</th><th>Version</th><th>Last Run</th></tr></thead>
             <tbody>
-              {(toolsQuery.data ?? []).map((tool) => (
+              {visibleTools.map((tool) => (
                 <tr key={tool.id}>
                   <td><span className={`status ${tool.installed ? "completed" : "failed"} icon-status`}>{tool.installed ? <CheckCircle2 size={14} /> : <XCircle size={14} />}{tool.installed ? "ready" : "missing"}</span></td>
                   <td><strong>{tool.id}</strong><small>{tool.name}</small><small>{tool.depends_on.length ? `depends: ${tool.depends_on.join(", ")}` : tool.install_hint}</small></td>
@@ -61,6 +72,7 @@ export function Tools() {
                   <td>{tool.last_run ? <span className={`status ${tool.last_run.exit_code === 0 ? "completed" : "failed"}`}>{tool.last_run.exit_code === 0 ? "ok" : `exit ${tool.last_run.exit_code}`}</span> : "-"}</td>
                 </tr>
               ))}
+              {visibleTools.length === 0 ? <tr><td colSpan={7}>No tools match this filter.</td></tr> : null}
             </tbody>
           </table>
         </div>
