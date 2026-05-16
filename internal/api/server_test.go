@@ -458,6 +458,11 @@ func TestOperatorConsoleAPI(t *testing.T) {
 	if crtsh.Code != http.StatusAccepted {
 		t.Fatalf("expected crtsh to be registered, got %d body=%s", crtsh.Code, crtsh.Body.String())
 	}
+	var crtshCreated db.SessionRecord
+	if err := json.NewDecoder(crtsh.Body).Decode(&crtshCreated); err != nil {
+		t.Fatal(err)
+	}
+	waitForCompletedScan(t, handler, crtshCreated.Session.ID)
 
 	multiTarget := httptest.NewRecorder()
 	handler.ServeHTTP(multiTarget, httptest.NewRequest(http.MethodPost, "/api/scan/start", bytes.NewBufferString(`{"targets":["`+targetServer.URL+`","`+strings.Replace(targetServer.URL, "127.0.0.1", "localhost", 1)+`"],"mode":"active","tools":["http-probe"]}`)))
@@ -471,6 +476,7 @@ func TestOperatorConsoleAPI(t *testing.T) {
 	if multiCreated.Session.TargetCount != 2 {
 		t.Fatalf("expected two targets, got %#v", multiCreated.Session)
 	}
+	waitForCompletedScan(t, handler, multiCreated.Session.ID)
 
 	invalidTarget := httptest.NewRecorder()
 	handler.ServeHTTP(invalidTarget, httptest.NewRequest(http.MethodPost, "/api/scan/start", bytes.NewBufferString(`{"targets":["ftp://example.com"],"mode":"active","tools":["http-probe"]}`)))
