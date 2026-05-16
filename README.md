@@ -44,7 +44,7 @@ Static and combined source-aware modes use the same session database and report 
 - **LLM analysis:** OpenAI-compatible local model support, constrained tool calling, persisted audit trail, post-scan analysis, and interactive chat.
 - **Reporting:** Markdown, HTML, SARIF 2.1.0, and PDF output with source findings, tool coverage, dependency CVEs, suppressed findings, and cross-confirmed evidence.
 - **Plugin system:** Subprocess JSON contract so adapters can be written in any language.
-- **Web UI:** Scan builder, session dashboard, findings workflow, attack graph, CVE table, tool status, LLM chat, settings, and report preview.
+- **Web UI:** Midnight/violet operator console with bundled local fonts, scan builder, live pipeline dashboard, findings drawer, attack graph, CVE table, tool status/log drawers, LLM chat with tool-call cards, settings, and report preview.
 
 ## Supported tools
 

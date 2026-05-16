@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listFindings, updateFinding, type Finding } from "../api/client";
 import { useSessionContext } from "../session";
@@ -92,6 +92,16 @@ export function Findings() {
     });
   }
 
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setSelectedFinding(null);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   return (
     <section className="page">
       <header className="page-header">
@@ -184,7 +194,7 @@ export function Findings() {
             </thead>
             <tbody>
               {sortedFindings.map((finding) => (
-                <tr key={finding.id} className={selectedFinding?.id === finding.id ? "selected-row" : ""} onClick={() => openFinding(finding)}>
+                <tr key={finding.id} className={`finding-row ${finding.severity} ${selectedFinding?.id === finding.id ? "selected-row" : ""}`} onClick={() => openFinding(finding)}>
                   <td onClick={(event) => event.stopPropagation()}>
                     <input
                       type="checkbox"
@@ -208,57 +218,64 @@ export function Findings() {
         </div>
       </section>
       {selectedFinding ? (
-        <section className="panel finding-detail-panel">
-          <div className="detail-header">
-            <div>
-              <h2>{selectedFinding.title}</h2>
-              <p>{selectedFinding.tool_id} · {selectedFinding.type} · {originLabel(findingOrigin(selectedFinding))} · {selectedFinding.url || "no URL"}</p>
+        <div className="drawer-backdrop" onMouseDown={() => setSelectedFinding(null)}>
+          <aside className="drawer finding-detail-panel" onMouseDown={(event) => event.stopPropagation()} aria-label="Finding details">
+            <div className="detail-header">
+              <div>
+                <span className={`severity ${selectedFinding.severity}`}>{selectedFinding.severity}</span>
+                <h2>{selectedFinding.title}</h2>
+                <p>{selectedFinding.tool_id} · {selectedFinding.type} · {originLabel(findingOrigin(selectedFinding))} · {selectedFinding.url || "no URL"}</p>
+              </div>
+              <button className="secondary" onClick={() => setSelectedFinding(null)}>Close</button>
             </div>
-            <button className="secondary" onClick={() => setSelectedFinding(null)}>Close</button>
-          </div>
-          <div className="finding-editor">
-            <label className="compact-control">
-              Severity
-              <select value={editSeverity} onChange={(event) => setEditSeverity(event.target.value)}>
-                <option value="critical">Critical</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-                <option value="info">Info</option>
-              </select>
-            </label>
-            <label>
-              Remediation
-              <textarea value={editRemediation} onChange={(event) => setEditRemediation(event.target.value)} rows={4} />
-            </label>
-            <button className="primary" onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending}>
-              {updateMutation.isPending ? "Saving" : "Save Changes"}
-            </button>
-          </div>
-          {updateMutation.error ? <p className="error-text">{updateMutation.error.message}</p> : null}
-          <div className="evidence-grid">
-            <article>
-              <h3>Normalized Evidence</h3>
-              <pre>{selectedFinding.evidence_normalized || "-"}</pre>
-            </article>
-            <article>
-              <h3>Raw Evidence</h3>
-              <pre>{selectedFinding.evidence_raw || "-"}</pre>
-            </article>
-            <article>
-              <h3>HTTP Request</h3>
-              <pre>{selectedFinding.http_evidence?.request_raw || "-"}</pre>
-            </article>
-            <article>
-              <h3>HTTP Response</h3>
-              <pre>{selectedFinding.http_evidence?.response_raw || "-"}</pre>
-            </article>
-            <article>
-              <h3>Code Context</h3>
-              <pre>{selectedFinding.code_context || selectedFinding.flow_summary || selectedFinding.notes || "-"}</pre>
-            </article>
-          </div>
-        </section>
+            <div className="finding-editor">
+              <label className="compact-control">
+                Severity
+                <select value={editSeverity} onChange={(event) => setEditSeverity(event.target.value)}>
+                  <option value="critical">Critical</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                  <option value="info">Info</option>
+                </select>
+              </label>
+              <label>
+                Remediation
+                <textarea value={editRemediation} onChange={(event) => setEditRemediation(event.target.value)} rows={4} />
+              </label>
+              <button className="primary" onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending}>
+                {updateMutation.isPending ? "Saving" : "Save Changes"}
+              </button>
+            </div>
+            {updateMutation.error ? <p className="error-text">{updateMutation.error.message}</p> : null}
+            <div className="evidence-grid">
+              <article>
+                <h3>Normalized Evidence</h3>
+                <pre>{selectedFinding.evidence_normalized || "-"}</pre>
+              </article>
+              <article>
+                <h3>Raw Evidence</h3>
+                <pre>{selectedFinding.evidence_raw || "-"}</pre>
+              </article>
+              <article>
+                <h3>HTTP Request</h3>
+                <pre>{selectedFinding.http_evidence?.request_raw || "-"}</pre>
+              </article>
+              <article>
+                <h3>HTTP Response</h3>
+                <pre>{selectedFinding.http_evidence?.response_raw || "-"}</pre>
+              </article>
+              <article>
+                <h3>CVSS / CVEs</h3>
+                <pre>{`CVSS: ${selectedFinding.cvss_score || "-"}\n${(selectedFinding.cve_matches ?? []).map((cve) => `${cve.cve_id} ${cve.cvss_v3_score}`).join("\n") || "-"}`}</pre>
+              </article>
+              <article>
+                <h3>Code Context</h3>
+                <pre>{selectedFinding.code_context || selectedFinding.flow_summary || selectedFinding.notes || "-"}</pre>
+              </article>
+            </div>
+          </aside>
+        </div>
       ) : null}
     </section>
   );

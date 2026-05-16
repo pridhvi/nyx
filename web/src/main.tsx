@@ -46,17 +46,20 @@ function OperatorShell() {
   return (
     <div className="shell">
       <aside className="sidebar">
-        <div className="brand"><img src="/nox-logo.svg" alt="" />Nox</div>
+        <div className="brand"><img src="/nox-logo.svg" alt="" />NOX</div>
         <nav>
-          <NavLink to={scoped("")}><Shield size={18} />Dashboard</NavLink>
+          <span className="nav-group-label">Operate</span>
+          <NavLink to={scoped("")} className={() => location.pathname === scoped("") ? "active" : ""}><Shield size={18} />Dashboard</NavLink>
           <NavLink to="/scan"><TerminalSquare size={18} />Scan Builder</NavLink>
           <NavLink to={scoped("/findings")}><Search size={18} />Findings</NavLink>
           <NavLink to={scoped("/source")}><FileCode2 size={18} />Source</NavLink>
+          <span className="nav-group-label">Analyze</span>
           <NavLink to={scoped("/tools")}><Wrench size={18} />Tools</NavLink>
           <NavLink to={scoped("/runs")}><PackageSearch size={18} />Tool Runs</NavLink>
           <NavLink to={scoped("/graph")}><Network size={18} />Attack Graph</NavLink>
           <NavLink to={scoped("/cves")}><Shield size={18} />CVEs</NavLink>
           <NavLink to={scoped("/llm")}><Bot size={18} />LLM</NavLink>
+          <span className="nav-group-label">Export</span>
           <NavLink to={scoped("/report")}><FileText size={18} />Reports</NavLink>
           <NavLink to="/settings"><SettingsIcon size={18} />Settings</NavLink>
         </nav>

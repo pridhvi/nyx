@@ -1,17 +1,28 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, AlertTriangle, Pause, Play, RefreshCw, Square, TerminalSquare, Trash2 } from "lucide-react";
+import { Activity, AlertTriangle, Pause, Play, Radar, RefreshCw, Square, TerminalSquare, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import { deleteSession, getSessionStats, listFindings, listTargets, listToolRuns, pauseScan, resumeScan, scanEventsURL, stopScan, type ScanEvent } from "../api/client";
+import { deleteSession, getSessionStats, listFindings, listTargets, listToolRuns, listTools, pauseScan, resumeScan, scanEventsURL, stopScan, type ScanEvent, type ToolRun } from "../api/client";
 import { useSessionContext } from "../session";
 
 const severityColors: Record<string, string> = {
-  critical: "#991b1b",
-  high: "#dc2626",
-  medium: "#d97706",
-  low: "#2563eb",
-  info: "#64748b",
+  critical: "#ff3b5c",
+  high: "#ff7a30",
+  medium: "#f0c040",
+  low: "#30d58c",
+  info: "#4ca8ff",
+};
+
+const phaseLabels: Record<string, string> = {
+  source_analysis: "Source",
+  audit: "Audit",
+  recon: "Recon",
+  fingerprint: "Fingerprint",
+  enumerate: "Enumerate",
+  vuln_scan: "Vulnerability",
+  dynamic: "Dynamic",
+  correlation: "Correlation",
 };
 
 export function Dashboard() {
@@ -44,6 +55,7 @@ export function Dashboard() {
     enabled: selected !== "",
     refetchInterval: 2500,
   });
+  const toolsQuery = useQuery({ queryKey: ["tools"], queryFn: () => listTools(), refetchInterval: 5000 });
   const pauseMutation = useMutation({ mutationFn: () => pauseScan(selected), onSuccess: refreshSessions });
   const resumeMutation = useMutation({ mutationFn: () => resumeScan(selected), onSuccess: refreshSessions });
   const cancelMutation = useMutation({
@@ -112,8 +124,30 @@ export function Dashboard() {
     return lines.slice(0, 18);
   }, [scanEvents, toolRunsQuery.data]);
   const status = selectedRecord?.status ?? "";
+  const activeFindingCount = findingsQuery.data?.length ?? selectedRecord?.finding_count ?? 0;
+  const pipeline = useMemo(() => {
+    const selectedTools = new Set(selectedRecord?.enabled_tools ?? []);
+    const records = (toolsQuery.data ?? []).filter((tool) => selectedTools.size === 0 || selectedTools.has(tool.id));
+    const grouped = new Map<string, { id: string; name: string; state: string; count: number; duration?: number }[]>();
+    for (const tool of records) {
+      const events = scanEvents.filter((event) => event.tool_id === tool.id);
+      const latestRun = latestRunForTool(toolRunsQuery.data ?? [], tool.id);
+      const latestEvent = events[0];
+      let state = "pending";
+      if (latestRun) state = latestRun.exit_code === 0 ? "done" : "error";
+      if (latestEvent?.type === "tool_started") state = "running";
+      if (latestEvent?.type === "tool_error") state = "error";
+      if (latestEvent?.type === "tool_completed") state = latestEvent.status === "failed" ? "error" : "done";
+      const count = latestEvent?.finding_count ?? latestRun?.finding_count ?? 0;
+      const duration = latestEvent?.duration_ms ?? latestRun?.duration_ms;
+      const tools = grouped.get(tool.phase) ?? [];
+      tools.push({ id: tool.id, name: tool.name, state, count, duration });
+      grouped.set(tool.phase, tools);
+    }
+    return [...grouped.entries()];
+  }, [scanEvents, selectedRecord?.enabled_tools, toolRunsQuery.data, toolsQuery.data]);
   const progressTracks = useMemo(() => {
-    const phases = ["source_analysis", "audit", "dynamic", "correlation"];
+    const phases = selectedRecord?.workload_mode === "dynamic" ? ["recon", "fingerprint", "enumerate", "vuln_scan", "correlation"] : ["source_analysis", "audit", "dynamic", "correlation"];
     return phases.map((phase) => {
       const event = scanEvents.find((item) => item.phase === phase);
       const completed = scanEvents.some((item) => item.phase === phase && item.type === "phase_completed");
@@ -142,6 +176,37 @@ export function Dashboard() {
           <button className="secondary" onClick={refreshSessions}><RefreshCw size={16} />Refresh</button>
         </div>
       </header>
+      <div className="dashboard-grid">
+        <section className="new-scan-card">
+          <div>
+            <h2>Start a Scoped Run</h2>
+            <p>Build a dynamic, static, or combined scan with explicit scope boundaries and optional local LLM analysis.</p>
+          </div>
+          <div className="finding-count-display">{activeFindingCount}</div>
+          <p>findings in the selected engagement</p>
+          <Link className="primary link-button" to="/scan"><Radar size={16} />New Scan</Link>
+        </section>
+        <section className="panel">
+          <h2>Selected Risk Mix</h2>
+          <div className="chart-panel" aria-label="Findings by severity">
+            {severityData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie data={severityData} dataKey="value" nameKey="severity" innerRadius={48} outerRadius={74} paddingAngle={2}>
+                    {severityData.map((entry) => <Cell key={entry.severity} fill={severityColors[entry.severity]} />)}
+                  </Pie>
+                  <Tooltip contentStyle={{ background: "#0d0f1a", border: "1px solid #2a2e47", color: "#e4e7f0" }} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : <div className="empty-line">No severity data yet.</div>}
+          </div>
+          <div className="severity-strip">
+            {["critical", "high", "medium", "low", "info"].map((severity) => (
+              <span key={severity}>{severity}: {statsQuery.data?.severity_counts?.[severity] ?? 0}</span>
+            ))}
+          </div>
+        </section>
+      </div>
       <div className="metric-grid">
         <article><Activity /><span>Active Sessions</span><strong>{totals.active}</strong></article>
         <article><AlertTriangle /><span>Total Findings</span><strong>{totals.findings}</strong></article>
@@ -153,49 +218,29 @@ export function Dashboard() {
       <div className="data-grid">
         <section className="panel">
           <h2>Sessions</h2>
-          <div className="table-wrap scroll-panel">
-            <table>
-              <thead>
-                <tr><th>Engagement</th><th>Status</th><th>Targets</th><th>Findings</th><th>Created</th></tr>
-              </thead>
-              <tbody>
-                {sessions.map((record) => (
-                  <tr
-                    key={record.session.id}
-                    className={record.session.id === selected ? "selected-row" : ""}
-                    onClick={() => setSelectedSessionID(record.session.id)}
-                  >
-                    <td><strong>{record.session.name || record.session.target_input}</strong><small>{record.session.target_input}</small></td>
-                    <td><span className={`status ${record.session.status}`}>{record.session.status}</span></td>
-                    <td>{record.session.target_count}</td>
-                    <td>{record.session.finding_count}</td>
-                    <td>{new Date(record.session.created_at).toLocaleString()}</td>
-                  </tr>
-                ))}
-                {sessions.length === 0 ? <tr><td colSpan={5}>No sessions yet.</td></tr> : null}
-              </tbody>
-            </table>
+          <div className="session-grid scroll-panel">
+            {sessions.map((record) => (
+              <article
+                key={record.session.id}
+                className={`session-card ${record.session.id === selected ? "selected" : ""}`}
+                onClick={() => setSelectedSessionID(record.session.id)}
+              >
+                <div>
+                  <strong className="session-host">{record.session.name || record.session.target_input || record.session.source_path || "Untitled engagement"}</strong>
+                  <div className="session-meta">{record.session.workload_mode ?? "dynamic"} · {record.session.target_count} target{record.session.target_count === 1 ? "" : "s"} · {new Date(record.session.created_at).toLocaleString()}</div>
+                </div>
+                <SeverityBar counts={record.session.id === selected ? statsQuery.data?.severity_counts : undefined} total={record.session.finding_count} />
+                <div className="session-footer">
+                  <span className={`status ${record.session.status}`}>{record.session.status}</span>
+                  <span className="finding-count"><span>{record.session.finding_count}</span> findings</span>
+                </div>
+              </article>
+            ))}
+            {sessions.length === 0 ? <div className="empty-line">No sessions yet.</div> : null}
           </div>
         </section>
         <section className="panel">
-          <h2>Findings</h2>
-          <div className="chart-panel" aria-label="Findings by severity">
-            {severityData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={180}>
-                <PieChart>
-                  <Pie data={severityData} dataKey="value" nameKey="severity" innerRadius={46} outerRadius={72} paddingAngle={2}>
-                    {severityData.map((entry) => <Cell key={entry.severity} fill={severityColors[entry.severity]} />)}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : <div className="empty-line">No severity data yet.</div>}
-          </div>
-          <div className="severity-strip">
-            {["critical", "high", "medium", "low", "info"].map((severity) => (
-              <span key={severity}>{severity}: {statsQuery.data?.severity_counts?.[severity] ?? 0}</span>
-            ))}
-          </div>
+          <h2>Recent Findings</h2>
           <div className="target-strip">
             {(targetsQuery.data ?? []).slice(0, 6).map((target) => <span key={target.id}>{target.protocol}://{target.host}{target.port ? `:${target.port}` : ""}</span>)}
           </div>
@@ -212,12 +257,27 @@ export function Dashboard() {
         </section>
       </div>
       <section className="panel event-panel">
-          <h2>Live Progress</h2>
-        {selectedRecord?.workload_mode === "combined" || selectedRecord?.workload_mode === "static" ? (
-          <div className="progress-tracks">
-            {progressTracks.map((track) => <span key={track.phase} className={`track ${track.state}`}>{track.phase.replace("_", " ")}</span>)}
-          </div>
-        ) : null}
+        <h2>Live Progress</h2>
+        <div className="progress-tracks">
+          {progressTracks.map((track) => <span key={track.phase} className={`track ${track.state}`}>{phaseLabels[track.phase] ?? track.phase.replace("_", " ")}</span>)}
+        </div>
+        <div className="pipeline">
+          {pipeline.map(([phase, tools]) => (
+            <div className="pipeline-phase" key={phase}>
+              <div className="pipeline-phase-label">{phaseLabels[phase] ?? phase}</div>
+              <div className="pipeline-tools">
+                {tools.map((tool) => (
+                  <article className={`tool-node ${tool.state}`} key={tool.id}>
+                    <div className="tool-node-header">{tool.state === "running" ? <span className="pulse" /> : null}<strong>{tool.id}</strong></div>
+                    <small>{tool.name}</small>
+                    <span className="finding-count"><span>{tool.count}</span> findings{tool.duration ? ` · ${tool.duration}ms` : ""}</span>
+                  </article>
+                ))}
+              </div>
+            </div>
+          ))}
+          {pipeline.length === 0 ? <div className="empty-line">No tool pipeline is available for the selected session.</div> : null}
+        </div>
         <div className="event-list">
           {highLevelEvents.map((event) => (
             <article key={`${event.type}-${event.at}-${event.tool_id ?? ""}-${event.finding_id ?? ""}`} className={`event-item ${eventTone(event)}`}>
@@ -234,6 +294,23 @@ export function Dashboard() {
         <pre>{terminalLines.length > 0 ? terminalLines.join("\n") : "No terminal output for the selected session yet."}</pre>
       </section>
     </section>
+  );
+}
+
+function latestRunForTool(runs: ToolRun[], toolID: string) {
+  return runs.filter((run) => run.tool_id === toolID).sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())[0];
+}
+
+function SeverityBar({ counts, total }: { counts?: Record<string, number>; total: number }) {
+  const values = ["critical", "high", "medium", "low", "info"].map((severity) => ({ severity, value: counts?.[severity] ?? 0 }));
+  const known = values.reduce((sum, item) => sum + item.value, 0);
+  if (known === 0 && total > 0) {
+    return <div className="sev-bar"><span className="sev-bar-seg sev-info" style={{ flex: 1 }} /></div>;
+  }
+  return (
+    <div className="sev-bar">
+      {values.map((item) => item.value > 0 ? <span key={item.severity} className={`sev-bar-seg sev-${item.severity}`} style={{ flex: item.value }} /> : null)}
+    </div>
   );
 }
 

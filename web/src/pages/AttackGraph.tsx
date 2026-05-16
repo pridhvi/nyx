@@ -35,15 +35,16 @@ export function AttackGraph() {
       elements,
       layout: { name: "cose", animate: false, padding: 36, nodeRepulsion: 9000, idealEdgeLength: 140, componentSpacing: 90 },
       style: [
-        { selector: "node", style: { label: "data(label)", "font-size": "11px", "font-weight": "600", color: "#d8fff0", "text-valign": "bottom", "text-halign": "center", "text-margin-y": "8px", width: "mapData(weight, 1, 5, 54, 86)", height: "mapData(weight, 1, 5, 54, 86)", "text-wrap": "wrap", "text-max-width": "110px", "border-width": "2px", "border-color": "#16342c", "background-color": "#1f2937", "shadow-blur": "12px", "shadow-opacity": 0.28, "shadow-color": "#020617" } },
-        { selector: "node[type='target']", style: { "background-color": "#0f766e", color: "#0f766e", shape: "round-rectangle" } },
-        { selector: "node[type='tech']", style: { "background-color": "#2563eb", color: "#2563eb", shape: "ellipse" } },
+        { selector: "node", style: { label: "data(label)", "font-family": "JetBrains Mono", "font-size": "10px", "font-weight": "600", color: "#e4e7f0", "text-valign": "bottom", "text-halign": "center", "text-margin-y": "10px", width: "mapData(weight, 1, 5, 54, 88)", height: "mapData(weight, 1, 5, 54, 88)", "text-wrap": "wrap", "text-max-width": "120px", "border-width": "2px", "border-color": "#2a2e47", "background-color": "#191c2b" } },
+        { selector: "node[type='target']", style: { "background-color": "#7968f2", color: "#9585f8", shape: "round-rectangle" } },
+        { selector: "node[type='tech']", style: { "background-color": "#4ca8ff", color: "#4ca8ff", shape: "ellipse" } },
         { selector: "node[type='finding']", style: { "background-color": "data(color)", color: "data(color)", shape: "diamond" } },
-        { selector: "node[type='vector']", style: { "background-color": "#111827", color: "#111827", shape: "hexagon" } },
-        { selector: "node[type='source']", style: { "background-color": "#7c3aed", color: "#7c3aed", shape: "tag" } },
-        { selector: "node:selected", style: { "border-color": "#f59e0b", "border-width": "5px" } },
-        { selector: "edge", style: { label: "data(label)", "font-size": "9px", color: "#9aa8b7", "text-background-color": "#07110f", "text-background-opacity": 0.85, "text-background-padding": "2px", width: "2px", "line-color": "#9aa8b7", "target-arrow-color": "#9aa8b7", "target-arrow-shape": "triangle", "curve-style": "bezier", opacity: 0.78 } },
-        { selector: "edge[type='attack']", style: { width: "3px", "line-color": "#111827", "target-arrow-color": "#111827" } },
+        { selector: "node[type='vector']", style: { "background-color": "#f0c040", color: "#f0c040", shape: "hexagon" } },
+        { selector: "node[type='source']", style: { "background-color": "#30d58c", color: "#30d58c", shape: "tag" } },
+        { selector: "node:selected", style: { "border-color": "#ffffff", "border-width": "5px" } },
+        { selector: "edge", style: { "font-family": "JetBrains Mono", "font-size": "9px", color: "#a9b0c4", "text-background-color": "#07080e", "text-background-opacity": 0.9, "text-background-padding": "3px", width: "2px", "line-color": "#4e5468", "target-arrow-color": "#4e5468", "target-arrow-shape": "triangle", "curve-style": "bezier", "line-style": "dotted", opacity: 0.82 } },
+        { selector: "edge[label]", style: { label: "data(label)" } },
+        { selector: "edge[type='attack']", style: { width: "3px", "line-color": "#7968f2", "target-arrow-color": "#7968f2" } },
       ] as any,
     });
     graph.on("tap", "node", (event) => {
@@ -205,11 +206,11 @@ function vectorScore(vector: AttackVector) {
 
 function severityColor(severity: string) {
   switch (severity) {
-    case "critical": return "#991b1b";
-    case "high": return "#dc2626";
-    case "medium": return "#d97706";
-    case "low": return "#2563eb";
-    default: return "#64748b";
+    case "critical": return "#ff3b5c";
+    case "high": return "#ff7a30";
+    case "medium": return "#f0c040";
+    case "low": return "#30d58c";
+    default: return "#4ca8ff";
   }
 }
 

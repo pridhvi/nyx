@@ -970,8 +970,10 @@ work and must be carried forward:
 ### Implemented Work
 
 - React/Vite app exists.
-- Implemented operator shell with global session selection that drives
-  dashboard, findings, tools, runs, graph, CVEs, LLM, and report pages.
+- Implemented midnight/violet operator shell with self-hosted Syne, Outfit, and
+  JetBrains Mono assets, grouped navigation, global session selection, status
+  pills, and route recovery that drives dashboard, findings, tools, runs, graph,
+  CVEs, LLM, and report pages.
 - Implemented Scan Builder `/scan`:
   - target, name, mode, and out-of-scope controls
   - built-in and API-backed saved scan profiles
@@ -998,7 +1000,7 @@ work and must be carried forward:
     executables, and non-executable paths before registration
 - Implemented Tool Runs `/runs` and `/sessions/:id/runs`:
   - per-session tool run table
-  - stdout/stderr/raw argument detail view
+  - stdout/stderr/raw argument slide-in log drawer
 - Implemented Settings `/settings` for storage, server, tool, plugin, LLM,
   frontend, and CVE visibility without exposing API-key values.
 - Added lazy-loaded route chunks for graph, chart, report, LLM, findings, tools,
@@ -1009,12 +1011,13 @@ work and must be carried forward:
   attack graph edge filtering.
 - Dashboard lists sessions, stats, findings, and live progress.
 - Implemented Dashboard `/` and `/sessions/:id`:
-  - active/recent sessions
+  - ambient new-scan card and active/recent session cards with severity strips
   - selected-session stats
   - global finding stats
   - engagement name and target list visibility
   - cooperative pause/resume, cancel, and delete controls
-  - concise high-level progress feed and live terminal feed
+  - WebSocket-derived live pipeline nodes, concise high-level progress feed, and
+    live terminal feed
 - Implemented Session Detail `/sessions/:id` using the dashboard/detail data
   surface:
   - metadata
@@ -1025,8 +1028,8 @@ work and must be carried forward:
   - severity distribution chart
   - tool coverage matrix
 - Implemented Attack Graph `/sessions/:id/graph`:
-  - interactive Cytoscape graph plus target, finding, technology, and vector
-    columns
+  - interactive dark-canvas Cytoscape graph plus target, finding, technology,
+    and vector columns
   - target, technology, finding, and attack vector nodes
   - severity/category filters
   - weighted severity styling, attack/finding edge styling, legend, and summary
@@ -1035,7 +1038,7 @@ work and must be carried forward:
 - Implemented Findings `/sessions/:id/findings`:
   - sortable findings table
   - bulk severity/remediation workflow for selected findings
-  - persisted evidence preview
+  - slide-in finding detail drawer with persisted evidence preview
   - raw HTTP request/response expansion
   - persisted severity/remediation edits
   - severity/type/tool/OWASP/CVE/exploit filters
@@ -1044,8 +1047,9 @@ work and must be carried forward:
   - sortable CVE table
   - CVSS, source, patch, exploit, and description columns
 - Implemented LLM Chat `/sessions/:id/llm`:
-  - conversation history
-  - visible LLM tool calls
+  - split conversation/history layout
+  - visible LLM tool-call cards
+  - suggested prompt chips
 - Implemented Reports `/sessions/:id/report`:
   - HTML preview
   - executive/technical toggle
@@ -1058,9 +1062,9 @@ work and must be carried forward:
 - Continue improving plugin editing ergonomics after global validated
   registration.
 - Do not add decorative landing pages; the first screen remains the app.
-- Suggested LLM prompts remain later UI polish; routes, real API data, graph
-  rendering, details panels, evidence expansion, and edit workflows are in
-  place.
+- Continue checking high-density pages at small viewports as new API data is
+  added; routes, real API data, graph rendering, drawers, evidence expansion,
+  prompt chips, and edit workflows are in place.
 
 ### Acceptance Criteria
 

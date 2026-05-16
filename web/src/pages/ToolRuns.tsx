@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getToolRunLog, listToolRuns, type ToolRun } from "../api/client";
 import { useSessionContext } from "../session";
@@ -17,6 +17,15 @@ export function ToolRuns() {
     queryFn: () => getToolRunLog(selectedSessionID, selectedRun!.id, "stderr"),
     enabled: selectedSessionID !== "" && selectedRun != null,
   });
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setSelectedRun(null);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
   const runs = runsQuery.data ?? [];
   return (
     <section className="page wide-page">
@@ -37,13 +46,21 @@ export function ToolRuns() {
         </div>
       </section>
       {selectedRun ? (
-        <section className="panel finding-detail-panel">
-          <h2>{selectedRun.tool_id}</h2>
-          <div className="evidence-grid">
-            <LogPanel title="stdout" value={stdoutQuery.data} loading={stdoutQuery.isLoading} />
-            <LogPanel title="stderr" value={stderrQuery.data} loading={stderrQuery.isLoading} />
-          </div>
-        </section>
+        <div className="drawer-backdrop" onMouseDown={() => setSelectedRun(null)}>
+          <aside className="drawer finding-detail-panel" onMouseDown={(event) => event.stopPropagation()} aria-label="Tool run logs">
+            <div className="detail-header">
+              <div>
+                <h2>{selectedRun.tool_id}</h2>
+                <p>exit {selectedRun.exit_code} · {selectedRun.finding_count} findings · {selectedRun.duration_ms}ms</p>
+              </div>
+              <button className="secondary" onClick={() => setSelectedRun(null)}>Close</button>
+            </div>
+            <div className="evidence-grid">
+              <LogPanel title="stdout" value={stdoutQuery.data} loading={stdoutQuery.isLoading} />
+              <LogPanel title="stderr" value={stderrQuery.data} loading={stderrQuery.isLoading} />
+            </div>
+          </aside>
+        </div>
       ) : null}
     </section>
   );
