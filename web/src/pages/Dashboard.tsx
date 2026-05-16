@@ -195,7 +195,7 @@ export function Dashboard() {
                   <Pie data={severityData} dataKey="value" nameKey="severity" innerRadius={48} outerRadius={74} paddingAngle={2}>
                     {severityData.map((entry) => <Cell key={entry.severity} fill={severityColors[entry.severity]} />)}
                   </Pie>
-                  <Tooltip contentStyle={{ background: "#0d0f1a", border: "1px solid #2a2e47", color: "#e4e7f0" }} />
+                  <Tooltip contentStyle={{ background: "var(--surface)", border: "1px solid var(--border-bright)", color: "var(--text)" }} />
                 </PieChart>
               </ResponsiveContainer>
             ) : <div className="empty-line">No severity data yet.</div>}
