@@ -1088,8 +1088,8 @@ work and must be carried forward:
 - Dockerfile builds the frontend, compiles the Go binary, and produces a Kali
   runtime image with common optional scanner tools installed.
 - docker-compose starts Nox and Ollama with persistent volumes.
-- Makefile covers build, dev, test, web build, lint, placeholder integration
-  tests, placeholder migrations/sqlc, cleanup, and release snapshots.
+- Makefile covers build, dev, test, web build, lint, opt-in integration tests,
+  placeholder migrations/sqlc, cleanup, and release snapshots.
 - GoReleaser snapshot configuration exists for embedded-frontend binaries.
 
 ### Implemented Work
@@ -1101,6 +1101,9 @@ work and must be carried forward:
   inside the container.
 - Replaced the placeholder `test-integration` target with an opt-in
   `scripts/integration-smoke.sh` flow guarded by `NOX_RUN_INTEGRATION=1`.
+  The suite starts a deterministic vulnerable app, then validates dynamic,
+  static audit, combined source-aware correlation, report generation, sidecar
+  log retention, and `--lean` sidecar removal against directory-based sessions.
 - Added Docker health checks for the image and compose service.
 - Added `docs/deployment.md` with Docker, Compose, config mount, and snapshot
   release examples.
@@ -1120,8 +1123,8 @@ work and must be carried forward:
 - docker-compose starts Nox and Ollama.
 - Makefile targets work locally and in CI.
 - Release artifacts include embedded frontend.
-- An opt-in fixture-backed smoke test verifies local scan and report execution
-  end to end.
+- An opt-in fixture-backed smoke test verifies local scan, static audit,
+  combined correlation, lean mode, sidecar logs, and reports end to end.
 
 ---
 
@@ -1160,6 +1163,8 @@ work and must be carried forward:
 - Lint target runs Go lint when `golangci-lint` is installed and always runs
   the frontend build/typecheck.
 - Opt-in integration smoke is documented and guarded by `NOX_RUN_INTEGRATION=1`.
+  It runs manually/nightly in a dedicated GitHub Actions workflow and uploads
+  fixture logs, scan logs, SARIF, and Markdown reports on failure.
 - Docker smoke is part of CI.
 
 ### Spec Alignment Follow-ups
@@ -1208,7 +1213,7 @@ work and must be carried forward:
 | 16. Configuration File | Phase 14 | Implemented | Viper-backed `~/.nox/config.yaml` defaults, YAML/TOML/JSON parsing, config init/show, env overrides, tool path maps, plugin directories, CVE settings, and CLI override paths exist. |
 | 17. Scope Validation | Phase 3 | Implemented | Checker, adapter boundary tests, cancellation, and lifecycle status coverage exist; config integration remains later. |
 | 18. Error Handling & Logging | Phases 3, 4, 5 | Partial | Tool failures persist without failing scans; broader structured logging polish remains hardening work. |
-| 19. Testing Strategy | Phase 18 | Implemented | Go/API/adapter/config/report/LLM tests, frontend CI build, Docker smoke, and opt-in fixture-backed integration smoke exist. |
+| 19. Testing Strategy | Phase 18 | Implemented | Go/API/adapter/config/report/LLM tests, frontend CI build, Docker smoke, and scheduled/manual fixture-backed integration smoke exist. |
 | 20. Docker Setup | Phase 17 | Implemented | Dockerfile, healthcheck, compose, deployment docs, and Docker smoke exist. |
 | 21. Makefile | Phase 17 | Implemented | Build, CI, test, integration smoke, lint, web, compose, Docker smoke, migration, cleanup, and release snapshot targets exist. |
 | 22. Build Order Recommendation | This plan | Implemented | This roadmap follows the spec build order while preserving current work. |

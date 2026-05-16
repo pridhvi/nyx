@@ -85,6 +85,14 @@ Sessions are stored as directories under `database.session_dir`: `<session-id>/s
 
 For stricter local deployments, set `NOX_SOURCE_ROOTS` to a comma-separated list of allowed repository roots for API-triggered source scans, and `NOX_LLM_ALLOWED_HOSTS` to allowed LLM probe hosts such as `127.0.0.1,localhost,ollama`.
 
+Run the deeper local fixture integration suite with:
+
+```sh
+NOX_RUN_INTEGRATION=1 make test-integration
+```
+
+It starts the built-in vulnerable fixture and verifies dynamic scans, static audits, combined source-aware correlation, reports, and lean sidecar-log behavior. The same suite runs in GitHub Actions on a nightly schedule and on manual dispatch.
+
 See [docs/](docs/) for the project spec and implementation roadmap.
 
 > **Authorized use only:** nox is intended exclusively for authorized penetration testing, security research, and CTF challenges. Only use it against systems you own or have explicit, written permission to test. Unauthorized scanning or exploitation may be illegal. The authors accept no responsibility for misuse.

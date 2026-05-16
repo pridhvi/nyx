@@ -1706,7 +1706,7 @@ test:
 	go test ./... -v
 
 test-integration:
-	docker compose -f docker-compose.test.yml up --abort-on-container-exit
+	NOX_RUN_INTEGRATION=1 ./scripts/integration-smoke.sh
 
 lint:
 	golangci-lint run

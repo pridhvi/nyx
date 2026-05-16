@@ -20,6 +20,6 @@ This repo has a buildable backend with module path `github.com/pridhvi/nox`, abs
 The phase roadmap in `docs/implementation-plan.md` is complete from the repository perspective. Next tasks should be hardening and depth rather than new roadmap phases:
 
 1. Expand external scanner install/version checks in Docker images.
-2. Add deeper vulnerable-app integration suites beyond the built-in smoke fixture.
-3. Add optional code-splitting for any remaining large frontend graph/chart bundle paths.
-4. Evaluate native ProjectDiscovery Go-library adapters where subprocess behavior is too limiting.
+2. Add optional code-splitting for any remaining large frontend graph/chart bundle paths.
+3. Evaluate native ProjectDiscovery Go-library adapters where subprocess behavior is too limiting.
+4. Add more vulnerable fixture scenarios as new deterministic adapters are introduced.
