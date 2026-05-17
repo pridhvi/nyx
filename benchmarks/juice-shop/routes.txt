@@ -6,6 +6,8 @@
 /rest/products/search?q=apple
 /rest/user/login
 /rest/basket
+/rest/basket/1
+/api/BasketItems/1
 /rest/admin/application-version
 /ftp/
 /redirect?to=/score-board

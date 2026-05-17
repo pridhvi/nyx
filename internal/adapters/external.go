@@ -210,6 +210,8 @@ func commandTimeout(input AdapterInput, fallback time.Duration) time.Duration {
 
 func toString(value any) string {
 	switch typed := value.(type) {
+	case nil:
+		return ""
 	case string:
 		return typed
 	case fmt.Stringer:

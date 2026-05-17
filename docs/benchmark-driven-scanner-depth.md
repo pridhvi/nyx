@@ -251,6 +251,9 @@ Add generic, bounded validators for common classes:
   target as intentionally vulnerable and non-production
 - harmless file upload and retrieval validation (implemented for seeded upload
   routes; accepted-but-not-retrieved uploads remain suspected)
+- IDOR adjacent-object checks and secondary-identity replay (implemented for
+  seeded object identifier routes; adjacent-object access remains suspected
+  unless a secondary identity can replay the same object successfully)
 - file inclusion path marker checks with safe local-only payloads
 - CORS validation
 - XXE non-exfiltrating marker validation (implemented with internal XML entity

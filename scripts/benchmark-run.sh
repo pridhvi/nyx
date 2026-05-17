@@ -12,7 +12,7 @@ artifact_root="${NOX_BENCHMARK_ARTIFACT_DIR:-artifacts/benchmarks/$timestamp}"
 sessions_root="$artifact_root/sessions"
 mkdir -p "$artifact_root" "$sessions_root"
 
-tools_default="http-probe,security-headers,whatweb,graphql-introspection,openapi-discovery,arjun,linkfinder,js-secret-scan,cors-check,nmap,ffuf,nuclei-tech,nuclei-vuln,nikto,sqlmap,dalfox,reflected-xss-check,sqli-check,open-redirect-check,upload-check,csrf-check,weak-session-check,xxe-fuzz"
+tools_default="http-probe,security-headers,whatweb,graphql-introspection,openapi-discovery,arjun,linkfinder,js-secret-scan,cors-check,nmap,ffuf,nuclei-tech,nuclei-vuln,nikto,sqlmap,dalfox,reflected-xss-check,sqli-check,open-redirect-check,upload-check,idor-check,csrf-check,weak-session-check,xxe-fuzz"
 tools="${NOX_BENCHMARK_TOOLS:-$tools_default}"
 scan_timeout="${NOX_BENCHMARK_SCAN_TIMEOUT:-20m}"
 go_cmd="${NOX_GO_CMD:-go run .}"

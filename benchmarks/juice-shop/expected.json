@@ -12,8 +12,13 @@
         "title": [
           "access control",
           "idor",
+          "secondary identity",
+          "adjacent object",
           "forced browsing",
           "unauthorized"
+        ],
+        "tool": [
+          "idor-check"
         ],
         "url": [
           "/administration",

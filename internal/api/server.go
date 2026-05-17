@@ -1519,6 +1519,9 @@ func redactedScanProfileRequest(req startScanRequest) startScanRequest {
 	req.AuthCookies = nil
 	req.AuthCookieHeader = ""
 	req.AuthProfile = nil
+	req.SecondaryAuthHeaders = nil
+	req.SecondaryAuthCookies = nil
+	req.SecondaryAuthCookieHeader = ""
 	return req
 }
 
@@ -2480,34 +2483,37 @@ func (s *Server) runLLM(w http.ResponseWriter, r *http.Request, prompt string) {
 }
 
 type startScanRequest struct {
-	Target             string                    `json:"target"`
-	Targets            []string                  `json:"targets"`
-	SourcePath         string                    `json:"source_path"`
-	Name               string                    `json:"name"`
-	Mode               models.ScanMode           `json:"mode"`
-	OutOfScope         []string                  `json:"out_of_scope"`
-	EnabledPhases      []string                  `json:"enabled_phases"`
-	Tools              []string                  `json:"tools"`
-	ToolParameters     map[string]map[string]any `json:"tool_parameters"`
-	Concurrency        int                       `json:"concurrency"`
-	PerToolConcurrency int                       `json:"per_tool_concurrency"`
-	ToolTimeoutSeconds int                       `json:"tool_timeout_seconds"`
-	ToolDelayMS        int                       `json:"tool_delay_ms"`
-	RateLimit          string                    `json:"rate_limit"`
-	RouteSeeds         []string                  `json:"route_seeds"`
-	AuthHeaders        map[string]string         `json:"auth_headers"`
-	AuthCookies        map[string]string         `json:"auth_cookies"`
-	AuthCookieHeader   string                    `json:"auth_cookie_header"`
-	AuthProfile        map[string]any            `json:"auth_profile"`
-	EvasionProfile     string                    `json:"evasion_profile"`
-	JitterMS           int                       `json:"jitter_ms"`
-	ProxyURL           string                    `json:"proxy_url"`
-	UserAgentProfile   string                    `json:"user_agent_profile"`
-	HeaderProfile      string                    `json:"header_profile"`
-	AdaptiveBackoff    bool                      `json:"adaptive_backoff"`
-	MaxBackoffSeconds  int                       `json:"max_backoff_seconds"`
-	LLMModel           string                    `json:"llm_model"`
-	LLMBaseURL         string                    `json:"llm_base_url"`
+	Target                    string                    `json:"target"`
+	Targets                   []string                  `json:"targets"`
+	SourcePath                string                    `json:"source_path"`
+	Name                      string                    `json:"name"`
+	Mode                      models.ScanMode           `json:"mode"`
+	OutOfScope                []string                  `json:"out_of_scope"`
+	EnabledPhases             []string                  `json:"enabled_phases"`
+	Tools                     []string                  `json:"tools"`
+	ToolParameters            map[string]map[string]any `json:"tool_parameters"`
+	Concurrency               int                       `json:"concurrency"`
+	PerToolConcurrency        int                       `json:"per_tool_concurrency"`
+	ToolTimeoutSeconds        int                       `json:"tool_timeout_seconds"`
+	ToolDelayMS               int                       `json:"tool_delay_ms"`
+	RateLimit                 string                    `json:"rate_limit"`
+	RouteSeeds                []string                  `json:"route_seeds"`
+	AuthHeaders               map[string]string         `json:"auth_headers"`
+	AuthCookies               map[string]string         `json:"auth_cookies"`
+	AuthCookieHeader          string                    `json:"auth_cookie_header"`
+	AuthProfile               map[string]any            `json:"auth_profile"`
+	SecondaryAuthHeaders      map[string]string         `json:"secondary_auth_headers"`
+	SecondaryAuthCookies      map[string]string         `json:"secondary_auth_cookies"`
+	SecondaryAuthCookieHeader string                    `json:"secondary_auth_cookie_header"`
+	EvasionProfile            string                    `json:"evasion_profile"`
+	JitterMS                  int                       `json:"jitter_ms"`
+	ProxyURL                  string                    `json:"proxy_url"`
+	UserAgentProfile          string                    `json:"user_agent_profile"`
+	HeaderProfile             string                    `json:"header_profile"`
+	AdaptiveBackoff           bool                      `json:"adaptive_backoff"`
+	MaxBackoffSeconds         int                       `json:"max_backoff_seconds"`
+	LLMModel                  string                    `json:"llm_model"`
+	LLMBaseURL                string                    `json:"llm_base_url"`
 }
 
 func (s *Server) startScan(w http.ResponseWriter, r *http.Request) {
@@ -2566,7 +2572,7 @@ func (s *Server) startScan(w http.ResponseWriter, r *http.Request) {
 		OutOfScope:     req.OutOfScope,
 		EnabledPhases:  req.EnabledPhases,
 		EnabledTools:   req.Tools,
-		ToolParameters: models.BuildScanToolParameters(req.ToolParameters, req.RouteSeeds, "", req.AuthHeaders, req.AuthCookies, req.AuthCookieHeader, req.AuthProfile),
+		ToolParameters: models.BuildScanToolParameters(req.ToolParameters, req.RouteSeeds, "", req.AuthHeaders, req.AuthCookies, req.AuthCookieHeader, req.AuthProfile, req.SecondaryAuthHeaders, req.SecondaryAuthCookies, req.SecondaryAuthCookieHeader),
 		RunnerOptions:  runnerOptions,
 		LLMModel:       req.LLMModel,
 		LLMBaseURL:     req.LLMBaseURL,
@@ -2600,6 +2606,9 @@ func requiresPrivilegedScan(req startScanRequest, enabledGlobalPlugins bool) boo
 		return true
 	}
 	if len(req.AuthHeaders) > 0 || len(req.AuthCookies) > 0 || strings.TrimSpace(req.AuthCookieHeader) != "" {
+		return true
+	}
+	if len(req.SecondaryAuthHeaders) > 0 || len(req.SecondaryAuthCookies) > 0 || strings.TrimSpace(req.SecondaryAuthCookieHeader) != "" {
 		return true
 	}
 	if len(req.AuthProfile) > 0 {
@@ -3117,6 +3126,7 @@ func descriptionForTool(id string) string {
 		"open-redirect-check":   "Safely validates seeded redirect-like parameters without following external redirects.",
 		"sqli-check":            "Safely validates seeded query parameters for SQL injection with bounded boolean and error canaries.",
 		"upload-check":          "Safely validates file upload endpoints with a harmless text marker file.",
+		"idor-check":            "Checks seeded object identifier routes for adjacent-object access and optional secondary-identity replay.",
 		"csrf-check":            "Analyzes seeded state-changing forms for missing anti-CSRF token fields without submitting them.",
 		"weak-session-check":    "Samples seeded session-related routes for predictable cookie or token values with tight limits.",
 		"ssti-check":            "Performs safe server-side template injection checks.",

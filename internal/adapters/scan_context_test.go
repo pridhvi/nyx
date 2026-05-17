@@ -50,6 +50,29 @@ func TestScanContextAppliesAuthAndSeedRoutes(t *testing.T) {
 	}
 }
 
+func TestScanContextAppliesSecondaryAuth(t *testing.T) {
+	input := authTestInput(t, "https://example.com")
+	input.Session.ToolParameters = map[string]map[string]any{
+		models.SessionScanOptionsKey: {
+			"secondary_auth_headers":       map[string]any{"Authorization": "Bearer secondary"},
+			"secondary_auth_cookie_header": "session=secondary",
+		},
+	}
+	req, err := http.NewRequest(http.MethodGet, "https://example.com/account", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !applySecondaryAuthToRequest(input, req) {
+		t.Fatal("expected secondary auth to be configured")
+	}
+	if got := req.Header.Get("Authorization"); got != "Bearer secondary" {
+		t.Fatalf("expected secondary Authorization header, got %q", got)
+	}
+	if got := req.Header.Get("Cookie"); got != "session=secondary" {
+		t.Fatalf("expected secondary Cookie header, got %q", got)
+	}
+}
+
 func TestResolveSessionAuthFormProfile(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

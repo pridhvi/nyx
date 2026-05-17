@@ -42,6 +42,8 @@ func runScan(args []string) error {
 	authHeader := fs.String("auth-header", "", "authentication header in 'Name: value' form")
 	authCookie := fs.String("auth-cookie", "", "cookie header value or semicolon-separated name=value pairs")
 	authProfilePath := fs.String("auth-profile", "", "JSON file describing a generic form or JSON login auth profile")
+	secondaryAuthHeader := fs.String("secondary-auth-header", "", "secondary identity authentication header in 'Name: value' form for authorization checks")
+	secondaryAuthCookie := fs.String("secondary-auth-cookie", "", "secondary identity cookie header for authorization checks")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -89,7 +91,7 @@ func runScan(args []string) error {
 		OutOfScope:     splitCSV(*outOfScope),
 		EnabledPhases:  selectedPhases,
 		EnabledTools:   selectedTools,
-		ToolParameters: models.BuildScanToolParameters(nil, splitRouteSeeds(*routeSeeds), *routeSeedFile, parseHeaderMap(*authHeader), parseCookieMap(*authCookie), *authCookie, authProfile),
+		ToolParameters: models.BuildScanToolParameters(nil, splitRouteSeeds(*routeSeeds), *routeSeedFile, parseHeaderMap(*authHeader), parseCookieMap(*authCookie), *authCookie, authProfile, parseHeaderMap(*secondaryAuthHeader), parseCookieMap(*secondaryAuthCookie), *secondaryAuthCookie),
 		RunnerOptions:  runnerOptions,
 		LLMModel:       selectedLLMModel,
 		LLMBaseURL:     selectedLLMURL,

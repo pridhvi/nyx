@@ -657,6 +657,56 @@ func TestUploadCheckConfirmsMarkerUpload(t *testing.T) {
 	}
 }
 
+func TestIDORCheckReportsAdjacentObjectAccess(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.URL.Query().Get("id")
+		_, _ = w.Write([]byte(`{"id":"` + id + `","owner":"user-` + id + `"}`))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/api/basket?id=1")
+	adapter := NewIDORCheck()
+	if !adapter.ShouldRun(input) {
+		t.Fatal("expected IDOR check to run with object id seed")
+	}
+	out, err := adapter.Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
+	}
+	finding := out.Findings[0]
+	if finding.ToolID != "idor-check" || finding.Parameter != "id" || finding.Status != "suspected" || finding.Severity != models.SeverityMedium {
+		t.Fatalf("unexpected finding: %#v", finding)
+	}
+}
+
+func TestIDORCheckConfirmsSecondaryIdentityReplay(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte("unauthorized"))
+			return
+		}
+		_, _ = w.Write([]byte(`{"id":"1","owner":"alice","secret":"same-object"}`))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/api/basket?id=1")
+	input.Session.ToolParameters[models.SessionScanOptionsKey]["auth_headers"] = map[string]any{"Authorization": "Bearer alice"}
+	input.Session.ToolParameters[models.SessionScanOptionsKey]["secondary_auth_headers"] = map[string]any{"Authorization": "Bearer bob"}
+	out, err := NewIDORCheck().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
+	}
+	finding := out.Findings[0]
+	if finding.ToolID != "idor-check" || finding.Status != "confirmed" || finding.Severity != models.SeverityHigh {
+		t.Fatalf("unexpected finding: %#v", finding)
+	}
+}
+
 func TestCSRFCheckReportsStateChangingFormWithoutToken(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`<form method="get" action="/change-password"><input name="password_new"><input name="password_conf"><button name="Change" value="Change">Change</button></form>`))

@@ -42,6 +42,11 @@ func main() {
 		}
 		fmt.Fprintf(w, `{"query":%q,"warning":"unsanitized reflected parameter"}`, q)
 	})
+	mux.HandleFunc("/api/basket", func(w http.ResponseWriter, r *http.Request) {
+		id := first(r.URL.Query().Get("id"), "1")
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"basket_id":%q,"owner":"fixture-user-%s","items":["juice","cookie"]}`, id, id)
+	})
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintln(w, `{"data":{"__schema":{"queryType":{"name":"Query"},"mutationType":{"name":"Mutation"},"types":[{"name":"Query"}]}}}`)

@@ -61,7 +61,7 @@ func ResolveSessionAuth(ctx context.Context, session models.Session, target mode
 	if len(headers) == 0 && cookieHeader == "" {
 		return AuthResolution{Session: session}, fmt.Errorf("auth profile produced no reusable cookies or headers")
 	}
-	session.ToolParameters = models.BuildScanToolParameters(session.ToolParameters, nil, "", headers, cookies, cookieHeader, nil)
+	session.ToolParameters = models.BuildScanToolParameters(session.ToolParameters, nil, "", headers, cookies, cookieHeader, nil, nil, nil, "")
 	return AuthResolution{Applied: true, Message: "auth profile resolved", Session: session}, nil
 }
 

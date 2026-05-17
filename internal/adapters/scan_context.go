@@ -14,10 +14,13 @@ import (
 )
 
 type scanContext struct {
-	RouteSeeds   []string
-	AuthHeaders  map[string]string
-	AuthCookies  map[string]string
-	CookieHeader string
+	RouteSeeds                []string
+	AuthHeaders               map[string]string
+	AuthCookies               map[string]string
+	CookieHeader              string
+	SecondaryAuthHeaders      map[string]string
+	SecondaryAuthCookies      map[string]string
+	SecondaryAuthCookieHeader string
 }
 
 func inputScanContext(input AdapterInput) scanContext {
@@ -26,10 +29,13 @@ func inputScanContext(input AdapterInput) scanContext {
 		params = input.Session.ToolParameters[models.SessionScanOptionsKey]
 	}
 	ctx := scanContext{
-		RouteSeeds:   compactStrings(anyStringList(params["route_seeds"])),
-		AuthHeaders:  anyStringMap(params["auth_headers"]),
-		AuthCookies:  anyStringMap(params["auth_cookies"]),
-		CookieHeader: strings.TrimSpace(toString(params["auth_cookie_header"])),
+		RouteSeeds:                compactStrings(anyStringList(params["route_seeds"])),
+		AuthHeaders:               anyStringMap(params["auth_headers"]),
+		AuthCookies:               anyStringMap(params["auth_cookies"]),
+		CookieHeader:              strings.TrimSpace(toString(params["auth_cookie_header"])),
+		SecondaryAuthHeaders:      anyStringMap(params["secondary_auth_headers"]),
+		SecondaryAuthCookies:      anyStringMap(params["secondary_auth_cookies"]),
+		SecondaryAuthCookieHeader: strings.TrimSpace(toString(params["secondary_auth_cookie_header"])),
 	}
 	if seedFile := strings.TrimSpace(toString(params["route_seed_file"])); seedFile != "" {
 		ctx.RouteSeeds = append(ctx.RouteSeeds, readRouteSeedFile(seedFile)...)
@@ -193,16 +199,33 @@ func newHTTPRequestWithAuth(ctx context.Context, input AdapterInput, method, raw
 
 func applyAuthToRequest(input AdapterInput, req *http.Request) {
 	scanCtx := inputScanContext(input)
-	for name, value := range scanCtx.AuthHeaders {
+	applyRequestAuth(req, scanCtx.AuthHeaders, scanCtx.AuthCookies, scanCtx.CookieHeader)
+}
+
+func applySecondaryAuthToRequest(input AdapterInput, req *http.Request) bool {
+	scanCtx := inputScanContext(input)
+	if len(scanCtx.SecondaryAuthHeaders) == 0 && len(scanCtx.SecondaryAuthCookies) == 0 && scanCtx.SecondaryAuthCookieHeader == "" {
+		return false
+	}
+	applyRequestAuth(req, scanCtx.SecondaryAuthHeaders, scanCtx.SecondaryAuthCookies, scanCtx.SecondaryAuthCookieHeader)
+	return true
+}
+
+func hasSecondaryAuth(input AdapterInput) bool {
+	scanCtx := inputScanContext(input)
+	return len(scanCtx.SecondaryAuthHeaders) > 0 || len(scanCtx.SecondaryAuthCookies) > 0 || scanCtx.SecondaryAuthCookieHeader != ""
+}
+
+func applyRequestAuth(req *http.Request, headers, cookies map[string]string, cookieHeader string) {
+	for name, value := range headers {
 		if strings.TrimSpace(name) != "" && value != "" {
 			req.Header.Set(name, value)
 		}
 	}
-	cookieHeader := scanCtx.CookieHeader
-	if cookieHeader == "" && len(scanCtx.AuthCookies) > 0 {
+	if cookieHeader == "" && len(cookies) > 0 {
 		var parts []string
-		for _, name := range sortedMapKeys(scanCtx.AuthCookies) {
-			value := scanCtx.AuthCookies[name]
+		for _, name := range sortedMapKeys(cookies) {
+			value := cookies[name]
 			if strings.TrimSpace(name) != "" && value != "" {
 				parts = append(parts, strings.TrimSpace(name)+"="+value)
 			}

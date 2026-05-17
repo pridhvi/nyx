@@ -150,12 +150,14 @@ func TestSessionJSONRedactsScanAuthOptions(t *testing.T) {
 		TargetInput: "https://example.test",
 		ToolParameters: map[string]map[string]any{
 			SessionScanOptionsKey: {
-				"route_seeds":         []string{"/admin"},
-				"auth_headers":        map[string]string{"Authorization": "Bearer secret"},
-				"auth_cookie_header":  "session=secret",
-				"auth_cookies":        map[string]string{"csrftoken": "secret"},
-				"auth_profile":        map[string]any{"username": "alice", "password": "profile-secret"},
-				"non_sensitive_label": "kept",
+				"route_seeds":                  []string{"/admin"},
+				"auth_headers":                 map[string]string{"Authorization": "Bearer secret"},
+				"auth_cookie_header":           "session=secret",
+				"auth_cookies":                 map[string]string{"csrftoken": "secret"},
+				"auth_profile":                 map[string]any{"username": "alice", "password": "profile-secret"},
+				"secondary_auth_headers":       map[string]string{"Authorization": "Bearer secondary"},
+				"secondary_auth_cookie_header": "session=secondary",
+				"non_sensitive_label":          "kept",
 			},
 			"ffuf": {
 				"wordlist": "/tmp/words.txt",
@@ -168,7 +170,7 @@ func TestSessionJSONRedactsScanAuthOptions(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(body)
-	if strings.Contains(text, "Bearer secret") || strings.Contains(text, "session=secret") || strings.Contains(text, "csrftoken") || strings.Contains(text, "profile-secret") {
+	if strings.Contains(text, "Bearer secret") || strings.Contains(text, "session=secret") || strings.Contains(text, "csrftoken") || strings.Contains(text, "profile-secret") || strings.Contains(text, "Bearer secondary") || strings.Contains(text, "session=secondary") {
 		t.Fatalf("expected scan auth options to be redacted, got %s", text)
 	}
 	if !strings.Contains(text, "/admin") || !strings.Contains(text, "/tmp/words.txt") || !strings.Contains(text, "kept") {

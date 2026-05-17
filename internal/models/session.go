@@ -95,7 +95,7 @@ func scanOptionSecret(key string) bool {
 		strings.Contains(normalized, "secret")
 }
 
-func BuildScanToolParameters(existing map[string]map[string]any, routeSeeds []string, routeSeedFile string, headers, cookies map[string]string, cookieHeader string, authProfile map[string]any) map[string]map[string]any {
+func BuildScanToolParameters(existing map[string]map[string]any, routeSeeds []string, routeSeedFile string, headers, cookies map[string]string, cookieHeader string, authProfile map[string]any, secondaryHeaders, secondaryCookies map[string]string, secondaryCookieHeader string) map[string]map[string]any {
 	if existing == nil {
 		existing = map[string]map[string]any{}
 	}
@@ -122,6 +122,15 @@ func BuildScanToolParameters(existing map[string]map[string]any, routeSeeds []st
 	}
 	if len(authProfile) > 0 {
 		scan["auth_profile"] = authProfile
+	}
+	if len(secondaryHeaders) > 0 {
+		scan["secondary_auth_headers"] = secondaryHeaders
+	}
+	if len(secondaryCookies) > 0 {
+		scan["secondary_auth_cookies"] = secondaryCookies
+	}
+	if strings.TrimSpace(secondaryCookieHeader) != "" {
+		scan["secondary_auth_cookie_header"] = strings.TrimSpace(secondaryCookieHeader)
 	}
 	if len(scan) > 0 {
 		existing[SessionScanOptionsKey] = scan

@@ -640,6 +640,9 @@ work and must be carried forward:
   confirmed, while SQL error indicators are suspected findings.
 - Built-in upload validator submits a harmless text marker file to seeded upload
   routes and confirms only response echo or scoped retrieval of the marker.
+- Built-in IDOR check tests seeded object identifier routes with adjacent-object
+  mutation and optional secondary-identity replay; adjacent-object matches are
+  suspected, secondary-identity replay can be confirmed.
 - Built-in CSRF check inspects seeded state-changing forms for missing token
   fields without submitting them.
 - Built-in weak-session check samples seeded session-related routes for
@@ -655,7 +658,7 @@ work and must be carried forward:
   discoveries when the initial target URL has no query string.
 - Parser and adapter tests cover nuclei vulnerability output, SSRFmap, JWT,
   OAuth, reflected XSS, open redirect, SQL injection validation, upload
-  validation, CSRF form analysis, weak session sampling, CORS reflected-origin handling, SSTI, XXE, Nikto, and
+  validation, IDOR checks, CSRF form analysis, weak session sampling, CORS reflected-origin handling, SSTI, XXE, Nikto, and
   hidden-parameter target handoff.
 
 ### Remaining Work

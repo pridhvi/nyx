@@ -228,6 +228,9 @@ export type StartScanRequest = {
   auth_cookies?: Record<string, string>;
   auth_cookie_header?: string;
   auth_profile?: Record<string, unknown>;
+  secondary_auth_headers?: Record<string, string>;
+  secondary_auth_cookies?: Record<string, string>;
+  secondary_auth_cookie_header?: string;
   evasion_profile?: string;
   jitter_ms?: number;
   proxy_url?: string;

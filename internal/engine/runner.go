@@ -83,6 +83,7 @@ func DefaultSafeAdapters() []adapters.Adapter {
 		adapters.NewOpenRedirectCheck(),
 		adapters.NewSQLICheck(),
 		adapters.NewUploadCheck(),
+		adapters.NewIDORCheck(),
 		adapters.NewCSRFCheck(),
 		adapters.NewWeakSessionIDCheck(),
 		adapters.NewSSTICheck(),

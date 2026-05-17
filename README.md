@@ -40,6 +40,7 @@ provided without hardcoding target behavior into adapters:
   --route-seed-file routes.txt \
   --auth-profile auth-profile.json \
   --auth-header "Authorization: Bearer <token>" \
+  --secondary-auth-header "Authorization: Bearer <second-user-token>" \
   --auth-cookie "session=<cookie>" \
   --no-llm
 ```
@@ -47,8 +48,10 @@ provided without hardcoding target behavior into adapters:
 Seed routes are scope-checked before use. Auth headers/cookies are applied to
 compatible built-in HTTP checks and subprocess adapters such as `ffuf`,
 `sqlmap`, and `dalfox`; API session JSON and persisted tool-run arguments
-redact those secret values. Saved scan profiles keep route seeds and scanner
-options but intentionally omit auth secrets.
+redact those secret values. Secondary auth headers/cookies are only used by
+authorization checks such as `idor-check` to compare access as another identity.
+Saved scan profiles keep route seeds and scanner options but intentionally omit
+auth secrets.
 
 `--auth-profile` accepts target-agnostic JSON for form or JSON login flows. Form
 profiles can extract an HTML CSRF token, submit username/password fields, run
@@ -105,7 +108,7 @@ All external tools are optional. Missing tools are recorded as tool runs and the
 | Recon | `http-probe`, `security-headers`, `subfinder`, `dnsx`, `naabu`, `httpx`, `whois`, `waybackurls`, `nmap`, `crt.sh` |
 | Fingerprinting | `whatweb`, `nuclei-tech`, `testssl.sh`, GraphQL introspection, OpenAPI/Swagger discovery, `wpscan`, `droopescan` |
 | Enumeration | `ffuf`, `arjun`, `linkfinder`, `gitleaks`, JavaScript secret scanning, CORS checks, scoped cloud bucket checks |
-| Vulnerability | `nuclei-vuln`, `sqlmap`, `dalfox`, SSRFmap, `jwt_tool`, OAuth checks, reflected XSS validation, SQL injection validation, open redirect validation, upload validation, CSRF form analysis, weak session ID sampling, SSTI checks, XXE fuzzing, `nikto` |
+| Vulnerability | `nuclei-vuln`, `sqlmap`, `dalfox`, SSRFmap, `jwt_tool`, OAuth checks, reflected XSS validation, SQL injection validation, open redirect validation, upload validation, IDOR route checks, CSRF form analysis, weak session ID sampling, SSTI checks, XXE fuzzing, `nikto` |
 
 Static audit tools are registered as `audit/<id>`. Built-in source analyzers always run; optional tools such as `semgrep`, `bandit`, `gosec`, `govulncheck`, `npm audit`, `retire.js`, `safety`, `brakeman`, `spotbugs`, `psalm`, `trufflehog`, `gitleaks`, and `grype` run when installed. Their native outputs are parsed into normalized findings or package CVEs where possible, with a generic JSON fallback for future adapter shapes.
 
@@ -214,11 +217,12 @@ harness preflights DVWA login plus low security level and creates/reuses the
 Juice Shop benchmark user before scanning, so authentication failures are
 reported as setup failures instead of noisy low-coverage scans. Active-mode
 scans now include bounded, auth-aware built-in validators for reflected XSS
-markers, SQL injection boolean/error canaries, harmless file uploads,
-CSRF form-token analysis, weak session identifier sampling, non-exfiltrating XML
-entity markers, and open redirects on seeded query routes; they do not follow
-external redirects and only report confirmed validation when the marker or
-predicate behavior is observed.
+markers, SQL injection boolean/error canaries, harmless file uploads, IDOR
+adjacent-object checks with optional secondary-identity replay, CSRF form-token
+analysis, weak session identifier sampling, non-exfiltrating XML entity markers,
+and open redirects on seeded query routes; they do not follow external redirects
+and only report confirmed validation when the marker, predicate behavior, or
+secondary-identity replay is observed.
 
 ```sh
 make benchmark-targets-up
