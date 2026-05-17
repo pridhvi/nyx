@@ -1383,26 +1383,27 @@ GET    /api/burp/status
 GET    /api/tools                   List all registered tool adapters
 GET    /api/health                  Health check (DB connected, LLM reachable, tools available)
 
-WS     /ws/scan/{id}               WebSocket — real-time scan events
+GET    /api/scan/{id}/events       WebSocket — real-time scan events
 ```
 
 ### WebSocket Event Format
 
 ```json
 {
-  "type": "tool_started",   // tool_started | tool_completed | tool_error | finding_found | phase_completed | scan_completed
+  "type": "tool_started",   // queued | running | tool_started | tool_completed | tool_error | phase_started | phase_completed | finding_found | auth_status | failed | completed | cancelled
   "session_id": "uuid",
   "tool_id": "nuclei",
   "phase": "vuln_scan",
-  "timestamp": "2025-01-15T14:23:01Z",
-  "payload": {
-    // type-specific data
-    // for finding_found: the Finding object
-    // for tool_completed: { duration_ms, finding_count }
-    // for tool_error: { error_message }
-  }
+  "status": "running",
+  "message": "tool-specific status",
+  "finding_count": 1,
+  "duration_ms": 1234,
+  "at": "2025-01-15T14:23:01Z"
 }
 ```
+
+`auth_status` events report auth validation and refresh lifecycle states such as
+`valid`, `invalid`, `refreshing`, `refreshed`, `failed`, and `skipped`.
 
 ---
 
@@ -1416,6 +1417,10 @@ nox scan --target <host/CIDR/URL>     Start a scan (most common command)
          --phases recon,fingerprint,...  Limit to specific phases
          --tools nuclei,sqlmap,...       Limit to specific tools
          --out-of-scope host1,host2     Exclude from scope
+         --route-seed-file routes.txt   Seed authenticated/deep route checks
+         --auth-profile auth.json       Generic form or JSON login profile
+         --auth-header "Name: value"    Static auth header
+         --auth-cookie "name=value"     Static auth cookie header
          --llm-model llama3:8b          LLM model to use
          --llm-url http://localhost:11434/v1
          --no-llm                       Skip LLM analysis

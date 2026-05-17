@@ -67,9 +67,18 @@ bounded post-login form steps, and validate the session with a follow-up URL:
   "password_field": "password",
   "csrf_field": "csrf",
   "validation_url": "/account",
-  "validation_contains": "Account"
+  "validation_contains": "Account",
+  "refresh_interval_seconds": 300,
+  "validate_each_phase": false
 }
 ```
+
+When `validation_url` is present, Nox re-validates the resolved auth context
+during longer scans and re-runs the profile if validation fails. Set
+`refresh_interval_seconds` to tune the validation/re-login interval, or
+`validate_each_phase` for fragile benchmark sessions that should be checked
+before every adapter phase. Auth validation, invalidation, and refresh outcomes
+are emitted as scan lifecycle events.
 
 JSON login profiles can extract a token into an auth header:
 

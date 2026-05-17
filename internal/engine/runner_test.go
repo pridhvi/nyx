@@ -4,8 +4,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -372,6 +377,81 @@ func TestRunnerFiltersSelectedToolsAndPassesToolParameters(t *testing.T) {
 	}
 }
 
+func TestRunnerRefreshesAuthProfileBetweenPhases(t *testing.T) {
+	ctx := context.Background()
+	var loginCount atomic.Int64
+	var validToken atomic.Value
+	validToken.Store("")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			token := fmt.Sprintf("s%d", loginCount.Add(1))
+			validToken.Store(token)
+			http.SetCookie(w, &http.Cookie{Name: "session", Value: token, Path: "/"})
+			_, _ = w.Write([]byte("ok"))
+		case "/account":
+			cookie, err := r.Cookie("session")
+			if err != nil || cookie.Value != validToken.Load().(string) {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			_, _ = w.Write([]byte("Account"))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	session, store := testRunnerStoreForURL(t, ctx, server.URL)
+	session.ToolParameters = map[string]map[string]any{
+		models.SessionScanOptionsKey: {
+			"auth_profile": map[string]any{
+				"type":                     "form",
+				"login_url":                "/login",
+				"username":                 "alice",
+				"password":                 "secret",
+				"validation_url":           "/account",
+				"validation_contains":      "Account",
+				"validate_each_phase":      true,
+				"refresh_interval_seconds": 1,
+			},
+		},
+	}
+	var secondCookie string
+	runner := NewRunnerWithOptions(store, []adapters.Adapter{
+		fakeRunnerAdapter{
+			id: "first",
+			runFunc: func(ctx context.Context, input adapters.AdapterInput) (adapters.AdapterOutput, error) {
+				validToken.Store("expired")
+				return adapters.AdapterOutput{ToolRun: models.ToolRun{ID: models.NewID(), SessionID: input.Session.ID, TargetID: input.Target.ID, ToolID: "first", StartedAt: time.Now().UTC()}}, nil
+			},
+		},
+		fakeRunnerAdapter{
+			id:   "second",
+			deps: []string{"first"},
+			runFunc: func(ctx context.Context, input adapters.AdapterInput) (adapters.AdapterOutput, error) {
+				secondCookie = fmt.Sprint(input.Session.ToolParameters[models.SessionScanOptionsKey]["auth_cookie_header"])
+				return adapters.AdapterOutput{ToolRun: models.ToolRun{ID: models.NewID(), SessionID: input.Session.ID, TargetID: input.Target.ID, ToolID: "second", StartedAt: time.Now().UTC()}}, nil
+			},
+		},
+	}, nil, RunnerOptions{GlobalConcurrency: 1, PerToolConcurrency: 1})
+	var events []ScanEvent
+	runner.OnEvent(func(event ScanEvent) {
+		events = append(events, event)
+	})
+	if err := runner.Run(ctx, session); err != nil {
+		t.Fatal(err)
+	}
+	if loginCount.Load() < 2 {
+		t.Fatalf("expected auth profile to be refreshed, got %d logins", loginCount.Load())
+	}
+	if !strings.Contains(secondCookie, "s2") {
+		t.Fatalf("expected second phase to receive refreshed cookie, got %q", secondCookie)
+	}
+	if !sawAuthStatus(events, "invalid") || !sawAuthStatus(events, "refreshed") {
+		t.Fatalf("expected invalid and refreshed auth events, got %#v", events)
+	}
+}
+
 type fakeRunnerAdapter struct {
 	id      string
 	err     error
@@ -442,29 +522,48 @@ func (a fakeRunnerAdapter) Run(ctx context.Context, input adapters.AdapterInput)
 	return adapters.AdapterOutput{ToolRun: run}, a.err
 }
 
+func sawAuthStatus(events []ScanEvent, status string) bool {
+	for _, event := range events {
+		if event.Type == ScanEventAuthStatus && event.Status == status {
+			return true
+		}
+	}
+	return false
+}
+
 func testRunnerStore(t *testing.T, ctx context.Context) (models.Session, *db.Store) {
 	t.Helper()
+	return testRunnerStoreForURL(t, ctx, "https://example.com")
+}
+
+func testRunnerStoreForURL(t *testing.T, ctx context.Context, rawURL string) (models.Session, *db.Store) {
+	t.Helper()
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	port, _ := strconv.Atoi(parsed.Port())
 	session := models.Session{
 		ID:          models.NewID(),
 		Name:        "Runner",
 		Status:      models.SessionStatusPending,
 		Mode:        models.ScanModeActive,
-		TargetInput: "https://example.com",
-		InScope:     []string{"example.com"},
+		TargetInput: rawURL,
+		InScope:     []string{parsed.Hostname()},
 		CreatedAt:   time.Now().UTC(),
 	}
 	target := models.Target{
 		ID:           models.NewID(),
 		SessionID:    session.ID,
-		Host:         "example.com",
-		Port:         443,
-		Protocol:     "https",
+		Host:         parsed.Hostname(),
+		Port:         port,
+		Protocol:     parsed.Scheme,
 		IsAlive:      true,
 		DiscoveredBy: "test",
 		CreatedAt:    time.Now().UTC(),
 	}
 	sessionDir := t.TempDir()
-	_, err := db.CreateSessionDB(ctx, sessionDir, session, target)
+	_, err = db.CreateSessionDB(ctx, sessionDir, session, target)
 	if err != nil {
 		t.Fatal(err)
 	}

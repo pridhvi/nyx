@@ -13,6 +13,7 @@ const (
 	ScanEventPhaseStarted   ScanEventType = "phase_started"
 	ScanEventPhaseCompleted ScanEventType = "phase_completed"
 	ScanEventFindingFound   ScanEventType = "finding_found"
+	ScanEventAuthStatus     ScanEventType = "auth_status"
 	ScanEventFailed         ScanEventType = "failed"
 	ScanEventCompleted      ScanEventType = "completed"
 	ScanEventCancelled      ScanEventType = "cancelled"

@@ -336,6 +336,8 @@ function SeverityBar({ counts, total }: { counts?: Record<string, number>; total
 
 function eventTone(event: ScanEvent) {
   if (event.type === "failed" || event.type === "tool_error" || event.type === "cancelled") return "error";
+  if (event.type === "auth_status" && (event.status === "invalid" || event.status === "failed")) return "warning";
+  if (event.type === "auth_status" && (event.status === "valid" || event.status === "refreshed")) return "success";
   if (event.type === "completed" || event.type === "tool_completed" || event.type === "phase_completed") return "success";
   if (event.type === "finding_found" || event.status === "paused") return "warning";
   return "running";

@@ -195,6 +195,7 @@ Acceptance criteria:
 - Auth profile format is target-agnostic.
 - Dynamic adapters receive an authenticated HTTP client or request context.
 - Auth failures are visible as tool runs or scan events.
+- Auth validation and refresh events are visible over the scan lifecycle stream.
 - Secrets are redacted from logs, effective config, reports, and API responses.
 
 Current state: Nox accepts route seeds, static auth headers/cookies, and generic
@@ -203,7 +204,11 @@ apply those values to requests, and `ffuf`, `sqlmap`, and `dalfox` receive
 compatible subprocess flags with persisted arguments redacted. Form login
 profiles support CSRF extraction, post-login form steps, cookie capture, and
 validation requests. JSON login profiles support token extraction into a
-configured auth header. Session refresh or re-login remains future work.
+configured auth header. Profiles with a `validation_url` are re-validated during
+long scans and re-run when validation fails; `refresh_interval_seconds` controls
+the default interval and `validate_each_phase` forces validation before every
+adapter phase for short-lived benchmark sessions. Auth validation, invalidation,
+refresh, failure, and skip states emit `auth_status` events.
 
 ## Phase 4: Route And State Seeding
 

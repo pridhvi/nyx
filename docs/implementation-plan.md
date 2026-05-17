@@ -53,9 +53,10 @@ preflight setup for DVWA low-security mode and Juice Shop user registration,
 strict `all_match` coverage mappings where tool plus route/title evidence must
 line up, CLI/API/UI route seed inputs, static auth header/cookie scan context,
 generic form and JSON login auth profiles with CSRF/token extraction and
-validation requests, redacted session JSON/tool-run arguments for auth material,
-and first adapter consumers for built-in HTTP checks plus `ffuf`, `sqlmap`, and
-`dalfox`.
+validation requests, bounded validation/re-login refresh during long scans,
+`auth_status` lifecycle events for validation and refresh outcomes, redacted
+session JSON/tool-run arguments for auth material, and first adapter consumers
+for built-in HTTP checks plus `ffuf`, `sqlmap`, and `dalfox`.
 
 ## Current Baseline
 

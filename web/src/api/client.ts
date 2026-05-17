@@ -507,6 +507,7 @@ export type ScanEventType =
   | "phase_started"
   | "phase_completed"
   | "finding_found"
+  | "auth_status"
   | "failed"
   | "completed"
   | "cancelled";

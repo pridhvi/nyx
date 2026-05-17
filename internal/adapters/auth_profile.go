@@ -11,6 +11,7 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,8 +24,51 @@ type AuthResolution struct {
 	Session models.Session
 }
 
+const DefaultAuthRefreshInterval = 5 * time.Minute
+
 func HasAuthProfile(session models.Session) bool {
 	return len(authProfileMap(session)) > 0
+}
+
+func AuthValidationConfigured(session models.Session) bool {
+	return strings.TrimSpace(mapString(authProfileMap(session), "validation_url")) != ""
+}
+
+func AuthValidateEachPhase(session models.Session) bool {
+	profile := authProfileMap(session)
+	return mapBool(profile, "validate_each_phase") || mapBool(profile, "auth_validate_each_phase")
+}
+
+func AuthRefreshInterval(session models.Session) time.Duration {
+	profile := authProfileMap(session)
+	if len(profile) == 0 {
+		return 0
+	}
+	seconds := firstNonZeroInt(
+		mapInt(profile, "refresh_interval_seconds"),
+		mapInt(profile, "auth_refresh_interval_seconds"),
+		mapInt(profile, "auth_check_interval_seconds"),
+	)
+	if seconds < 0 {
+		return 0
+	}
+	if seconds > 0 {
+		return time.Duration(seconds) * time.Second
+	}
+	return DefaultAuthRefreshInterval
+}
+
+func ValidateSessionAuth(ctx context.Context, session models.Session, target models.Target, scope ScopeValidator) error {
+	profile := authProfileMap(session)
+	if len(profile) == 0 || strings.TrimSpace(mapString(profile, "validation_url")) == "" {
+		return nil
+	}
+	if ok, reason := scope.IsInScope(target.Host); !ok {
+		return fmt.Errorf("auth target rejected by scope: %s", reason)
+	}
+	headers := sessionAuthHeaders(session)
+	client := &http.Client{Timeout: 20 * time.Second}
+	return validateAuth(ctx, client, target, scope, profile, headers)
 }
 
 func ResolveSessionAuth(ctx context.Context, session models.Session, target models.Target, scope ScopeValidator) (AuthResolution, error) {
@@ -380,6 +424,41 @@ func mapString(values map[string]any, key string) string {
 	return strings.TrimSpace(toString(values[key]))
 }
 
+func mapBool(values map[string]any, key string) bool {
+	if values == nil || values[key] == nil {
+		return false
+	}
+	switch typed := values[key].(type) {
+	case bool:
+		return typed
+	case string:
+		parsed, err := strconv.ParseBool(strings.TrimSpace(typed))
+		return err == nil && parsed
+	default:
+		return false
+	}
+}
+
+func mapInt(values map[string]any, key string) int {
+	if values == nil || values[key] == nil {
+		return 0
+	}
+	switch typed := values[key].(type) {
+	case int:
+		return typed
+	case int64:
+		return int(typed)
+	case float64:
+		return int(typed)
+	case string:
+		parsed, err := strconv.Atoi(strings.TrimSpace(typed))
+		if err == nil {
+			return parsed
+		}
+	}
+	return 0
+}
+
 func mapStringMap(value any) map[string]string {
 	out := anyStringMap(value)
 	if out == nil {
@@ -412,4 +491,32 @@ func firstNonEmptyString(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func firstNonZeroInt(values ...int) int {
+	for _, value := range values {
+		if value != 0 {
+			return value
+		}
+	}
+	return 0
+}
+
+func sessionAuthHeaders(session models.Session) map[string]string {
+	params := map[string]any{}
+	if session.ToolParameters != nil && session.ToolParameters[models.SessionScanOptionsKey] != nil {
+		params = session.ToolParameters[models.SessionScanOptionsKey]
+	}
+	headers := map[string]string{}
+	for name, value := range anyStringMap(params["auth_headers"]) {
+		headers[name] = value
+	}
+	reusableCookieHeader := strings.TrimSpace(toString(params["auth_cookie_header"]))
+	if reusableCookieHeader == "" {
+		reusableCookieHeader = cookieHeader(anyStringMap(params["auth_cookies"]))
+	}
+	if reusableCookieHeader != "" {
+		headers["Cookie"] = reusableCookieHeader
+	}
+	return headers
 }

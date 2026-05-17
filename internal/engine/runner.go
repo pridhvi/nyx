@@ -143,6 +143,55 @@ type pauseController interface {
 	WaitIfPaused(context.Context) error
 }
 
+type authRefreshState struct {
+	enabled           bool
+	target            models.Target
+	scope             *ScopeChecker
+	hasValidation     bool
+	validateEachPhase bool
+	interval          time.Duration
+	lastCheck         time.Time
+	lastResolve       time.Time
+}
+
+func newAuthRefreshState(session models.Session, target models.Target, scope *ScopeChecker) authRefreshState {
+	return authRefreshState{
+		enabled:           true,
+		target:            target,
+		scope:             scope,
+		hasValidation:     adapters.AuthValidationConfigured(session),
+		validateEachPhase: adapters.AuthValidateEachPhase(session),
+		interval:          adapters.AuthRefreshInterval(session),
+	}
+}
+
+func (s *authRefreshState) markResolved(at time.Time) {
+	s.lastResolve = at
+	if s.hasValidation {
+		s.lastCheck = at
+	}
+}
+
+func (s authRefreshState) shouldValidate(now time.Time) bool {
+	if !s.enabled || !s.hasValidation {
+		return false
+	}
+	if s.validateEachPhase {
+		return true
+	}
+	return s.interval > 0 && (s.lastCheck.IsZero() || now.Sub(s.lastCheck) >= s.interval)
+}
+
+func (s authRefreshState) shouldRefreshWithoutValidation(now time.Time) bool {
+	if !s.enabled || s.hasValidation {
+		return false
+	}
+	if s.validateEachPhase {
+		return true
+	}
+	return s.interval > 0 && (s.lastResolve.IsZero() || now.Sub(s.lastResolve) >= s.interval)
+}
+
 func (r *Runner) loadConfiguredPlugins(ctx context.Context) {
 	if r.store == nil {
 		return
@@ -179,7 +228,9 @@ func (r *Runner) Run(ctx context.Context, session models.Session) error {
 	if err != nil {
 		return err
 	}
+	authState := authRefreshState{}
 	if len(targets) == 1 && adapters.HasAuthProfile(session) {
+		authState = newAuthRefreshState(session, targets[0], scope)
 		r.emit(ScanEvent{Type: ScanEventPhaseStarted, SessionID: session.ID, Phase: "auth", Message: "Auth profile resolution started", At: time.Now().UTC()})
 		result, err := adapters.ResolveSessionAuth(ctx, session, targets[0], scope)
 		if err != nil {
@@ -187,10 +238,12 @@ func (r *Runner) Run(ctx context.Context, session models.Session) error {
 			r.emit(ScanEvent{Type: ScanEventPhaseCompleted, SessionID: session.ID, Phase: "auth", Status: "skipped", Message: err.Error(), At: time.Now().UTC()})
 		} else if result.Applied {
 			session = result.Session
+			authState.markResolved(time.Now().UTC())
 			r.emit(ScanEvent{Type: ScanEventPhaseCompleted, SessionID: session.ID, Phase: "auth", Status: "completed", Message: result.Message, At: time.Now().UTC()})
 		}
 	} else if len(targets) > 1 && adapters.HasAuthProfile(session) {
 		slog.Warn("auth profile skipped for multi-target scan", "session_id", session.ID, "target_count", len(targets))
+		r.emit(ScanEvent{Type: ScanEventAuthStatus, SessionID: session.ID, Phase: "auth", Status: "skipped", Message: "Auth profile skipped for multi-target scan", At: time.Now().UTC()})
 	}
 	sourceFindings, err := r.loadSourceFindings(ctx, session)
 	if err != nil {
@@ -225,6 +278,16 @@ func (r *Runner) Run(ctx context.Context, session models.Session) error {
 			break
 		}
 		phaseName := phaseName(level)
+		if authState.enabled {
+			refreshed, updatedSession, authErr := r.refreshAuthIfNeeded(ctx, session, &authState, phaseName)
+			session = updatedSession
+			if authErr != nil {
+				slog.Warn("auth profile refresh failed", "session_id", session.ID, "phase", phaseName, "error", authErr)
+			}
+			if refreshed {
+				r.emit(ScanEvent{Type: ScanEventAuthStatus, SessionID: session.ID, Phase: "auth", Status: "refreshed", Message: "Auth profile refreshed before phase " + phaseName, At: time.Now().UTC()})
+			}
+		}
 		r.emit(ScanEvent{
 			Type:      ScanEventPhaseStarted,
 			SessionID: session.ID,
@@ -309,6 +372,38 @@ func (r *Runner) Run(ctx context.Context, session models.Session) error {
 		At:        completed,
 	})
 	return scanErr
+}
+
+func (r *Runner) refreshAuthIfNeeded(ctx context.Context, session models.Session, state *authRefreshState, phase string) (bool, models.Session, error) {
+	now := time.Now().UTC()
+	if state == nil || !state.enabled {
+		return false, session, nil
+	}
+	needsRefresh := state.shouldRefreshWithoutValidation(now)
+	if state.shouldValidate(now) {
+		if err := adapters.ValidateSessionAuth(ctx, session, state.target, state.scope); err != nil {
+			state.lastCheck = now
+			r.emit(ScanEvent{Type: ScanEventAuthStatus, SessionID: session.ID, Phase: "auth", Status: "invalid", Message: "Auth validation failed before phase " + phase + ": " + err.Error(), At: now})
+			needsRefresh = true
+		} else {
+			state.lastCheck = now
+			r.emit(ScanEvent{Type: ScanEventAuthStatus, SessionID: session.ID, Phase: "auth", Status: "valid", Message: "Auth validation succeeded before phase " + phase, At: now})
+		}
+	}
+	if !needsRefresh {
+		return false, session, nil
+	}
+	r.emit(ScanEvent{Type: ScanEventAuthStatus, SessionID: session.ID, Phase: "auth", Status: "refreshing", Message: "Auth profile refresh started before phase " + phase, At: time.Now().UTC()})
+	result, err := adapters.ResolveSessionAuth(ctx, session, state.target, state.scope)
+	if err != nil {
+		r.emit(ScanEvent{Type: ScanEventAuthStatus, SessionID: session.ID, Phase: "auth", Status: "failed", Message: "Auth profile refresh failed before phase " + phase + ": " + err.Error(), At: time.Now().UTC()})
+		return false, session, err
+	}
+	if !result.Applied {
+		return false, session, nil
+	}
+	state.markResolved(time.Now().UTC())
+	return true, result.Session, nil
 }
 
 func (r *Runner) runLLMAnalysis(ctx context.Context, session models.Session) error {
