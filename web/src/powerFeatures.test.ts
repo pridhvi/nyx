@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { burpResultRow, callbackRows, credentialRows, credentialState, payloadRows, powerState, providerStatusRows } from "./pages/PowerFeatures";
+import { burpResultRow, callbackRows, credentialRows, credentialState, payloadRows, powerFeatureLabel, powerState, providerStatusRows } from "./pages/PowerFeatures";
 import type { BurpStatusResponse, CredentialFinding, Payload, PowerCallback, ProviderStatus } from "./api/client";
 
 describe("power feature view helpers", () => {
@@ -55,5 +55,11 @@ describe("power feature view helpers", () => {
     expect(providerStatusRows(statuses)[0]).toEqual(["github", "code_search", "skipped", "missing token"]);
     expect(callbackRows(callbacks)[0]).toEqual(["builtin", "received", "http://127.0.0.1/cb/tok", "127.0.0.1", "GET"]);
     expect(burpResultRow(burp)).toEqual(["unavailable", "Burp REST base URL is not configured"]);
+  });
+
+  it("uses human-readable power feature labels", () => {
+    expect(powerFeatureLabel("ad")).toBe("Active Directory");
+    expect(powerFeatureLabel("poc")).toBe("PoC Evidence");
+    expect(powerFeatureLabel("burp")).toBe("Burp Sync");
   });
 });

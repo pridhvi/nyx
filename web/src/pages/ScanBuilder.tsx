@@ -368,7 +368,7 @@ export function ScanBuilder() {
                         <small>{toolStatus(tool)}</small>
                       </span>
                     </label>
-                    <button className="icon-button" type="button" disabled={!selectedPhases.includes(phase.id)} onClick={() => setConfiguredTool(tool)} aria-label={`Configure ${tool.id}`}><Settings size={16} /></button>
+                    <button className="icon-button tool-config-button" type="button" disabled={!selectedPhases.includes(phase.id) || tool.parameters.length === 0} onClick={() => setConfiguredTool(tool)} aria-label={`Configure ${tool.id}`} title={tool.parameters.length === 0 ? "No configurable parameters" : `Configure ${tool.id}`}><Settings size={16} /></button>
                   </div>
                 ))}
               </article>

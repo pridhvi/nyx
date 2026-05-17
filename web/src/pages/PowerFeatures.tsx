@@ -6,6 +6,48 @@ import { effectiveConfig, generatePayloads, getBurpStatus, listADEntities, listA
 import { useSessionContext } from "../session";
 
 const tabs = ["payloads", "credentials", "osint", "ad", "poc", "callbacks", "burp", "evasion"] as const;
+const featureCopy: Record<(typeof tabs)[number], { label: string; title: string; description: string }> = {
+  payloads: {
+    label: "Payloads",
+    title: "Payload Generation",
+    description: "Generate context-aware payload candidates from a finding, then validate only safe marker-based classes when active validation is enabled.",
+  },
+  credentials: {
+    label: "Credentials",
+    title: "Credential Testing",
+    description: "Run fixture-safe default checks or correlate credential evidence while preserving redaction and lockout-aware limits.",
+  },
+  osint: {
+    label: "OSINT",
+    title: "OSINT Expansion",
+    description: "Query configured passive providers, record skipped-provider status when keys are absent, and keep discovered assets scoped.",
+  },
+  ad: {
+    label: "Active Directory",
+    title: "Active Directory Review",
+    description: "Record safe AD/internal network evidence, relationships, relay-risk context, and gated Kerberoast requests without cracking hashes.",
+  },
+  poc: {
+    label: "PoC Evidence",
+    title: "PoC Evidence",
+    description: "Create non-destructive proof records for supported safe classes and link impact evidence back to findings and callbacks.",
+  },
+  callbacks: {
+    label: "Callbacks",
+    title: "Callback Evidence",
+    description: "Track callback tokens and received events for SSRF, XXE, and redirect validation without exfiltrating sensitive data.",
+  },
+  burp: {
+    label: "Burp Sync",
+    title: "Burp Integration",
+    description: "Check Burp REST availability, push scoped targets, and pull imported issues when a Burp provider is configured.",
+  },
+  evasion: {
+    label: "Request Behavior",
+    title: "Request Behavior",
+    description: "Review block and adaptive-backoff events created by paced or proxied scanner actions.",
+  },
+};
 
 export function PowerFeatures() {
   const queryClient = useQueryClient();
@@ -68,7 +110,7 @@ export function PowerFeatures() {
   });
 
   return (
-    <section className="page">
+    <section className="page power-page">
       <header className="page-header">
         <div>
           <h1>Power Features</h1>
@@ -77,58 +119,60 @@ export function PowerFeatures() {
       </header>
       {!selectedSessionID ? <section className="empty-state">Select a session to inspect power-feature records.</section> : null}
       <div className="target-strip">
-        {tabs.map((item) => <button key={item} className={tab === item ? "primary" : "secondary"} onClick={() => setTab(item)}>{item.replace("-", " ")}</button>)}
+        {tabs.map((item) => <button key={item} className={tab === item ? "primary" : "secondary"} onClick={() => setTab(item)}>{featureCopy[item].label}</button>)}
       </div>
-      <section className="panel">
-        <div className="action-panel">
-          <h2><ShieldAlert size={17} />Safety Controls</h2>
-          <span className={`status ${powerConfig.activeValidation ? "completed" : "paused"}`}>active validation {powerConfig.activeValidation ? "enabled" : "disabled"}</span>
-          <span className="badge">credential limit {powerConfig.maxAttempts} / user</span>
-          <span className="badge">callback provider {powerConfig.callbackProvider}</span>
-          <span className="badge">secrets redacted</span>
+      <section className="panel safety-panel">
+        <div className="safety-heading">
+          <h2><ShieldAlert size={18} />Safety Controls</h2>
+          <span className={`status ${powerConfig.activeValidation ? "completed" : "paused"}`}>{powerConfig.activeValidation ? "active validation enabled" : "active validation disabled"}</span>
+        </div>
+        <div className="safety-grid">
+          <span><strong>{powerConfig.maxAttempts}</strong><small>credential attempts per user</small></span>
+          <span><strong>{powerConfig.callbackProvider}</strong><small>callback provider</small></span>
+          <span><strong>redacted</strong><small>provider secrets and credential material</small></span>
         </div>
         <p className="warning-text">Active validation, credential checks, AD requests, and Burp sync remain manual, scope-checked actions. Server-side API-key enforcement still applies.</p>
       </section>
       <section className="panel">
         {tab === "payloads" ? (
-          <FeatureSection icon={<Sparkles size={17} />} title="AI Payload Generation" action={<ActionControls value={findingID} onChange={setFindingID} onRun={() => generateMutation.mutate()} label="Generate" disabled={!enabled || generateMutation.isPending} />}>
+          <FeatureSection icon={<Sparkles size={17} />} title={featureCopy.payloads.title} description={featureCopy.payloads.description} action={<ActionControls value={findingID} onChange={setFindingID} onRun={() => generateMutation.mutate()} label="Generate" disabled={!enabled || generateMutation.isPending} />}>
             <RecordTable rows={payloadRows(payloadsQuery.data ?? [])} headers={["Type", "Payload", "State", "Bypass", "Confidence", "Action"]} actions={(payloadsQuery.data ?? []).map((item) => item.validated ? null : <button className="secondary" title={powerConfig.activeValidation ? "Validate this payload with a safe marker request" : "Enable power.active_validation.enabled before validation"} onClick={() => validateMutation.mutate(item.id)} disabled={validateMutation.isPending || !powerConfig.activeValidation}>Validate</button>)} />
           </FeatureSection>
         ) : null}
         {tab === "credentials" ? (
-          <FeatureSection icon={<KeyRound size={17} />} title="Credential Testing" action={<div className="action-row power-credential-controls"><input value={credentialURL} onChange={(event) => setCredentialURL(event.target.value)} placeholder="Login URL for confirmed checks" /><input value={credentialUser} onChange={(event) => setCredentialUser(event.target.value)} placeholder="Username" /><input value={credentialPass} onChange={(event) => setCredentialPass(event.target.value)} placeholder="Password" /><button className="primary" onClick={() => credMutation.mutate()} disabled={!enabled || credMutation.isPending}>Run</button></div>}>
+          <FeatureSection icon={<KeyRound size={17} />} title={featureCopy.credentials.title} description={featureCopy.credentials.description} action={<div className="action-row power-credential-controls"><input value={credentialURL} onChange={(event) => setCredentialURL(event.target.value)} placeholder="Login URL for confirmed checks" /><input value={credentialUser} onChange={(event) => setCredentialUser(event.target.value)} placeholder="Username" /><input value={credentialPass} onChange={(event) => setCredentialPass(event.target.value)} placeholder="Password" /><button className="primary" onClick={() => credMutation.mutate()} disabled={!enabled || credMutation.isPending}>Run</button></div>}>
             <RecordTable rows={credentialRows(credentialsQuery.data ?? [])} headers={["Type", "Username", "Password", "Status", "Evidence"]} />
           </FeatureSection>
         ) : null}
         {tab === "osint" ? (
-          <FeatureSection icon={<Radar size={17} />} title="OSINT Expansion" action={<div className="action-row"><input value={providers} onChange={(event) => setProviders(event.target.value)} placeholder="Providers" /><button className="primary" onClick={() => osintMutation.mutate()} disabled={!enabled || osintMutation.isPending}>Run Providers</button></div>}>
+          <FeatureSection icon={<Radar size={17} />} title={featureCopy.osint.title} description={featureCopy.osint.description} action={<div className="action-row"><input value={providers} onChange={(event) => setProviders(event.target.value)} placeholder="Providers" /><button className="primary" onClick={() => osintMutation.mutate()} disabled={!enabled || osintMutation.isPending}>Run Providers</button></div>}>
             <RecordTable rows={providerStatusRows(providersQuery.data ?? [])} headers={["Provider", "Module", "Status", "Message"]} />
             <RecordTable rows={(osintQuery.data ?? []).map((item) => [item.kind, item.value, item.source, `${Math.round(item.confidence * 100)}%`])} headers={["Kind", "Value", "Source", "Confidence"]} />
           </FeatureSection>
         ) : null}
         {tab === "ad" ? (
-          <FeatureSection icon={<Network size={17} />} title="AD / Internal Network" action={<div className="action-row"><input value={kerberoastSPN} onChange={(event) => setKerberoastSPN(event.target.value)} placeholder="Optional SPN to record" /><button className="primary" onClick={() => kerberoastMutation.mutate()} disabled={!enabled || kerberoastMutation.isPending}>Record Kerberoast Request</button></div>}>
+          <FeatureSection icon={<Network size={17} />} title={featureCopy.ad.title} description={featureCopy.ad.description} action={<div className="action-row"><input value={kerberoastSPN} onChange={(event) => setKerberoastSPN(event.target.value)} placeholder="Optional SPN to record" /><button className="primary" onClick={() => kerberoastMutation.mutate()} disabled={!enabled || kerberoastMutation.isPending}>Record Kerberoast Request</button></div>}>
             <RecordTable rows={(adQuery.data ?? []).map((item) => [item.entity_type, item.name, item.domain, item.sid || "-"])} headers={["Type", "Name", "Domain", "SID"]} />
             <p className="empty-line">{adRelationshipsQuery.data?.length ?? 0} AD relationship records</p>
           </FeatureSection>
         ) : null}
         {tab === "poc" ? (
-          <FeatureSection icon={<FlaskConical size={17} />} title="PoC / Impact" action={<ActionControls value={findingID} onChange={setFindingID} onRun={() => pocMutation.mutate()} label="Record PoC" disabled={!enabled || pocMutation.isPending} />}>
+          <FeatureSection icon={<FlaskConical size={17} />} title={featureCopy.poc.title} description={featureCopy.poc.description} action={<ActionControls value={findingID} onChange={setFindingID} onRun={() => pocMutation.mutate()} label="Record PoC" disabled={!enabled || pocMutation.isPending} />}>
             <RecordTable rows={(pocQuery.data ?? []).map((item) => [item.poc_type, item.status, item.evidence, item.impact_narrative])} headers={["Type", "Status", "Evidence", "Impact"]} />
           </FeatureSection>
         ) : null}
         {tab === "callbacks" ? (
-          <FeatureSection icon={<PlugZap size={17} />} title="Callback Evidence">
+          <FeatureSection icon={<PlugZap size={17} />} title={featureCopy.callbacks.title} description={featureCopy.callbacks.description}>
             <RecordTable rows={callbackRows(callbacksQuery.data ?? [])} headers={["Provider", "Status", "URL", "Source", "Event"]} />
           </FeatureSection>
         ) : null}
         {tab === "burp" ? (
-          <FeatureSection icon={<PlugZap size={17} />} title="Burp REST / Collaborator" action={<div className="action-row"><button className="secondary" onClick={() => burpStatusMutation.mutate()} disabled={!enabled || burpStatusMutation.isPending}>Status</button><button className="secondary" onClick={() => burpPushMutation.mutate()} disabled={!enabled || burpPushMutation.isPending}>Push Scope</button><button className="primary" onClick={() => burpPullMutation.mutate()} disabled={!enabled || burpPullMutation.isPending}>Pull Issues</button></div>}>
+          <FeatureSection icon={<PlugZap size={17} />} title={featureCopy.burp.title} description={featureCopy.burp.description} action={<div className="action-row"><button className="secondary" onClick={() => burpStatusMutation.mutate()} disabled={!enabled || burpStatusMutation.isPending}>Status</button><button className="secondary" onClick={() => burpPushMutation.mutate()} disabled={!enabled || burpPushMutation.isPending}>Push Scope</button><button className="primary" onClick={() => burpPullMutation.mutate()} disabled={!enabled || burpPullMutation.isPending}>Pull Issues</button></div>}>
             <RecordTable rows={[burpResultRow(burpStatusMutation.data, burpPushMutation.data?.message, burpPushMutation.data?.available, burpPullMutation.data?.length)]} headers={["Status", "Message"]} />
           </FeatureSection>
         ) : null}
         {tab === "evasion" ? (
-          <FeatureSection icon={<ShieldAlert size={17} />} title="Evasion / Request Behavior">
+          <FeatureSection icon={<ShieldAlert size={17} />} title={featureCopy.evasion.title} description={featureCopy.evasion.description}>
             <RecordTable rows={(blockQuery.data ?? []).map((item) => [item.tool_id || "-", item.status_code.toString(), item.signal, item.backoff_ms.toString()])} headers={["Tool", "Status", "Signal", "Backoff ms"]} />
           </FeatureSection>
         ) : null}
@@ -181,11 +225,18 @@ export function burpResultRow(status?: BurpStatusResponse, pushMessage = "", pus
   return ["idle", `${importedCount} imported issues`];
 }
 
-function FeatureSection({ icon, title, action, children }: { icon: React.ReactNode; title: string; action?: React.ReactNode; children: React.ReactNode }) {
+export function powerFeatureLabel(tab: (typeof tabs)[number]) {
+  return featureCopy[tab].label;
+}
+
+function FeatureSection({ icon, title, description, action, children }: { icon: React.ReactNode; title: string; description: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="pipeline">
       <div className="action-panel">
-        <h2>{icon}{title}</h2>
+        <div className="feature-heading">
+          <h2>{icon}{title}</h2>
+          <p>{description}</p>
+        </div>
         {action}
       </div>
       {children}

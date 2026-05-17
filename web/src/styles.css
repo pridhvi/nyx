@@ -529,6 +529,20 @@ html[data-theme="dark"] .primary {
   color: var(--text);
 }
 
+.icon-button:disabled {
+  background: rgba(24, 28, 43, 0.42);
+  border-color: var(--border);
+  box-shadow: none;
+  color: var(--faint);
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.icon-button:disabled:hover {
+  border-color: var(--border);
+  color: var(--faint);
+}
+
 .danger {
   border-color: rgba(255, 59, 92, 0.42);
   color: var(--danger);
@@ -683,6 +697,29 @@ html[data-theme="dark"] .primary {
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
+}
+
+.action-panel h2,
+.feature-heading h2,
+.safety-heading h2 {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.feature-heading {
+  display: grid;
+  flex: 1 1 320px;
+  gap: 4px;
+  min-width: 240px;
+}
+
+.feature-heading h2 {
+  margin-bottom: 0;
+}
+
+.feature-heading p {
+  max-width: 780px;
 }
 
 .action-panel .action-row {
@@ -1324,6 +1361,69 @@ html[data-theme="light"] .chart-panel {
 .tool-check .tool-name-row .info-tip svg,
 .tool-check .icon-button svg {
   color: var(--muted);
+}
+
+.tool-check .tool-config-button:disabled svg {
+  color: var(--faint);
+}
+
+.power-page {
+  display: grid;
+  gap: 14px;
+}
+
+.power-page .page-header {
+  margin-bottom: 0;
+}
+
+.power-page > .panel {
+  margin-top: 0;
+}
+
+.safety-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.safety-heading {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.safety-heading h2 {
+  margin-bottom: 0;
+}
+
+.safety-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.safety-grid span {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  display: grid;
+  gap: 4px;
+  min-height: 58px;
+  padding: 10px;
+}
+
+.safety-grid strong {
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 16px;
+  text-transform: capitalize;
+}
+
+.safety-grid small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .profile-bar {
@@ -2371,6 +2471,7 @@ html[data-theme="light"] .cy-graph {
   .form-grid.compact,
   .graph-summary,
   .phase-grid,
+  .safety-grid,
   .tool-phase-grid,
   .evidence-grid {
     grid-template-columns: 1fr;
