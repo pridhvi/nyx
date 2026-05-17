@@ -40,6 +40,7 @@ export function ScanBuilder() {
   const [routeSeeds, setRouteSeeds] = useState("");
   const [authHeaders, setAuthHeaders] = useState("");
   const [authCookie, setAuthCookie] = useState("");
+  const [authProfile, setAuthProfile] = useState("");
   const [selectedPhases, setSelectedPhases] = useState<string[]>([]);
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
   const [llmBaseURL, setLLMBaseURL] = useState("");
@@ -165,6 +166,7 @@ export function ScanBuilder() {
       route_seeds: splitLines(routeSeeds),
       auth_headers: parseHeaderLines(authHeaders),
       auth_cookie_header: authCookie.trim() || undefined,
+      auth_profile: parseJSONMap(authProfile),
       enabled_phases: selectedPhases,
       tools: selectedTools,
       tool_parameters: cleanToolParameters(params),
@@ -208,6 +210,7 @@ export function ScanBuilder() {
     setRouteSeeds(request.route_seeds?.join("\n") ?? "");
     setAuthHeaders(formatHeaderMap(request.auth_headers));
     setAuthCookie(request.auth_cookie_header ?? "");
+    setAuthProfile(formatJSONMap(request.auth_profile));
   }
 
   function saveProfile() {
@@ -312,6 +315,7 @@ export function ScanBuilder() {
             <label className="span-2">Seed Routes<textarea value={routeSeeds} onChange={(event) => setRouteSeeds(event.target.value)} rows={3} placeholder={"/admin\n/api/search?q=test\nhttps://example.com/profile?id=1"} /></label>
             <label>Auth Headers<textarea value={authHeaders} onChange={(event) => setAuthHeaders(event.target.value)} rows={3} placeholder={"Authorization: Bearer ...\nX-Api-Key: ..."} /></label>
             <label>Cookie Header<textarea value={authCookie} onChange={(event) => setAuthCookie(event.target.value)} rows={3} placeholder="session=...; csrftoken=..." /></label>
+            <label className="span-2">Auth Profile JSON<textarea value={authProfile} onChange={(event) => setAuthProfile(event.target.value)} rows={5} placeholder={'{"type":"form","login_url":"/login","username":"user","password":"pass","csrf_field":"csrf","validation_url":"/account"}'} /></label>
           </div>
         </section>
         <section className="panel" id="runtime">
@@ -486,4 +490,21 @@ function formatHeaderMap(headers?: Record<string, string>) {
     return "";
   }
   return Object.entries(headers).map(([name, value]) => `${name}: ${value}`).join("\n");
+}
+
+function parseJSONMap(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  try {
+    const parsed = JSON.parse(trimmed);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function formatJSONMap(value?: Record<string, unknown>) {
+  return value ? JSON.stringify(value, null, 2) : "";
 }

@@ -1518,6 +1518,7 @@ func redactedScanProfileRequest(req startScanRequest) startScanRequest {
 	req.AuthHeaders = nil
 	req.AuthCookies = nil
 	req.AuthCookieHeader = ""
+	req.AuthProfile = nil
 	return req
 }
 
@@ -2497,6 +2498,7 @@ type startScanRequest struct {
 	AuthHeaders        map[string]string         `json:"auth_headers"`
 	AuthCookies        map[string]string         `json:"auth_cookies"`
 	AuthCookieHeader   string                    `json:"auth_cookie_header"`
+	AuthProfile        map[string]any            `json:"auth_profile"`
 	EvasionProfile     string                    `json:"evasion_profile"`
 	JitterMS           int                       `json:"jitter_ms"`
 	ProxyURL           string                    `json:"proxy_url"`
@@ -2564,7 +2566,7 @@ func (s *Server) startScan(w http.ResponseWriter, r *http.Request) {
 		OutOfScope:     req.OutOfScope,
 		EnabledPhases:  req.EnabledPhases,
 		EnabledTools:   req.Tools,
-		ToolParameters: models.BuildScanToolParameters(req.ToolParameters, req.RouteSeeds, "", req.AuthHeaders, req.AuthCookies, req.AuthCookieHeader),
+		ToolParameters: models.BuildScanToolParameters(req.ToolParameters, req.RouteSeeds, "", req.AuthHeaders, req.AuthCookies, req.AuthCookieHeader, req.AuthProfile),
 		RunnerOptions:  runnerOptions,
 		LLMModel:       req.LLMModel,
 		LLMBaseURL:     req.LLMBaseURL,
@@ -2598,6 +2600,9 @@ func requiresPrivilegedScan(req startScanRequest, enabledGlobalPlugins bool) boo
 		return true
 	}
 	if len(req.AuthHeaders) > 0 || len(req.AuthCookies) > 0 || strings.TrimSpace(req.AuthCookieHeader) != "" {
+		return true
+	}
+	if len(req.AuthProfile) > 0 {
 		return true
 	}
 	for _, tool := range req.Tools {

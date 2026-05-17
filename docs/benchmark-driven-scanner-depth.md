@@ -167,12 +167,12 @@ Add reusable authenticated scanning support that real operators can use outside
 the benchmarks:
 
 - static cookie/header auth profile (implemented for CLI/API/UI scan requests)
-- bearer token auth profile
-- login-form flow (deferred)
-- CSRF token extraction from HTML forms
+- bearer token auth profile (implemented through JSON-login token extraction and static headers)
+- login-form flow (implemented for generic form profiles)
+- CSRF token extraction from HTML forms (implemented for login and post-login form steps)
 - token extraction from response body/header
 - cookie jar persistence per scan session
-- auth validation request
+- auth validation request (implemented with status and body marker checks)
 - session refresh or re-login when validation fails
 
 Benchmark-specific examples:
@@ -189,11 +189,13 @@ Acceptance criteria:
 - Auth failures are visible as tool runs or scan events.
 - Secrets are redacted from logs, effective config, reports, and API responses.
 
-Current state: Nox accepts route seeds and static auth headers/cookies through
-the CLI and API/UI scan builder. Built-in HTTP checks apply those values to
-requests, and `ffuf`, `sqlmap`, and `dalfox` receive compatible subprocess
-flags with persisted arguments redacted. Login flows, CSRF extraction, cookie
-jar refresh, and explicit auth validation remain future generic work.
+Current state: Nox accepts route seeds, static auth headers/cookies, and generic
+auth profile JSON through the CLI and API/UI scan builder. Built-in HTTP checks
+apply those values to requests, and `ffuf`, `sqlmap`, and `dalfox` receive
+compatible subprocess flags with persisted arguments redacted. Form login
+profiles support CSRF extraction, post-login form steps, cookie capture, and
+validation requests. JSON login profiles support token extraction into a
+configured auth header. Session refresh or re-login remains future work.
 
 ## Phase 4: Route And State Seeding
 

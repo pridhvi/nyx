@@ -172,6 +172,19 @@ func (r *Runner) Run(ctx context.Context, session models.Session) error {
 	if err != nil {
 		return err
 	}
+	if len(targets) == 1 && adapters.HasAuthProfile(session) {
+		r.emit(ScanEvent{Type: ScanEventPhaseStarted, SessionID: session.ID, Phase: "auth", Message: "Auth profile resolution started", At: time.Now().UTC()})
+		result, err := adapters.ResolveSessionAuth(ctx, session, targets[0], scope)
+		if err != nil {
+			slog.Warn("auth profile skipped", "session_id", session.ID, "error", err)
+			r.emit(ScanEvent{Type: ScanEventPhaseCompleted, SessionID: session.ID, Phase: "auth", Status: "skipped", Message: err.Error(), At: time.Now().UTC()})
+		} else if result.Applied {
+			session = result.Session
+			r.emit(ScanEvent{Type: ScanEventPhaseCompleted, SessionID: session.ID, Phase: "auth", Status: "completed", Message: result.Message, At: time.Now().UTC()})
+		}
+	} else if len(targets) > 1 && adapters.HasAuthProfile(session) {
+		slog.Warn("auth profile skipped for multi-target scan", "session_id", session.ID, "target_count", len(targets))
+	}
 	sourceFindings, err := r.loadSourceFindings(ctx, session)
 	if err != nil {
 		return err

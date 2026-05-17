@@ -87,14 +87,15 @@ func RedactedToolParameters(input map[string]map[string]any) map[string]map[stri
 
 func scanOptionSecret(key string) bool {
 	normalized := strings.ToLower(strings.TrimSpace(key))
-	return strings.Contains(normalized, "header") ||
+	return strings.Contains(normalized, "auth") ||
+		strings.Contains(normalized, "header") ||
 		strings.Contains(normalized, "cookie") ||
 		strings.Contains(normalized, "token") ||
 		strings.Contains(normalized, "password") ||
 		strings.Contains(normalized, "secret")
 }
 
-func BuildScanToolParameters(existing map[string]map[string]any, routeSeeds []string, routeSeedFile string, headers, cookies map[string]string, cookieHeader string) map[string]map[string]any {
+func BuildScanToolParameters(existing map[string]map[string]any, routeSeeds []string, routeSeedFile string, headers, cookies map[string]string, cookieHeader string, authProfile map[string]any) map[string]map[string]any {
 	if existing == nil {
 		existing = map[string]map[string]any{}
 	}
@@ -118,6 +119,9 @@ func BuildScanToolParameters(existing map[string]map[string]any, routeSeeds []st
 	}
 	if strings.TrimSpace(cookieHeader) != "" {
 		scan["auth_cookie_header"] = strings.TrimSpace(cookieHeader)
+	}
+	if len(authProfile) > 0 {
+		scan["auth_profile"] = authProfile
 	}
 	if len(scan) > 0 {
 		existing[SessionScanOptionsKey] = scan

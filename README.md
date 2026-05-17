@@ -38,6 +38,7 @@ provided without hardcoding target behavior into adapters:
 ```sh
 ./bin/nox scan --target https://example.com \
   --route-seed-file routes.txt \
+  --auth-profile auth-profile.json \
   --auth-header "Authorization: Bearer <token>" \
   --auth-cookie "session=<cookie>" \
   --no-llm
@@ -48,6 +49,38 @@ compatible built-in HTTP checks and subprocess adapters such as `ffuf`,
 `sqlmap`, and `dalfox`; API session JSON and persisted tool-run arguments
 redact those secret values. Saved scan profiles keep route seeds and scanner
 options but intentionally omit auth secrets.
+
+`--auth-profile` accepts target-agnostic JSON for form or JSON login flows. Form
+profiles can extract an HTML CSRF token, submit username/password fields, run
+bounded post-login form steps, and validate the session with a follow-up URL:
+
+```json
+{
+  "type": "form",
+  "login_url": "/login",
+  "username": "user",
+  "password": "pass",
+  "username_field": "username",
+  "password_field": "password",
+  "csrf_field": "csrf",
+  "validation_url": "/account",
+  "validation_contains": "Account"
+}
+```
+
+JSON login profiles can extract a token into an auth header:
+
+```json
+{
+  "type": "json_login",
+  "login_url": "/api/login",
+  "username": "user@example.test",
+  "password": "pass",
+  "token_json_path": "authentication.token",
+  "auth_header": "Authorization",
+  "auth_header_prefix": "Bearer "
+}
+```
 
 ## Features
 

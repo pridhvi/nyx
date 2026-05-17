@@ -2,8 +2,10 @@ package nox
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/pridhvi/nox/internal/db"
@@ -39,6 +41,7 @@ func runScan(args []string) error {
 	routeSeedFile := fs.String("route-seed-file", "", "file containing seed routes, one per line")
 	authHeader := fs.String("auth-header", "", "authentication header in 'Name: value' form")
 	authCookie := fs.String("auth-cookie", "", "cookie header value or semicolon-separated name=value pairs")
+	authProfilePath := fs.String("auth-profile", "", "JSON file describing a generic form or JSON login auth profile")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -74,6 +77,10 @@ func runScan(args []string) error {
 	if err != nil {
 		return err
 	}
+	authProfile, err := readAuthProfileFile(*authProfilePath)
+	if err != nil {
+		return err
+	}
 	input := engine.NewSessionInput{
 		Target:         *target,
 		SourcePath:     *sourcePath,
@@ -82,7 +89,7 @@ func runScan(args []string) error {
 		OutOfScope:     splitCSV(*outOfScope),
 		EnabledPhases:  selectedPhases,
 		EnabledTools:   selectedTools,
-		ToolParameters: models.BuildScanToolParameters(nil, splitRouteSeeds(*routeSeeds), *routeSeedFile, parseHeaderMap(*authHeader), parseCookieMap(*authCookie), *authCookie),
+		ToolParameters: models.BuildScanToolParameters(nil, splitRouteSeeds(*routeSeeds), *routeSeedFile, parseHeaderMap(*authHeader), parseCookieMap(*authCookie), *authCookie, authProfile),
 		RunnerOptions:  runnerOptions,
 		LLMModel:       selectedLLMModel,
 		LLMBaseURL:     selectedLLMURL,
@@ -248,4 +255,20 @@ func parseCookieMap(value string) map[string]string {
 		return nil
 	}
 	return out
+}
+
+func readAuthProfileFile(path string) (map[string]any, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return nil, nil
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var profile map[string]any
+	if err := json.Unmarshal(body, &profile); err != nil {
+		return nil, fmt.Errorf("invalid auth profile JSON: %w", err)
+	}
+	return profile, nil
 }

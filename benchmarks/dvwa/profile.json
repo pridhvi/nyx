@@ -15,12 +15,20 @@
     "login_url": "/login.php",
     "username": "admin",
     "password": "password",
+    "username_field": "username",
+    "password_field": "password",
     "csrf_field": "user_token",
+    "extra_fields": {
+      "Login": "Login"
+    },
+    "validation_url": "/index.php",
+    "validation_contains": "Welcome",
     "cookie_names": ["PHPSESSID", "security"],
     "post_login_setup": [
       {
         "method": "POST",
         "path": "/security.php",
+        "csrf_field": "user_token",
         "form": {
           "security": "low",
           "seclev_submit": "Submit"

@@ -154,6 +154,7 @@ func TestSessionJSONRedactsScanAuthOptions(t *testing.T) {
 				"auth_headers":        map[string]string{"Authorization": "Bearer secret"},
 				"auth_cookie_header":  "session=secret",
 				"auth_cookies":        map[string]string{"csrftoken": "secret"},
+				"auth_profile":        map[string]any{"username": "alice", "password": "profile-secret"},
 				"non_sensitive_label": "kept",
 			},
 			"ffuf": {
@@ -167,7 +168,7 @@ func TestSessionJSONRedactsScanAuthOptions(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(body)
-	if strings.Contains(text, "Bearer secret") || strings.Contains(text, "session=secret") || strings.Contains(text, "csrftoken") {
+	if strings.Contains(text, "Bearer secret") || strings.Contains(text, "session=secret") || strings.Contains(text, "csrftoken") || strings.Contains(text, "profile-secret") {
 		t.Fatalf("expected scan auth options to be redacted, got %s", text)
 	}
 	if !strings.Contains(text, "/admin") || !strings.Contains(text, "/tmp/words.txt") || !strings.Contains(text, "kept") {
