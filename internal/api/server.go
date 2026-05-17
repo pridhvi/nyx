@@ -3127,6 +3127,7 @@ func descriptionForTool(id string) string {
 		"sqli-check":            "Safely validates seeded query parameters for SQL injection with bounded boolean and error canaries.",
 		"upload-check":          "Safely validates file upload endpoints with a harmless text marker file.",
 		"idor-check":            "Checks seeded object identifier routes for adjacent-object access and optional secondary-identity replay.",
+		"workflow-assist":       "Surfaces seeded high-value workflow forms and parameters for manual business-logic review without submitting state changes.",
 		"csrf-check":            "Analyzes seeded state-changing forms for missing anti-CSRF token fields without submitting them.",
 		"weak-session-check":    "Samples seeded session-related routes for predictable cookie or token values with tight limits.",
 		"ssti-check":            "Performs safe server-side template injection checks.",

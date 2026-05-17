@@ -899,6 +899,7 @@ Any process that speaks this JSON contract over stdin/stdout is a valid Nox plug
 | Open redirect check | Go stdlib HTTP | Controlled external redirects in seeded redirect-like parameters |
 | Upload check | Go stdlib HTTP | Harmless marker-file upload validation on seeded upload routes |
 | IDOR check | Go stdlib HTTP | Adjacent-object identifier checks and optional secondary-identity replay |
+| Workflow assist | Go stdlib HTTP | Human-assist review hints for seeded high-value forms and business-control parameters |
 | CSRF check | Go stdlib HTTP | Missing token analysis for seeded state-changing forms without submission |
 | Weak session check | Go stdlib HTTP | Bounded sampling for predictable session cookies and body tokens |
 | SSTI detection | Go stdlib HTTP | Server-side template injection |

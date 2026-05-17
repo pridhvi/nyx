@@ -109,7 +109,12 @@
           "/vulnerabilities/captcha/"
         ],
         "title": [
-          "captcha"
+          "captcha",
+          "workflow",
+          "business"
+        ],
+        "tool": [
+          "workflow-assist"
         ]
       }
     },

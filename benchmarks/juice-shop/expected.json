@@ -37,7 +37,12 @@
         "title": [
           "rate limit",
           "anti automation",
-          "captcha"
+          "captcha",
+          "workflow",
+          "business"
+        ],
+        "tool": [
+          "workflow-assist"
         ]
       }
     },

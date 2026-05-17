@@ -1,6 +1,7 @@
 /api/Challenges/
 /api/Products/
 /api/BasketItems/
+/rest/basket/1/checkout
 /api/Feedbacks/
 /api/Users/
 /rest/products/search?q=apple

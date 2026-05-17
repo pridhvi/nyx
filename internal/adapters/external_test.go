@@ -707,6 +707,32 @@ func TestIDORCheckConfirmsSecondaryIdentityReplay(t *testing.T) {
 	}
 }
 
+func TestWorkflowAssistReportsGETStateChangingForm(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`<form method="get" action="/coupon/apply"><input name="coupon"><input name="cart_id" value="1"><input name="discount" value="25"><button>apply</button></form>`))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/coupon")
+	adapter := NewWorkflowAssistCheck()
+	if !adapter.ShouldRun(input) {
+		t.Fatal("expected workflow assist to run with seeded coupon route")
+	}
+	out, err := adapter.Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
+	}
+	finding := out.Findings[0]
+	if finding.ToolID != "workflow-assist" || finding.Status != "suspected" || finding.Severity != models.SeverityMedium {
+		t.Fatalf("unexpected finding: %#v", finding)
+	}
+	if !strings.Contains(strings.ToLower(finding.Title), "workflow") {
+		t.Fatalf("expected workflow title, got %q", finding.Title)
+	}
+}
+
 func TestCSRFCheckReportsStateChangingFormWithoutToken(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`<form method="get" action="/change-password"><input name="password_new"><input name="password_conf"><button name="Change" value="Change">Change</button></form>`))

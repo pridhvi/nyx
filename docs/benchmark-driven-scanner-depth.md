@@ -320,7 +320,8 @@ Implement conservative human-assist workflows before full automation:
 
 Acceptance criteria:
 
-- Business logic output defaults to candidate or human-review status.
+- Business logic output defaults to candidate or human-review status
+  (implemented for seeded high-value forms and business-control parameters).
 - Confirmed findings require direct differential evidence.
 - Reports clearly separate automated confirmation from suggested manual review.
 

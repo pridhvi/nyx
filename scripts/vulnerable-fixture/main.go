@@ -47,6 +47,10 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{"basket_id":%q,"owner":"fixture-user-%s","items":["juice","cookie"]}`, id, id)
 	})
+	mux.HandleFunc("/coupon", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		fmt.Fprintln(w, `<form method="get" action="/coupon/apply"><input name="coupon"><input name="cart_id" value="1"><input name="discount" value="25"><button>apply</button></form>`)
+	})
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintln(w, `{"data":{"__schema":{"queryType":{"name":"Query"},"mutationType":{"name":"Mutation"},"types":[{"name":"Query"}]}}}`)
