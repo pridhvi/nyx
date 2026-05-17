@@ -44,13 +44,16 @@
       "route": "/vulnerabilities/csrf/",
       "automation_suitable": true,
       "confirmation_strategy": "missing-token or token-reuse validation without changing sensitive state",
-      "match": {
+      "all_match": {
         "url": [
           "/vulnerabilities/csrf/"
         ],
         "title": [
           "csrf",
           "cross-site request forgery"
+        ],
+        "tool": [
+          "csrf-check"
         ]
       }
     },
@@ -117,13 +120,16 @@
       "route": "/vulnerabilities/weak_id/",
       "automation_suitable": true,
       "confirmation_strategy": "bounded session ID sampling and entropy checks",
-      "match": {
+      "all_match": {
         "url": [
           "/vulnerabilities/weak_id/"
         ],
         "title": [
           "weak session",
           "predictable session"
+        ],
+        "tool": [
+          "weak-session-check"
         ]
       }
     },

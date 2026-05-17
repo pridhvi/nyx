@@ -640,6 +640,10 @@ work and must be carried forward:
   confirmed, while SQL error indicators are suspected findings.
 - Built-in upload validator submits a harmless text marker file to seeded upload
   routes and confirms only response echo or scoped retrieval of the marker.
+- Built-in CSRF check inspects seeded state-changing forms for missing token
+  fields without submitting them.
+- Built-in weak-session check samples seeded session-related routes for
+  predictable cookie or body-token values with tight request bounds.
 - Built-in SSTI check sends a bounded arithmetic template probe against query or
   hidden-parameter targets.
 - Built-in XXE fuzz check now uses a non-exfiltrating internal XML entity marker
@@ -651,7 +655,7 @@ work and must be carried forward:
   discoveries when the initial target URL has no query string.
 - Parser and adapter tests cover nuclei vulnerability output, SSRFmap, JWT,
   OAuth, reflected XSS, open redirect, SQL injection validation, upload
-  validation, CORS reflected-origin handling, SSTI, XXE, Nikto, and
+  validation, CSRF form analysis, weak session sampling, CORS reflected-origin handling, SSTI, XXE, Nikto, and
   hidden-parameter target handoff.
 
 ### Remaining Work

@@ -105,7 +105,7 @@ All external tools are optional. Missing tools are recorded as tool runs and the
 | Recon | `http-probe`, `security-headers`, `subfinder`, `dnsx`, `naabu`, `httpx`, `whois`, `waybackurls`, `nmap`, `crt.sh` |
 | Fingerprinting | `whatweb`, `nuclei-tech`, `testssl.sh`, GraphQL introspection, OpenAPI/Swagger discovery, `wpscan`, `droopescan` |
 | Enumeration | `ffuf`, `arjun`, `linkfinder`, `gitleaks`, JavaScript secret scanning, CORS checks, scoped cloud bucket checks |
-| Vulnerability | `nuclei-vuln`, `sqlmap`, `dalfox`, SSRFmap, `jwt_tool`, OAuth checks, SSTI checks, XXE fuzzing, `nikto` |
+| Vulnerability | `nuclei-vuln`, `sqlmap`, `dalfox`, SSRFmap, `jwt_tool`, OAuth checks, reflected XSS validation, SQL injection validation, open redirect validation, upload validation, CSRF form analysis, weak session ID sampling, SSTI checks, XXE fuzzing, `nikto` |
 
 Static audit tools are registered as `audit/<id>`. Built-in source analyzers always run; optional tools such as `semgrep`, `bandit`, `gosec`, `govulncheck`, `npm audit`, `retire.js`, `safety`, `brakeman`, `spotbugs`, `psalm`, `trufflehog`, `gitleaks`, and `grype` run when installed. Their native outputs are parsed into normalized findings or package CVEs where possible, with a generic JSON fallback for future adapter shapes.
 
@@ -215,9 +215,10 @@ Juice Shop benchmark user before scanning, so authentication failures are
 reported as setup failures instead of noisy low-coverage scans. Active-mode
 scans now include bounded, auth-aware built-in validators for reflected XSS
 markers, SQL injection boolean/error canaries, harmless file uploads,
-non-exfiltrating XML entity markers, and open redirects on seeded query routes;
-they do not follow external redirects and only report confirmed validation when
-the marker or predicate behavior is observed.
+CSRF form-token analysis, weak session identifier sampling, non-exfiltrating XML
+entity markers, and open redirects on seeded query routes; they do not follow
+external redirects and only report confirmed validation when the marker or
+predicate behavior is observed.
 
 ```sh
 make benchmark-targets-up

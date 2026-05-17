@@ -130,10 +130,10 @@ assert_sidecars_absent_or_empty() {
   fi
 }
 
-dynamic_tools="security-headers,graphql-introspection,openapi-discovery,js-secret-scan,cors-check,reflected-xss-check,sqli-check,open-redirect-check,upload-check,xxe-fuzz"
+dynamic_tools="security-headers,graphql-introspection,openapi-discovery,js-secret-scan,cors-check,reflected-xss-check,sqli-check,open-redirect-check,upload-check,csrf-check,weak-session-check,xxe-fuzz"
 audit_tools="audit/authmiddleware,audit/idor,audit/depconfusion"
 combined_tools="$audit_tools,$dynamic_tools"
-fixture_routes="/api/search?q=test,/redirect?url=/,/upload,/xxe"
+fixture_routes="/api/search?q=test,/redirect?url=/,/upload,/csrf,/weak-session,/xxe"
 
 target="${NOX_INTEGRATION_TARGET:-}"
 if [ -z "$target" ]; then
@@ -166,9 +166,11 @@ assert_count_at_least "$dynamic_db" "SELECT COUNT(*) FROM findings WHERE tool_id
 assert_count_at_least "$dynamic_db" "SELECT COUNT(*) FROM findings WHERE tool_id = 'sqli-check';" 1 "SQLi validator finding"
 assert_count_at_least "$dynamic_db" "SELECT COUNT(*) FROM findings WHERE tool_id = 'open-redirect-check' AND status = 'confirmed';" 1 "open redirect validator finding"
 assert_count_at_least "$dynamic_db" "SELECT COUNT(*) FROM findings WHERE tool_id = 'upload-check';" 1 "upload validator finding"
+assert_count_at_least "$dynamic_db" "SELECT COUNT(*) FROM findings WHERE tool_id = 'csrf-check';" 1 "CSRF validator finding"
+assert_count_at_least "$dynamic_db" "SELECT COUNT(*) FROM findings WHERE tool_id = 'weak-session-check' AND status = 'confirmed';" 1 "weak session validator finding"
 assert_count_at_least "$dynamic_db" "SELECT COUNT(*) FROM findings WHERE tool_id = 'xxe-fuzz' AND status = 'confirmed';" 1 "XXE validator finding"
-assert_count_at_least "$dynamic_db" "SELECT COUNT(*) FROM tool_runs;" 11 "dynamic tool runs"
-assert_count_at_least "$dynamic_db" "SELECT COUNT(*) FROM tool_runs WHERE stdout_path != '';" 11 "persisted stdout paths"
+assert_count_at_least "$dynamic_db" "SELECT COUNT(*) FROM tool_runs;" 13 "dynamic tool runs"
+assert_count_at_least "$dynamic_db" "SELECT COUNT(*) FROM tool_runs WHERE stdout_path != '';" 13 "persisted stdout paths"
 assert_sidecars_present "$dynamic_dir/$dynamic_session"
 NOX_SESSION_DIR="$dynamic_dir" go run . report "$dynamic_session" --format md --mode technical --config /dev/null --output "$dynamic_report" >>"$dynamic_log" 2>&1
 assert_file_contains "$dynamic_report" "Executive Summary" "dynamic report"

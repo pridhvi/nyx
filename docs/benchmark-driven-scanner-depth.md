@@ -255,8 +255,9 @@ Add generic, bounded validators for common classes:
 - CORS validation
 - XXE non-exfiltrating marker validation (implemented with internal XML entity
   markers; no file or network entity exfiltration)
-- weak session ID sampling
-- CSRF missing-token or token-reuse checks
+- weak session ID sampling (implemented for seeded session-related routes)
+- CSRF missing-token checks (implemented as non-mutating form analysis for
+  seeded state-changing routes; token-reuse checks remain deferred)
 
 Acceptance criteria:
 

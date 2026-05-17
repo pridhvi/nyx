@@ -657,6 +657,88 @@ func TestUploadCheckConfirmsMarkerUpload(t *testing.T) {
 	}
 }
 
+func TestCSRFCheckReportsStateChangingFormWithoutToken(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`<form method="get" action="/change-password"><input name="password_new"><input name="password_conf"><button name="Change" value="Change">Change</button></form>`))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/csrf")
+	adapter := NewCSRFCheck()
+	if !adapter.ShouldRun(input) {
+		t.Fatal("expected CSRF check to run with CSRF seed")
+	}
+	out, err := adapter.Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
+	}
+	finding := out.Findings[0]
+	if finding.ToolID != "csrf-check" || finding.Status != "suspected" || finding.Severity != models.SeverityMedium {
+		t.Fatalf("unexpected finding: %#v", finding)
+	}
+}
+
+func TestCSRFCheckIgnoresTokenizedForm(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`<form method="post" action="/profile"><input name="csrf_token" value="abc"><input name="email"></form>`))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/profile")
+	out, err := NewCSRFCheck().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 0 {
+		t.Fatalf("expected no findings, got %#v", out.Findings)
+	}
+}
+
+func TestWeakSessionIDCheckConfirmsSequentialCookie(t *testing.T) {
+	counter := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		counter++
+		http.SetCookie(w, &http.Cookie{Name: "weakSessionID", Value: strconv.Itoa(counter), Path: "/"})
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/weak-session")
+	adapter := NewWeakSessionIDCheck()
+	if !adapter.ShouldRun(input) {
+		t.Fatal("expected weak session check to run with weak session seed")
+	}
+	out, err := adapter.Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
+	}
+	finding := out.Findings[0]
+	if finding.ToolID != "weak-session-check" || finding.Parameter != "weakSessionID" || finding.Status != "confirmed" || finding.Severity != models.SeverityHigh {
+		t.Fatalf("unexpected finding: %#v", finding)
+	}
+}
+
+func TestWeakSessionIDCheckIgnoresLongRandomCookie(t *testing.T) {
+	counter := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		counter++
+		http.SetCookie(w, &http.Cookie{Name: "session", Value: "random-token-value-" + strconv.Itoa(counter) + "-with-length", Path: "/"})
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/weak-session")
+	out, err := NewWeakSessionIDCheck().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 0 {
+		t.Fatalf("expected no findings, got %#v", out.Findings)
+	}
+}
+
 func TestParseSSTIFindings(t *testing.T) {
 	findings := parseSSTIFindings(testExternalInput(), "https://example.com/?q={{7*7}}", "result: 49")
 	if len(findings) != 1 {

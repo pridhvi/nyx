@@ -10,6 +10,7 @@ import (
 
 var api_key = "AKIAIOSFODNN7EXAMPLE"
 var db fakeDB
+var weakSessionCounter int
 
 func main() {
 	mux := http.NewServeMux()
@@ -95,6 +96,14 @@ func main() {
 		}
 		w.WriteHeader(http.StatusUnauthorized)
 		fmt.Fprintln(w, "invalid credentials")
+	})
+	mux.HandleFunc("/csrf", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `<form method="get" action="/csrf/change"><input name="password_new"><input name="password_conf"><button name="Change" value="Change">Change</button></form>`)
+	})
+	mux.HandleFunc("/weak-session", func(w http.ResponseWriter, r *http.Request) {
+		weakSessionCounter++
+		http.SetCookie(w, &http.Cookie{Name: "weakSessionID", Value: fmt.Sprintf("%d", weakSessionCounter), Path: "/"})
+		fmt.Fprintf(w, "Session ID: %d", weakSessionCounter)
 	})
 	mux.HandleFunc("/ssti", func(w http.ResponseWriter, r *http.Request) {
 		value := r.URL.Query().Get("q")

@@ -3117,6 +3117,8 @@ func descriptionForTool(id string) string {
 		"open-redirect-check":   "Safely validates seeded redirect-like parameters without following external redirects.",
 		"sqli-check":            "Safely validates seeded query parameters for SQL injection with bounded boolean and error canaries.",
 		"upload-check":          "Safely validates file upload endpoints with a harmless text marker file.",
+		"csrf-check":            "Analyzes seeded state-changing forms for missing anti-CSRF token fields without submitting them.",
+		"weak-session-check":    "Samples seeded session-related routes for predictable cookie or token values with tight limits.",
 		"ssti-check":            "Performs safe server-side template injection checks.",
 		"xxe-fuzz":              "Performs safe XML entity expansion checks without external entity exfiltration.",
 		"nikto":                 "Runs Nikto web server checks against scoped HTTP services.",
