@@ -1,6 +1,11 @@
 package adapters
 
 import (
+	"html"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strconv"
 	"testing"
 	"time"
 
@@ -446,6 +451,89 @@ func TestParseOAuthFindings(t *testing.T) {
 	}
 }
 
+func TestReflectedXSSCheckUsesSeededRoutes(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("search=" + r.URL.Query().Get("q")))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/search?q=seed")
+	adapter := NewReflectedXSSCheck()
+	if !adapter.ShouldRun(input) {
+		t.Fatal("expected reflected XSS check to run with seeded query route")
+	}
+	out, err := adapter.Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
+	}
+	finding := out.Findings[0]
+	if finding.ToolID != "reflected-xss-check" || finding.Parameter != "q" || finding.Status != "confirmed" || finding.Severity != models.SeverityHigh {
+		t.Fatalf("unexpected finding: %#v", finding)
+	}
+}
+
+func TestReflectedXSSCheckDoesNotReportWithoutReflection(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("constant body"))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/search?q=seed")
+	out, err := NewReflectedXSSCheck().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 0 {
+		t.Fatalf("expected no findings, got %#v", out.Findings)
+	}
+}
+
+func TestReflectedXSSCheckDoesNotReportEscapedReflection(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(html.EscapeString(r.URL.Query().Get("q"))))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/search?q=seed")
+	out, err := NewReflectedXSSCheck().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 0 {
+		t.Fatalf("expected no findings for escaped reflection, got %#v", out.Findings)
+	}
+}
+
+func TestOpenRedirectCheckUsesSeededRoutesWithoutFollowingRedirect(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, r.URL.Query().Get("next"), http.StatusFound)
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/redirect?next=/home")
+	adapter := NewOpenRedirectCheck()
+	if !adapter.ShouldRun(input) {
+		t.Fatal("expected open redirect check to run with redirect-like parameter")
+	}
+	out, err := adapter.Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
+	}
+	finding := out.Findings[0]
+	if finding.ToolID != "open-redirect-check" || finding.Parameter != "next" || finding.Status != "confirmed" || finding.Severity != models.SeverityHigh {
+		t.Fatalf("unexpected finding: %#v", finding)
+	}
+}
+
+func TestOpenRedirectCheckIgnoresNonRedirectParameters(t *testing.T) {
+	input := testHTTPAdapterInput(t, "http://example.test", "/search?q=seed")
+	if NewOpenRedirectCheck().ShouldRun(input) {
+		t.Fatal("expected open redirect check to skip non-redirect parameters")
+	}
+}
+
 func TestParseSSTIFindings(t *testing.T) {
 	findings := parseSSTIFindings(testExternalInput(), "https://example.com/?q={{7*7}}", "result: 49")
 	if len(findings) != 1 {
@@ -453,6 +541,39 @@ func TestParseSSTIFindings(t *testing.T) {
 	}
 	if findings[0].ToolID != "ssti-check" || findings[0].Severity != models.SeverityHigh {
 		t.Fatalf("unexpected finding: %#v", findings[0])
+	}
+}
+
+func testHTTPAdapterInput(t *testing.T, baseURL string, seeds ...string) AdapterInput {
+	t.Helper()
+	parsed, err := url.Parse(baseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	port, _ := strconv.Atoi(parsed.Port())
+	session := models.Session{
+		ID:          "session-1",
+		Mode:        models.ScanModeActive,
+		TargetInput: baseURL,
+		ToolParameters: map[string]map[string]any{
+			models.SessionScanOptionsKey: {
+				"route_seeds": seeds,
+			},
+		},
+		CreatedAt: time.Now().UTC(),
+	}
+	return AdapterInput{
+		SessionID: session.ID,
+		Session:   session,
+		Target: models.Target{
+			ID:        "target-1",
+			SessionID: session.ID,
+			Host:      parsed.Hostname(),
+			Port:      port,
+			Protocol:  parsed.Scheme,
+			IsAlive:   true,
+		},
+		HTTPClient: http.DefaultClient,
 	}
 }
 

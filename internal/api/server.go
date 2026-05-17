@@ -3113,6 +3113,8 @@ func descriptionForTool(id string) string {
 		"ssrfmap":               "Runs scoped SSRF checks where input evidence supports it.",
 		"jwt-tool":              "Checks JWT structure and common token weaknesses.",
 		"oauth-check":           "Checks OAuth and OIDC metadata for common misconfigurations.",
+		"reflected-xss-check":   "Safely validates seeded query parameters for reflected XSS markers.",
+		"open-redirect-check":   "Safely validates seeded redirect-like parameters without following external redirects.",
 		"ssti-check":            "Performs safe server-side template injection checks.",
 		"xxe-check":             "Performs safe XML external entity exposure checks.",
 		"nikto":                 "Runs Nikto web server checks against scoped HTTP services.",

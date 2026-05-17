@@ -231,12 +231,13 @@ Acceptance criteria:
 
 Add generic, bounded validators for common classes:
 
-- reflected XSS marker validation
+- reflected XSS marker validation (implemented for seeded query routes)
 - stored XSS marker recall where a read-back route is known or discovered
 - DOM XSS candidate detection with browser-assisted confirmation as a later
   enhancement
 - SQL injection boolean/error/time validation with strict limits
-- open redirect validation with controlled marker URLs
+- open redirect validation with controlled marker URLs (implemented for seeded
+  redirect-like query parameters without following external redirects)
 - command injection marker checks only when the configured profile marks the
   target as intentionally vulnerable and non-production
 - harmless file upload and retrieval validation
@@ -248,6 +249,11 @@ Add generic, bounded validators for common classes:
 
 Acceptance criteria:
 
+- Validators only run in active mode and honor scope/auth context.
+- External redirect markers are never followed by the built-in validator.
+- Confirmed findings are emitted only when a raw XSS canary tag is reflected or
+  a unique marker is returned in a redirect `Location`.
+- Tool-run sidecar logs record tested candidates without persisting secrets.
 - Validators produce normalized findings with request/response evidence.
 - Validators record inconclusive and skipped states instead of over-claiming.
 - Active validators are disabled by default unless explicitly selected by CLI,
@@ -377,9 +383,9 @@ Strong target:
 3. Generic auth profile support.
 4. DVWA authenticated seeded scan.
 5. Generic route/parameter seeding into dynamic adapters.
-6. Safe reflected XSS and SQL injection validators.
+6. Safe reflected XSS and open redirect validators.
 7. Juice Shop profile and authenticated API route seeding.
-8. Open redirect, upload, CORS, XXE, and weak-session validators.
+8. SQL injection, upload, CORS, XXE, and weak-session validators.
 9. Differential authorization and IDOR framework.
 10. Benchmark coverage reports.
 11. Manual/nightly benchmark CI.

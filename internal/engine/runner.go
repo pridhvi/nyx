@@ -79,6 +79,8 @@ func DefaultSafeAdapters() []adapters.Adapter {
 		adapters.NewSSRFMap(),
 		adapters.NewJWTTool(),
 		adapters.NewOAuthCheck(),
+		adapters.NewReflectedXSSCheck(),
+		adapters.NewOpenRedirectCheck(),
 		adapters.NewSSTICheck(),
 		adapters.NewXXEFuzz(),
 		adapters.NewNikto(),

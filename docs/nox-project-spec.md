@@ -888,12 +888,14 @@ Any process that speaks this JSON contract over stdin/stdout is a valid Nox plug
 
 | Tool | Integration | What it finds |
 |---|---|---|
-| `nuclei` (vuln templates) | Go library | CVE-matched vulnerability templates |
+| `nuclei` (vuln templates) | subprocess | CVE-matched vulnerability templates |
 | `sqlmap` | subprocess | SQL injection in discovered parameters |
 | `dalfox` | subprocess | Reflected/stored/DOM XSS |
 | `SSRFmap` | subprocess | SSRF in URL parameters and headers |
 | `jwt_tool` | subprocess | JWT: alg:none, weak secret, key confusion |
 | OAuth checks | Go stdlib HTTP | Open redirect in OAuth callbacks, CSRF |
+| Reflected XSS check | Go stdlib HTTP | Marker reflection in seeded query parameters |
+| Open redirect check | Go stdlib HTTP | Controlled external redirects in seeded redirect-like parameters |
 | SSTI detection | Go stdlib HTTP | Server-side template injection |
 | XXE fuzzing | Go stdlib HTTP | XML external entity injection |
 | `nikto` | subprocess | Generic web server vulnerability scanner |

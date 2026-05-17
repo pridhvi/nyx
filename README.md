@@ -209,7 +209,10 @@ dispatch; the power and browser suites are local opt-in for now.
 Benchmark-driven scanner depth uses DVWA and OWASP Juice Shop as repeatable
 ground-truth targets for generic scanner improvements. App-specific credentials,
 route seeds, and expected coverage mappings live under `benchmarks/`; scanner
-adapters must remain target-agnostic.
+adapters must remain target-agnostic. Active-mode scans now include bounded,
+auth-aware built-in validators for reflected XSS markers and open redirects on
+seeded query routes; they do not follow external redirects and only report when
+the marker is observed.
 
 ```sh
 make benchmark-targets-up
