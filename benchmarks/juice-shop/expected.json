@@ -1,0 +1,163 @@
+{
+  "benchmark": "juice-shop",
+  "name": "OWASP Juice Shop category coverage",
+  "items": [
+    {
+      "id": "juice-broken-access-control",
+      "class": "broken_access_control",
+      "label": "Broken Access Control",
+      "automation_suitable": true,
+      "confirmation_strategy": "two-identity differential authorization checks",
+      "match": {
+        "title": ["access control", "idor", "forced browsing", "unauthorized"],
+        "url": ["/administration", "/rest/basket", "/api/BasketItems"]
+      }
+    },
+    {
+      "id": "juice-broken-anti-automation",
+      "class": "broken_anti_automation",
+      "label": "Broken Anti Automation",
+      "automation_suitable": false,
+      "confirmation_strategy": "human-assist rate limit and workflow review",
+      "match": {
+        "title": ["rate limit", "anti automation", "captcha"]
+      }
+    },
+    {
+      "id": "juice-broken-authentication",
+      "class": "broken_authentication",
+      "label": "Broken Authentication",
+      "automation_suitable": true,
+      "confirmation_strategy": "credential, password-reset, and token validation with strict limits",
+      "match": {
+        "title": ["authentication", "login", "jwt", "weak password", "default credential"]
+      }
+    },
+    {
+      "id": "juice-cryptographic-issues",
+      "class": "cryptographic_issue",
+      "label": "Cryptographic Issues",
+      "automation_suitable": false,
+      "confirmation_strategy": "human-assist review of exposed crypto material and weak algorithms",
+      "match": {
+        "title": ["crypto", "cryptographic", "weak algorithm", "hash"]
+      }
+    },
+    {
+      "id": "juice-improper-input-validation",
+      "class": "improper_input_validation",
+      "label": "Improper Input Validation",
+      "automation_suitable": true,
+      "confirmation_strategy": "safe parameter mutation and response-difference checks",
+      "match": {
+        "title": ["input validation", "parameter", "tamper", "validation"]
+      }
+    },
+    {
+      "id": "juice-injection",
+      "class": "injection",
+      "label": "Injection",
+      "automation_suitable": true,
+      "confirmation_strategy": "safe SQL/NoSQL/command/SSTI marker validation with strict limits",
+      "match": {
+        "tool": ["sqlmap"],
+        "title": ["injection", "sql", "nosql", "ssti", "command injection"]
+      }
+    },
+    {
+      "id": "juice-insecure-deserialization",
+      "class": "insecure_deserialization",
+      "label": "Insecure Deserialization",
+      "automation_suitable": false,
+      "confirmation_strategy": "human-assist route and payload-shape review",
+      "match": {
+        "title": ["deserialization", "serialize", "yaml", "pickle"]
+      }
+    },
+    {
+      "id": "juice-observability-failures",
+      "class": "observability_failure",
+      "label": "Observability Failures",
+      "automation_suitable": false,
+      "confirmation_strategy": "human-assist logging and monitoring review",
+      "match": {
+        "title": ["logging", "monitoring", "audit log", "observability"]
+      }
+    },
+    {
+      "id": "juice-security-misconfiguration",
+      "class": "security_misconfiguration",
+      "label": "Security Misconfiguration",
+      "automation_suitable": true,
+      "confirmation_strategy": "header, CORS, exposed docs, and server configuration checks",
+      "match": {
+        "type": ["misconfiguration"],
+        "title": ["cors", "missing content-security-policy", "openapi", "swagger", "security header"]
+      }
+    },
+    {
+      "id": "juice-security-through-obscurity",
+      "class": "security_through_obscurity",
+      "label": "Security through Obscurity",
+      "automation_suitable": false,
+      "confirmation_strategy": "human-assist hidden route and source-map review",
+      "match": {
+        "title": ["hidden", "obscurity", "source map"]
+      }
+    },
+    {
+      "id": "juice-sensitive-data-exposure",
+      "class": "sensitive_data_exposure",
+      "label": "Sensitive Data Exposure",
+      "automation_suitable": true,
+      "confirmation_strategy": "exposed API, file, secret, and metadata checks",
+      "match": {
+        "type": ["exposure"],
+        "title": ["sensitive", "secret", "exposed", "openapi", "swagger", "directory listing"]
+      }
+    },
+    {
+      "id": "juice-unvalidated-redirects",
+      "class": "open_redirect",
+      "label": "Unvalidated Redirects",
+      "automation_suitable": true,
+      "confirmation_strategy": "controlled marker redirect validation",
+      "match": {
+        "url": ["/redirect"],
+        "title": ["open redirect", "unvalidated redirect"]
+      }
+    },
+    {
+      "id": "juice-vulnerable-components",
+      "class": "vulnerable_component",
+      "label": "Vulnerable Components",
+      "automation_suitable": true,
+      "confirmation_strategy": "dependency and technology CVE correlation",
+      "match": {
+        "title": ["vulnerable component", "cve", "known vulnerability"],
+        "tool": ["nuclei-vuln", "nikto"]
+      }
+    },
+    {
+      "id": "juice-xss",
+      "class": "xss",
+      "label": "XSS",
+      "automation_suitable": true,
+      "confirmation_strategy": "reflected/stored/DOM marker validation",
+      "match": {
+        "tool": ["dalfox"],
+        "title": ["xss", "cross-site scripting"]
+      }
+    },
+    {
+      "id": "juice-xxe",
+      "class": "xxe",
+      "label": "XXE",
+      "automation_suitable": true,
+      "confirmation_strategy": "non-exfiltrating XXE marker validation",
+      "match": {
+        "title": ["xxe", "xml external entity"]
+      }
+    }
+  ]
+}

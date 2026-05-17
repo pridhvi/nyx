@@ -36,11 +36,13 @@ func (a Dalfox) Run(ctx context.Context, input AdapterInput) (AdapterOutput, err
 	if toolParamBool(input, "skip_grepping") {
 		args = append(args, "--skip-grepping")
 	}
+	args = append(args, authCommandArgs(input, a.ID())...)
 	args = append(args, toolParamStringList(input, "extra_args")...)
+	displayArgs := redactCommandArgs(args)
 	if ok, reason := input.Scope.IsInScope(input.Target.Host); !ok {
-		return AdapterOutput{ToolRun: failedToolRun(input, a.ID(), args, reason, 1)}, nil
+		return AdapterOutput{ToolRun: failedToolRun(input, a.ID(), displayArgs, reason, 1)}, nil
 	}
-	run := newToolRun(input, a.ID(), args)
+	run := newToolRun(input, a.ID(), displayArgs)
 	result := RunCommand(ctx, commandTimeout(input, 90*time.Second), "dalfox", args...)
 	findings := parseDalfoxFindings(input, result.Stdout)
 	if len(findings) == 0 {

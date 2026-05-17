@@ -1,0 +1,14 @@
+/vulnerabilities/brute/
+/vulnerabilities/exec/
+/vulnerabilities/csrf/
+/vulnerabilities/fi/
+/vulnerabilities/upload/
+/vulnerabilities/captcha/
+/vulnerabilities/weak_id/
+/vulnerabilities/javascript/
+/vulnerabilities/sqli/
+/vulnerabilities/sqli_blind/
+/vulnerabilities/xss_r/
+/vulnerabilities/xss_s/
+/vulnerabilities/xss_d/
+/vulnerabilities/csp/

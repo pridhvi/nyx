@@ -32,6 +32,23 @@ Static and combined source-aware modes use the same session database and report 
 ./bin/nox scan --target https://example.com --source /path/to/repo --no-llm
 ```
 
+For authenticated or deeper dynamic scans, route seeds and auth material can be
+provided without hardcoding target behavior into adapters:
+
+```sh
+./bin/nox scan --target https://example.com \
+  --route-seed-file routes.txt \
+  --auth-header "Authorization: Bearer <token>" \
+  --auth-cookie "session=<cookie>" \
+  --no-llm
+```
+
+Seed routes are scope-checked before use. Auth headers/cookies are applied to
+compatible built-in HTTP checks and subprocess adapters such as `ffuf`,
+`sqlmap`, and `dalfox`; API session JSON and persisted tool-run arguments
+redact those secret values. Saved scan profiles keep route seeds and scanner
+options but intentionally omit auth secrets.
+
 ## Features
 
 - **Scan pipeline:** DAG-driven execution across reconnaissance, fingerprinting, enumeration, and vulnerability phases with optional subprocess tools.
@@ -155,6 +172,25 @@ findings, power, reports, and attack-path pages in Chromium, fails on console
 errors, and writes screenshots to `/tmp/nox-browser-*.png`. The standard
 integration suite runs in GitHub Actions on a nightly schedule and on manual
 dispatch; the power and browser suites are local opt-in for now.
+
+Benchmark-driven scanner depth uses DVWA and OWASP Juice Shop as repeatable
+ground-truth targets for generic scanner improvements. App-specific credentials,
+route seeds, and expected coverage mappings live under `benchmarks/`; scanner
+adapters must remain target-agnostic.
+
+```sh
+make benchmark-targets-up
+NOX_RUN_BENCHMARKS=1 make benchmark-dvwa
+NOX_RUN_BENCHMARKS=1 make benchmark-juice
+NOX_RUN_BENCHMARKS=1 make benchmark-all
+make benchmark-targets-down
+```
+
+Benchmark artifacts are written under `artifacts/benchmarks/<timestamp>/` and
+include session directories, normal reports, SARIF, target metadata, and
+coverage summaries. See
+[docs/benchmark-driven-scanner-depth.md](docs/benchmark-driven-scanner-depth.md)
+for the staged plan.
 
 Docker smoke validation builds the image, starts the API, checks health/tools endpoints, runs `nox version`, and verifies bundled scanner versions:
 

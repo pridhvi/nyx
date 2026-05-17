@@ -38,8 +38,20 @@ specific implementation is proven incompatible with the spec.
 ## Implementation Order
 
 The implementation roadmap is complete from the repository perspective. Future
-work should focus on hardening, richer fixtures, deeper UI interactions, and
-scanner-specific improvements rather than adding new roadmap phases.
+work should focus on hardening, richer fixtures, deeper UI interactions,
+scanner-specific improvements, and benchmark-driven scanner depth rather than
+adding new roadmap phases. The current depth plan is
+`docs/benchmark-driven-scanner-depth.md`, which uses DVWA and OWASP Juice Shop
+as repeatable ground-truth targets for generic authenticated scanning,
+route-seeding, validation, authorization, and business-logic-assist
+capabilities. App-specific setup and expected mappings belong in benchmark
+profiles only; scanner adapters must remain target-agnostic.
+
+Current benchmark-depth implementation includes the opt-in DVWA/Juice Shop
+harness, benchmark profile/expected mapping files, CLI/API/UI route seed
+inputs, static auth header/cookie scan context, redacted session JSON/tool-run
+arguments for auth material, and first adapter consumers for built-in HTTP
+checks plus `ffuf`, `sqlmap`, and `dalfox`.
 
 ## Current Baseline
 

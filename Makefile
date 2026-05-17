@@ -1,4 +1,4 @@
-.PHONY: build ci dev test test-integration power-integration browser-smoke tool-version-smoke linux-full-smoke lint web web-build run sqlc migrate-up docker-smoke compose-config clean release-snapshot
+.PHONY: build ci dev test test-integration power-integration browser-smoke tool-version-smoke linux-full-smoke benchmark-targets-up benchmark-targets-down benchmark-targets-status benchmark-dvwa benchmark-juice benchmark-all lint web web-build run sqlc migrate-up docker-smoke compose-config clean release-snapshot
 
 build:
 	cd web && npm run build
@@ -27,6 +27,24 @@ tool-version-smoke:
 
 linux-full-smoke:
 	./scripts/linux-full-smoke.sh
+
+benchmark-targets-up:
+	./scripts/benchmark-targets.sh up
+
+benchmark-targets-down:
+	./scripts/benchmark-targets.sh down
+
+benchmark-targets-status:
+	./scripts/benchmark-targets.sh status
+
+benchmark-dvwa:
+	./scripts/benchmark-run.sh dvwa
+
+benchmark-juice:
+	./scripts/benchmark-run.sh juice-shop
+
+benchmark-all:
+	./scripts/benchmark-run.sh all
 
 lint:
 	@if command -v golangci-lint >/dev/null 2>&1; then golangci-lint run; else echo "golangci-lint not installed; skipping Go lint"; fi

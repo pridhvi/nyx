@@ -1,0 +1,30 @@
+{
+  "id": "juice-shop",
+  "name": "OWASP Juice Shop",
+  "target_env": "NOX_BENCHMARK_JUICE_URL",
+  "default_url": "http://127.0.0.1:13000",
+  "docker": {
+    "container_name": "nox-benchmark-juice-shop",
+    "image": "bkimminich/juice-shop",
+    "host_port_env": "NOX_BENCHMARK_JUICE_PORT",
+    "default_host_port": 13000,
+    "container_port": 3000,
+    "env": {
+      "NODE_OPTIONS": "--max-old-space-size=8192"
+    }
+  },
+  "auth": {
+    "type": "json_login",
+    "register_url": "/api/Users/",
+    "login_url": "/rest/user/login",
+    "username": "nox-benchmark@example.test",
+    "password": "NoxBenchmark!12345",
+    "token_json_path": "authentication.token",
+    "auth_header": "Authorization",
+    "auth_header_prefix": "Bearer "
+  },
+  "notes": [
+    "Juice Shop benchmark setup may create or reuse a benchmark user.",
+    "Core scanner adapters must not hardcode Juice Shop challenge names or routes."
+  ]
+}

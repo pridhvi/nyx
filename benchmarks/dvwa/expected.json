@@ -1,0 +1,179 @@
+{
+  "benchmark": "dvwa",
+  "name": "DVWA module coverage",
+  "items": [
+    {
+      "id": "dvwa-brute-force",
+      "class": "brute_force",
+      "label": "Brute Force",
+      "route": "/vulnerabilities/brute/",
+      "automation_suitable": true,
+      "confirmation_strategy": "lockout-aware credential validation with strict limits",
+      "match": {
+        "url": ["/vulnerabilities/brute/"],
+        "title": ["brute force", "default credential", "valid credential"]
+      }
+    },
+    {
+      "id": "dvwa-command-injection",
+      "class": "command_injection",
+      "label": "Command Injection",
+      "route": "/vulnerabilities/exec/",
+      "automation_suitable": true,
+      "confirmation_strategy": "non-destructive marker command validation on intentionally vulnerable benchmark targets",
+      "match": {
+        "url": ["/vulnerabilities/exec/"],
+        "title": ["command injection", "os command"]
+      }
+    },
+    {
+      "id": "dvwa-csrf",
+      "class": "csrf",
+      "label": "CSRF",
+      "route": "/vulnerabilities/csrf/",
+      "automation_suitable": true,
+      "confirmation_strategy": "missing-token or token-reuse validation without changing sensitive state",
+      "match": {
+        "url": ["/vulnerabilities/csrf/"],
+        "title": ["csrf", "cross-site request forgery"]
+      }
+    },
+    {
+      "id": "dvwa-file-inclusion",
+      "class": "file_inclusion",
+      "label": "File Inclusion",
+      "route": "/vulnerabilities/fi/",
+      "automation_suitable": true,
+      "confirmation_strategy": "safe local path marker validation",
+      "match": {
+        "url": ["/vulnerabilities/fi/"],
+        "title": ["file inclusion", "local file inclusion", "lfi"]
+      }
+    },
+    {
+      "id": "dvwa-file-upload",
+      "class": "file_upload",
+      "label": "File Upload",
+      "route": "/vulnerabilities/upload/",
+      "automation_suitable": true,
+      "confirmation_strategy": "harmless marker file upload and retrieval",
+      "match": {
+        "url": ["/vulnerabilities/upload/"],
+        "title": ["file upload", "unrestricted upload"]
+      }
+    },
+    {
+      "id": "dvwa-insecure-captcha",
+      "class": "improper_input_validation",
+      "label": "Insecure CAPTCHA",
+      "route": "/vulnerabilities/captcha/",
+      "automation_suitable": false,
+      "confirmation_strategy": "human-assist workflow review",
+      "match": {
+        "url": ["/vulnerabilities/captcha/"],
+        "title": ["captcha"]
+      }
+    },
+    {
+      "id": "dvwa-weak-session-id",
+      "class": "weak_session_id",
+      "label": "Weak Session IDs",
+      "route": "/vulnerabilities/weak_id/",
+      "automation_suitable": true,
+      "confirmation_strategy": "bounded session ID sampling and entropy checks",
+      "match": {
+        "url": ["/vulnerabilities/weak_id/"],
+        "title": ["weak session", "predictable session"]
+      }
+    },
+    {
+      "id": "dvwa-javascript-weakness",
+      "class": "client_side_validation",
+      "label": "JavaScript Weakness",
+      "route": "/vulnerabilities/javascript/",
+      "automation_suitable": false,
+      "confirmation_strategy": "human-assist client-side logic review",
+      "match": {
+        "url": ["/vulnerabilities/javascript/"],
+        "title": ["javascript", "client-side"]
+      }
+    },
+    {
+      "id": "dvwa-sql-injection",
+      "class": "sql_injection",
+      "label": "SQL Injection",
+      "route": "/vulnerabilities/sqli/",
+      "automation_suitable": true,
+      "confirmation_strategy": "safe boolean/error/time SQL injection validation with tight limits",
+      "match": {
+        "url": ["/vulnerabilities/sqli/"],
+        "tool": ["sqlmap"],
+        "title": ["sql injection", "sqli"]
+      }
+    },
+    {
+      "id": "dvwa-blind-sql-injection",
+      "class": "blind_sql_injection",
+      "label": "Blind SQL Injection",
+      "route": "/vulnerabilities/sqli_blind/",
+      "automation_suitable": true,
+      "confirmation_strategy": "safe boolean/time SQL injection validation with tight limits",
+      "match": {
+        "url": ["/vulnerabilities/sqli_blind/"],
+        "tool": ["sqlmap"],
+        "title": ["blind sql", "time-based sql"]
+      }
+    },
+    {
+      "id": "dvwa-reflected-xss",
+      "class": "reflected_xss",
+      "label": "Reflected XSS",
+      "route": "/vulnerabilities/xss_r/",
+      "automation_suitable": true,
+      "confirmation_strategy": "unique marker reflection and context validation",
+      "match": {
+        "url": ["/vulnerabilities/xss_r/"],
+        "tool": ["dalfox"],
+        "title": ["reflected xss", "cross-site scripting"]
+      }
+    },
+    {
+      "id": "dvwa-stored-xss",
+      "class": "stored_xss",
+      "label": "Stored XSS",
+      "route": "/vulnerabilities/xss_s/",
+      "automation_suitable": true,
+      "confirmation_strategy": "unique marker submission and read-back validation",
+      "match": {
+        "url": ["/vulnerabilities/xss_s/"],
+        "tool": ["dalfox"],
+        "title": ["stored xss", "persistent xss"]
+      }
+    },
+    {
+      "id": "dvwa-dom-xss",
+      "class": "dom_xss",
+      "label": "DOM XSS",
+      "route": "/vulnerabilities/xss_d/",
+      "automation_suitable": true,
+      "confirmation_strategy": "browser-assisted marker validation",
+      "match": {
+        "url": ["/vulnerabilities/xss_d/"],
+        "tool": ["dalfox"],
+        "title": ["dom xss"]
+      }
+    },
+    {
+      "id": "dvwa-csp-bypass",
+      "class": "csp_bypass",
+      "label": "CSP Bypass",
+      "route": "/vulnerabilities/csp/",
+      "automation_suitable": false,
+      "confirmation_strategy": "human-assist CSP policy and bypass review",
+      "match": {
+        "url": ["/vulnerabilities/csp/"],
+        "title": ["csp bypass", "content-security-policy bypass"]
+      }
+    }
+  ]
+}

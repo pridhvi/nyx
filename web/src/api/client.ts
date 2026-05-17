@@ -223,6 +223,10 @@ export type StartScanRequest = {
   tool_timeout_seconds?: number;
   tool_delay_ms?: number;
   rate_limit?: string;
+  route_seeds?: string[];
+  auth_headers?: Record<string, string>;
+  auth_cookies?: Record<string, string>;
+  auth_cookie_header?: string;
   evasion_profile?: string;
   jitter_ms?: number;
   proxy_url?: string;

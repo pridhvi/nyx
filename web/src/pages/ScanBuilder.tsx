@@ -37,6 +37,9 @@ export function ScanBuilder() {
   const [name, setName] = useState("");
   const [mode, setMode] = useState("active");
   const [outOfScope, setOutOfScope] = useState("");
+  const [routeSeeds, setRouteSeeds] = useState("");
+  const [authHeaders, setAuthHeaders] = useState("");
+  const [authCookie, setAuthCookie] = useState("");
   const [selectedPhases, setSelectedPhases] = useState<string[]>([]);
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
   const [llmBaseURL, setLLMBaseURL] = useState("");
@@ -159,6 +162,9 @@ export function ScanBuilder() {
       name,
       mode,
       out_of_scope: splitLines(outOfScope),
+      route_seeds: splitLines(routeSeeds),
+      auth_headers: parseHeaderLines(authHeaders),
+      auth_cookie_header: authCookie.trim() || undefined,
       enabled_phases: selectedPhases,
       tools: selectedTools,
       tool_parameters: cleanToolParameters(params),
@@ -199,6 +205,9 @@ export function ScanBuilder() {
       setTargets(request.targets?.join("\n") ?? request.target ?? "");
     }
     setSourcePath(request.source_path ?? "");
+    setRouteSeeds(request.route_seeds?.join("\n") ?? "");
+    setAuthHeaders(formatHeaderMap(request.auth_headers));
+    setAuthCookie(request.auth_cookie_header ?? "");
   }
 
   function saveProfile() {
@@ -300,6 +309,9 @@ export function ScanBuilder() {
               </span>
             </label>
             <label>Out of Scope<textarea value={outOfScope} onChange={(event) => setOutOfScope(event.target.value)} rows={3} placeholder="one host or CIDR per line" /></label>
+            <label className="span-2">Seed Routes<textarea value={routeSeeds} onChange={(event) => setRouteSeeds(event.target.value)} rows={3} placeholder={"/admin\n/api/search?q=test\nhttps://example.com/profile?id=1"} /></label>
+            <label>Auth Headers<textarea value={authHeaders} onChange={(event) => setAuthHeaders(event.target.value)} rows={3} placeholder={"Authorization: Bearer ...\nX-Api-Key: ..."} /></label>
+            <label>Cookie Header<textarea value={authCookie} onChange={(event) => setAuthCookie(event.target.value)} rows={3} placeholder="session=...; csrftoken=..." /></label>
           </div>
         </section>
         <section className="panel" id="runtime">
@@ -451,4 +463,27 @@ function Required() {
 
 function splitTargets(value: string) {
   return [...new Set(value.split(/[\n,]+/).map((item) => item.trim()).filter((item) => /^https?:\/\/[^/\s]+/i.test(item)))];
+}
+
+function parseHeaderLines(value: string) {
+  const headers: Record<string, string> = {};
+  for (const line of splitLines(value)) {
+    const index = line.indexOf(":");
+    if (index <= 0) {
+      continue;
+    }
+    const name = line.slice(0, index).trim();
+    const headerValue = line.slice(index + 1).trim();
+    if (name && headerValue) {
+      headers[name] = headerValue;
+    }
+  }
+  return Object.keys(headers).length > 0 ? headers : undefined;
+}
+
+function formatHeaderMap(headers?: Record<string, string>) {
+  if (!headers) {
+    return "";
+  }
+  return Object.entries(headers).map(([name, value]) => `${name}: ${value}`).join("\n");
 }

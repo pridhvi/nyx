@@ -35,7 +35,8 @@ func (a FFUF) Run(ctx context.Context, input AdapterInput) (AdapterOutput, error
 		wordlist = configured
 	}
 	var tempWordlist string
-	if routes := sourceValues(input.SourceFindings, models.SourceKindRoute); len(routes) > 0 {
+	routes := append(sourceValues(input.SourceFindings, models.SourceKindRoute), seededPathValues(input)...)
+	if len(routes) > 0 {
 		file, err := os.CreateTemp("", "nox-routes-*.txt")
 		if err == nil {
 			for _, route := range routes {
@@ -52,14 +53,16 @@ func (a FFUF) Run(ctx context.Context, input AdapterInput) (AdapterOutput, error
 	if matcher := toolParamString(input, "matcher"); matcher != "" {
 		args = append(args, "-mc", matcher)
 	}
+	args = append(args, authCommandArgs(input, a.ID())...)
 	args = append(args, toolParamStringList(input, "extra_args")...)
+	displayArgs := redactCommandArgs(args)
 	if ok, reason := input.Scope.IsInScope(input.Target.Host); !ok {
-		return AdapterOutput{ToolRun: failedToolRun(input, a.ID(), args, reason, 1)}, nil
+		return AdapterOutput{ToolRun: failedToolRun(input, a.ID(), displayArgs, reason, 1)}, nil
 	}
 	if wordlist == "" {
-		return AdapterOutput{ToolRun: failedToolRun(input, a.ID(), args, "no ffuf wordlist found in common system locations", 127)}, nil
+		return AdapterOutput{ToolRun: failedToolRun(input, a.ID(), displayArgs, "no ffuf wordlist found in common system locations", 127)}, nil
 	}
-	run := newToolRun(input, a.ID(), args)
+	run := newToolRun(input, a.ID(), displayArgs)
 	result := RunCommand(ctx, commandTimeout(input, 45*time.Second), "ffuf", args...)
 	findings := parseFFUFFindings(input, result.Stdout)
 	return AdapterOutput{Findings: findings, ToolRun: finishToolRun(run, result, len(findings))}, nil

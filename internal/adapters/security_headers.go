@@ -50,14 +50,13 @@ func (a SecurityHeaders) Run(ctx context.Context, input AdapterInput) (AdapterOu
 	if client == nil {
 		client = http.DefaultClient
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newHTTPRequestWithAuth(ctx, input, http.MethodGet, url, nil, "nox/0.1 security-headers")
 	if err != nil {
 		run.ExitCode = 1
 		run.RawStderr = err.Error()
 		run.DurationMS = time.Since(started).Milliseconds()
 		return AdapterOutput{ToolRun: run}, err
 	}
-	req.Header.Set("User-Agent", "nox/0.1 security-headers")
 	resp, err := client.Do(req)
 	if err != nil {
 		run.ExitCode = 1

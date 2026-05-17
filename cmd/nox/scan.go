@@ -35,6 +35,10 @@ func runScan(args []string) error {
 	headerProfile := fs.String("header-profile", "", "header profile")
 	jitterMS := fs.Int("jitter-ms", 0, "request jitter in milliseconds")
 	adaptiveBackoff := fs.Bool("adaptive-backoff", false, "enable adaptive backoff on block signals")
+	routeSeeds := fs.String("route-seeds", "", "comma-separated or newline-separated seed routes for authenticated/deep scans")
+	routeSeedFile := fs.String("route-seed-file", "", "file containing seed routes, one per line")
+	authHeader := fs.String("auth-header", "", "authentication header in 'Name: value' form")
+	authCookie := fs.String("auth-cookie", "", "cookie header value or semicolon-separated name=value pairs")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -71,16 +75,17 @@ func runScan(args []string) error {
 		return err
 	}
 	input := engine.NewSessionInput{
-		Target:        *target,
-		SourcePath:    *sourcePath,
-		Name:          *name,
-		Mode:          models.ScanMode(selectedMode),
-		OutOfScope:    splitCSV(*outOfScope),
-		EnabledPhases: selectedPhases,
-		EnabledTools:  selectedTools,
-		RunnerOptions: runnerOptions,
-		LLMModel:      selectedLLMModel,
-		LLMBaseURL:    selectedLLMURL,
+		Target:         *target,
+		SourcePath:     *sourcePath,
+		Name:           *name,
+		Mode:           models.ScanMode(selectedMode),
+		OutOfScope:     splitCSV(*outOfScope),
+		EnabledPhases:  selectedPhases,
+		EnabledTools:   selectedTools,
+		ToolParameters: models.BuildScanToolParameters(nil, splitRouteSeeds(*routeSeeds), *routeSeedFile, parseHeaderMap(*authHeader), parseCookieMap(*authCookie), *authCookie),
+		RunnerOptions:  runnerOptions,
+		LLMModel:       selectedLLMModel,
+		LLMBaseURL:     selectedLLMURL,
 	}
 	var session models.Session
 	var initialTargets []models.Target
@@ -186,6 +191,61 @@ func splitCSV(value string) []string {
 		if part != "" {
 			out = append(out, part)
 		}
+	}
+	return out
+}
+
+func splitRouteSeeds(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	parts := strings.FieldsFunc(value, func(r rune) bool { return r == ',' || r == '\n' || r == '\r' })
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
+func parseHeaderMap(value string) map[string]string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	parts := strings.SplitN(value, ":", 2)
+	if len(parts) != 2 {
+		return nil
+	}
+	name := strings.TrimSpace(parts[0])
+	headerValue := strings.TrimSpace(parts[1])
+	if name == "" || headerValue == "" {
+		return nil
+	}
+	return map[string]string{name: headerValue}
+}
+
+func parseCookieMap(value string) map[string]string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	out := map[string]string{}
+	for _, part := range strings.Split(value, ";") {
+		pieces := strings.SplitN(strings.TrimSpace(part), "=", 2)
+		if len(pieces) != 2 {
+			continue
+		}
+		name := strings.TrimSpace(pieces[0])
+		cookieValue := strings.TrimSpace(pieces[1])
+		if name != "" && cookieValue != "" {
+			out[name] = cookieValue
+		}
+	}
+	if len(out) == 0 {
+		return nil
 	}
 	return out
 }

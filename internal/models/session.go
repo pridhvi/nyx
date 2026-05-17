@@ -1,6 +1,10 @@
 package models
 
-import "time"
+import (
+	"encoding/json"
+	"strings"
+	"time"
+)
 
 type SessionStatus string
 
@@ -50,6 +54,75 @@ type Session struct {
 	StartedAt      *time.Time                `json:"started_at,omitempty"`
 	CompletedAt    *time.Time                `json:"completed_at,omitempty"`
 	CreatedAt      time.Time                 `json:"created_at"`
+}
+
+const SessionScanOptionsKey = "_scan"
+
+type sessionJSON Session
+
+func (s Session) MarshalJSON() ([]byte, error) {
+	copy := sessionJSON(s)
+	copy.ToolParameters = RedactedToolParameters(s.ToolParameters)
+	return json.Marshal(copy)
+}
+
+func RedactedToolParameters(input map[string]map[string]any) map[string]map[string]any {
+	if input == nil {
+		return nil
+	}
+	out := make(map[string]map[string]any, len(input))
+	for toolID, params := range input {
+		copied := make(map[string]any, len(params))
+		for key, value := range params {
+			if toolID == SessionScanOptionsKey && scanOptionSecret(key) {
+				copied[key] = "********"
+				continue
+			}
+			copied[key] = value
+		}
+		out[toolID] = copied
+	}
+	return out
+}
+
+func scanOptionSecret(key string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(key))
+	return strings.Contains(normalized, "header") ||
+		strings.Contains(normalized, "cookie") ||
+		strings.Contains(normalized, "token") ||
+		strings.Contains(normalized, "password") ||
+		strings.Contains(normalized, "secret")
+}
+
+func BuildScanToolParameters(existing map[string]map[string]any, routeSeeds []string, routeSeedFile string, headers, cookies map[string]string, cookieHeader string) map[string]map[string]any {
+	if existing == nil {
+		existing = map[string]map[string]any{}
+	}
+	scan := map[string]any{}
+	if current := existing[SessionScanOptionsKey]; current != nil {
+		for key, value := range current {
+			scan[key] = value
+		}
+	}
+	if len(routeSeeds) > 0 {
+		scan["route_seeds"] = routeSeeds
+	}
+	if strings.TrimSpace(routeSeedFile) != "" {
+		scan["route_seed_file"] = strings.TrimSpace(routeSeedFile)
+	}
+	if len(headers) > 0 {
+		scan["auth_headers"] = headers
+	}
+	if len(cookies) > 0 {
+		scan["auth_cookies"] = cookies
+	}
+	if strings.TrimSpace(cookieHeader) != "" {
+		scan["auth_cookie_header"] = strings.TrimSpace(cookieHeader)
+	}
+	if len(scan) > 0 {
+		existing[SessionScanOptionsKey] = scan
+	}
+	return existing
 }
 
 type ScanRunnerOptions struct {

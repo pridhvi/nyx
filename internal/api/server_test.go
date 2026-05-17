@@ -624,7 +624,7 @@ func TestOperatorConsoleAPI(t *testing.T) {
 		t.Fatalf("expected bad request for unsafe extra args, got %d", unsafeArgs.Code)
 	}
 
-	profileBody := bytes.NewBufferString(`{"name":"Web active","description":"Saved","request":{"target":"","mode":"active","tools":["http-probe"],"enabled_phases":["fingerprint"]}}`)
+	profileBody := bytes.NewBufferString(`{"name":"Web active","description":"Saved","request":{"target":"","mode":"active","tools":["http-probe"],"enabled_phases":["fingerprint"],"route_seeds":["/admin"],"auth_headers":{"Authorization":"Bearer secret"},"auth_cookie_header":"session=secret"}}`)
 	profileCreate := httptest.NewRecorder()
 	handler.ServeHTTP(profileCreate, httptest.NewRequest(http.MethodPost, "/api/scan-profiles", profileBody))
 	if profileCreate.Code != http.StatusCreated {
@@ -633,6 +633,12 @@ func TestOperatorConsoleAPI(t *testing.T) {
 	var profile scanProfileRecord
 	if err := json.NewDecoder(profileCreate.Body).Decode(&profile); err != nil {
 		t.Fatal(err)
+	}
+	if len(profile.Request.RouteSeeds) != 1 || profile.Request.RouteSeeds[0] != "/admin" {
+		t.Fatalf("expected route seeds to remain in profile, got %#v", profile.Request.RouteSeeds)
+	}
+	if len(profile.Request.AuthHeaders) != 0 || profile.Request.AuthCookieHeader != "" {
+		t.Fatalf("expected auth secrets to be omitted from saved profile, got %#v", profile.Request)
 	}
 	profileList := httptest.NewRecorder()
 	handler.ServeHTTP(profileList, httptest.NewRequest(http.MethodGet, "/api/scan-profiles", nil))

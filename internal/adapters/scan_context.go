@@ -1,0 +1,288 @@
+package adapters
+
+import (
+	"bufio"
+	"context"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+	"sort"
+	"strings"
+
+	"github.com/pridhvi/nox/internal/models"
+)
+
+type scanContext struct {
+	RouteSeeds   []string
+	AuthHeaders  map[string]string
+	AuthCookies  map[string]string
+	CookieHeader string
+}
+
+func inputScanContext(input AdapterInput) scanContext {
+	params := map[string]any{}
+	if input.Session.ToolParameters != nil && input.Session.ToolParameters[models.SessionScanOptionsKey] != nil {
+		params = input.Session.ToolParameters[models.SessionScanOptionsKey]
+	}
+	ctx := scanContext{
+		RouteSeeds:   compactStrings(anyStringList(params["route_seeds"])),
+		AuthHeaders:  anyStringMap(params["auth_headers"]),
+		AuthCookies:  anyStringMap(params["auth_cookies"]),
+		CookieHeader: strings.TrimSpace(toString(params["auth_cookie_header"])),
+	}
+	if seedFile := strings.TrimSpace(toString(params["route_seed_file"])); seedFile != "" {
+		ctx.RouteSeeds = append(ctx.RouteSeeds, readRouteSeedFile(seedFile)...)
+	}
+	ctx.RouteSeeds = dedupeStrings(ctx.RouteSeeds)
+	return ctx
+}
+
+func anyStringList(value any) []string {
+	switch typed := value.(type) {
+	case nil:
+		return nil
+	case []string:
+		return typed
+	case []any:
+		out := make([]string, 0, len(typed))
+		for _, item := range typed {
+			out = append(out, toString(item))
+		}
+		return out
+	case string:
+		if strings.Contains(typed, "\n") {
+			return strings.Split(typed, "\n")
+		}
+		return strings.Split(typed, ",")
+	default:
+		return []string{toString(typed)}
+	}
+}
+
+func anyStringMap(value any) map[string]string {
+	switch typed := value.(type) {
+	case nil:
+		return nil
+	case map[string]string:
+		return typed
+	case map[string]any:
+		out := make(map[string]string, len(typed))
+		for key, item := range typed {
+			key = strings.TrimSpace(key)
+			text := strings.TrimSpace(toString(item))
+			if key != "" && text != "" {
+				out[key] = text
+			}
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+func readRouteSeedFile(path string) []string {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer file.Close()
+	var routes []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		routes = append(routes, line)
+		if len(routes) >= 10000 {
+			break
+		}
+	}
+	return routes
+}
+
+func dedupeStrings(values []string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+	}
+	return out
+}
+
+func seededRouteValues(input AdapterInput) []string {
+	return inputScanContext(input).RouteSeeds
+}
+
+func seededURLs(input AdapterInput) []string {
+	var urls []string
+	for _, seed := range seededRouteValues(input) {
+		raw := normalizeSeedURL(input.Target, seed)
+		if raw == "" {
+			continue
+		}
+		parsed, err := url.Parse(raw)
+		if err != nil || parsed.Hostname() == "" {
+			continue
+		}
+		if ok, _ := targetInScope(input, parsed.Hostname()); !ok {
+			continue
+		}
+		urls = append(urls, raw)
+	}
+	return dedupeStrings(urls)
+}
+
+func seededPathValues(input AdapterInput) []string {
+	var paths []string
+	for _, raw := range seededURLs(input) {
+		parsed, err := url.Parse(raw)
+		if err != nil {
+			continue
+		}
+		path := strings.TrimPrefix(parsed.EscapedPath(), "/")
+		if path == "" {
+			continue
+		}
+		if parsed.RawQuery != "" {
+			path += "?" + parsed.RawQuery
+		}
+		paths = append(paths, path)
+	}
+	return dedupeStrings(paths)
+}
+
+func normalizeSeedURL(target models.Target, seed string) string {
+	seed = strings.TrimSpace(seed)
+	if seed == "" {
+		return ""
+	}
+	if parsed, err := url.Parse(seed); err == nil && parsed.Scheme != "" && parsed.Host != "" {
+		if parsed.Scheme == "http" || parsed.Scheme == "https" {
+			return parsed.String()
+		}
+		return ""
+	}
+	base := strings.TrimRight(targetURL(target), "/")
+	if strings.HasPrefix(seed, "?") {
+		return base + "/" + seed
+	}
+	if !strings.HasPrefix(seed, "/") {
+		seed = "/" + seed
+	}
+	return base + seed
+}
+
+func newHTTPRequestWithAuth(ctx context.Context, input AdapterInput, method, rawURL string, body io.Reader, userAgent string) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, method, rawURL, body)
+	if err != nil {
+		return nil, err
+	}
+	if userAgent != "" {
+		req.Header.Set("User-Agent", userAgent)
+	}
+	applyAuthToRequest(input, req)
+	return req, nil
+}
+
+func applyAuthToRequest(input AdapterInput, req *http.Request) {
+	scanCtx := inputScanContext(input)
+	for name, value := range scanCtx.AuthHeaders {
+		if strings.TrimSpace(name) != "" && value != "" {
+			req.Header.Set(name, value)
+		}
+	}
+	cookieHeader := scanCtx.CookieHeader
+	if cookieHeader == "" && len(scanCtx.AuthCookies) > 0 {
+		var parts []string
+		for _, name := range sortedMapKeys(scanCtx.AuthCookies) {
+			value := scanCtx.AuthCookies[name]
+			if strings.TrimSpace(name) != "" && value != "" {
+				parts = append(parts, strings.TrimSpace(name)+"="+value)
+			}
+		}
+		cookieHeader = strings.Join(parts, "; ")
+	}
+	if cookieHeader != "" && req.Header.Get("Cookie") == "" {
+		req.Header.Set("Cookie", cookieHeader)
+	}
+}
+
+func authCommandArgs(input AdapterInput, toolID string) []string {
+	scanCtx := inputScanContext(input)
+	cookieHeader := scanCtx.CookieHeader
+	if cookieHeader == "" && len(scanCtx.AuthCookies) > 0 {
+		var parts []string
+		for _, name := range sortedMapKeys(scanCtx.AuthCookies) {
+			value := scanCtx.AuthCookies[name]
+			if strings.TrimSpace(name) != "" && value != "" {
+				parts = append(parts, strings.TrimSpace(name)+"="+value)
+			}
+		}
+		cookieHeader = strings.Join(parts, "; ")
+	}
+	var headerLines []string
+	for _, name := range sortedMapKeys(scanCtx.AuthHeaders) {
+		value := scanCtx.AuthHeaders[name]
+		if strings.TrimSpace(name) != "" && value != "" {
+			headerLines = append(headerLines, strings.TrimSpace(name)+": "+value)
+		}
+	}
+	if cookieHeader != "" {
+		headerLines = append(headerLines, "Cookie: "+cookieHeader)
+	}
+	switch toolID {
+	case "ffuf":
+		var args []string
+		for _, line := range headerLines {
+			args = append(args, "-H", line)
+		}
+		return args
+	case "sqlmap":
+		var args []string
+		if len(headerLines) > 0 {
+			args = append(args, "--headers", strings.Join(headerLines, "\n"))
+		}
+		if cookieHeader != "" {
+			args = append(args, "--cookie", cookieHeader)
+		}
+		return args
+	case "dalfox":
+		var args []string
+		for _, line := range headerLines {
+			args = append(args, "-H", line)
+		}
+		return args
+	default:
+		return nil
+	}
+}
+
+func sortedMapKeys(values map[string]string) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func redactCommandArgs(args []string) []string {
+	out := append([]string(nil), args...)
+	for i := 0; i < len(out); i++ {
+		switch out[i] {
+		case "-H", "--headers", "--cookie":
+			if i+1 < len(out) {
+				out[i+1] = "********"
+				i++
+			}
+		}
+	}
+	return out
+}

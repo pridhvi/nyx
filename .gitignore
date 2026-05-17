@@ -10,5 +10,6 @@ web/dist/
 node_modules/
 bin/
 coverage/
+artifacts/
 .env
 .nox/

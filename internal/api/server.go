@@ -1491,6 +1491,7 @@ func (s *Server) createScanProfile(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
+	req.Request = redactedScanProfileRequest(req.Request)
 	profiles, err := s.readScanProfiles()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
@@ -1511,6 +1512,13 @@ func (s *Server) createScanProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSONStatus(w, http.StatusCreated, profile)
+}
+
+func redactedScanProfileRequest(req startScanRequest) startScanRequest {
+	req.AuthHeaders = nil
+	req.AuthCookies = nil
+	req.AuthCookieHeader = ""
+	return req
 }
 
 func (s *Server) deleteScanProfile(w http.ResponseWriter, r *http.Request) {
@@ -2485,6 +2493,10 @@ type startScanRequest struct {
 	ToolTimeoutSeconds int                       `json:"tool_timeout_seconds"`
 	ToolDelayMS        int                       `json:"tool_delay_ms"`
 	RateLimit          string                    `json:"rate_limit"`
+	RouteSeeds         []string                  `json:"route_seeds"`
+	AuthHeaders        map[string]string         `json:"auth_headers"`
+	AuthCookies        map[string]string         `json:"auth_cookies"`
+	AuthCookieHeader   string                    `json:"auth_cookie_header"`
 	EvasionProfile     string                    `json:"evasion_profile"`
 	JitterMS           int                       `json:"jitter_ms"`
 	ProxyURL           string                    `json:"proxy_url"`
@@ -2507,7 +2519,7 @@ func (s *Server) startScan(w http.ResponseWriter, r *http.Request) {
 	if len(req.Targets) > 0 {
 		req.Target = strings.Join(req.Targets, "\n")
 	}
-	if requiresPrivilegedScan(req, len(s.enabledGlobalPlugins()) > 0) && !s.requireConfiguredAPIKey(w, "source and plugin scans require API key authentication") {
+	if requiresPrivilegedScan(req, len(s.enabledGlobalPlugins()) > 0) && !s.requireConfiguredAPIKey(w, "privileged scan options require API key authentication") {
 		return
 	}
 	if req.SourcePath != "" {
@@ -2552,7 +2564,7 @@ func (s *Server) startScan(w http.ResponseWriter, r *http.Request) {
 		OutOfScope:     req.OutOfScope,
 		EnabledPhases:  req.EnabledPhases,
 		EnabledTools:   req.Tools,
-		ToolParameters: req.ToolParameters,
+		ToolParameters: models.BuildScanToolParameters(req.ToolParameters, req.RouteSeeds, "", req.AuthHeaders, req.AuthCookies, req.AuthCookieHeader),
 		RunnerOptions:  runnerOptions,
 		LLMModel:       req.LLMModel,
 		LLMBaseURL:     req.LLMBaseURL,
@@ -2583,6 +2595,9 @@ func (s *Server) startScan(w http.ResponseWriter, r *http.Request) {
 
 func requiresPrivilegedScan(req startScanRequest, enabledGlobalPlugins bool) bool {
 	if strings.TrimSpace(req.SourcePath) != "" {
+		return true
+	}
+	if len(req.AuthHeaders) > 0 || len(req.AuthCookies) > 0 || strings.TrimSpace(req.AuthCookieHeader) != "" {
 		return true
 	}
 	for _, tool := range req.Tools {

@@ -1,0 +1,14 @@
+/api/Challenges/
+/api/Products/
+/api/BasketItems/
+/api/Feedbacks/
+/api/Users/
+/rest/products/search
+/rest/user/login
+/rest/basket
+/rest/admin/application-version
+/ftp/
+/redirect
+/profile
+/administration
+/score-board

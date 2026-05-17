@@ -33,11 +33,13 @@ func (a SQLMap) Run(ctx context.Context, input AdapterInput) (AdapterOutput, err
 	level := boundedInt(toolParamInt(input, "level", 1), 1, 5)
 	risk := boundedInt(toolParamInt(input, "risk", 1), 1, 3)
 	args := []string{"-u", target, "--batch", "--level", strconv.Itoa(level), "--risk", strconv.Itoa(risk), "--crawl", "0", "--flush-session"}
+	args = append(args, authCommandArgs(input, a.ID())...)
 	args = append(args, toolParamStringList(input, "extra_args")...)
+	displayArgs := redactCommandArgs(args)
 	if ok, reason := input.Scope.IsInScope(input.Target.Host); !ok {
-		return AdapterOutput{ToolRun: failedToolRun(input, a.ID(), args, reason, 1)}, nil
+		return AdapterOutput{ToolRun: failedToolRun(input, a.ID(), displayArgs, reason, 1)}, nil
 	}
-	run := newToolRun(input, a.ID(), args)
+	run := newToolRun(input, a.ID(), displayArgs)
 	result := RunCommand(ctx, commandTimeout(input, 90*time.Second), "sqlmap", args...)
 	findings := parseSQLMapFindings(input, result.Stdout+"\n"+result.Stderr)
 	return AdapterOutput{Findings: findings, ToolRun: finishToolRun(run, result, len(findings))}, nil

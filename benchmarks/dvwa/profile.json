@@ -1,0 +1,35 @@
+{
+  "id": "dvwa",
+  "name": "Damn Vulnerable Web Application",
+  "target_env": "NOX_BENCHMARK_DVWA_URL",
+  "default_url": "http://127.0.0.1:18080",
+  "docker": {
+    "container_name": "nox-benchmark-dvwa",
+    "image": "vulnerables/web-dvwa",
+    "host_port_env": "NOX_BENCHMARK_DVWA_PORT",
+    "default_host_port": 18080,
+    "container_port": 80
+  },
+  "auth": {
+    "type": "form",
+    "login_url": "/login.php",
+    "username": "admin",
+    "password": "password",
+    "csrf_field": "user_token",
+    "cookie_names": ["PHPSESSID", "security"],
+    "post_login_setup": [
+      {
+        "method": "POST",
+        "path": "/security.php",
+        "form": {
+          "security": "low",
+          "seclev_submit": "Submit"
+        }
+      }
+    ]
+  },
+  "notes": [
+    "Auth, CSRF extraction, and security-level setup are benchmark profile data.",
+    "Core scanner adapters must not hardcode DVWA route or cookie behavior."
+  ]
+}

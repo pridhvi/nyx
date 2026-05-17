@@ -51,14 +51,13 @@ func (a HTTPProbe) Run(ctx context.Context, input AdapterInput) (AdapterOutput, 
 	if client == nil {
 		client = http.DefaultClient
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newHTTPRequestWithAuth(ctx, input, http.MethodGet, url, nil, "nox/0.1 safe-http-probe")
 	if err != nil {
 		run.ExitCode = 1
 		run.RawStderr = err.Error()
 		run.DurationMS = time.Since(started).Milliseconds()
 		return AdapterOutput{ToolRun: run}, err
 	}
-	req.Header.Set("User-Agent", "nox/0.1 safe-http-probe")
 	resp, err := client.Do(req)
 	if err != nil {
 		run.ExitCode = 1

@@ -128,12 +128,11 @@ func (a CORSCheck) Run(ctx context.Context, input AdapterInput) (AdapterOutput, 
 		client = http.DefaultClient
 	}
 	origin := "https://nox.invalid"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	req, err := newHTTPRequestWithAuth(ctx, input, http.MethodGet, rawURL, nil, "nox/0.1 cors-check")
 	if err != nil {
 		return AdapterOutput{ToolRun: failedToolRun(input, a.ID(), args, err.Error(), 1)}, nil
 	}
 	req.Header.Set("Origin", origin)
-	req.Header.Set("User-Agent", "nox/0.1 cors-check")
 	resp, err := client.Do(req)
 	if err != nil {
 		return AdapterOutput{ToolRun: failedToolRun(input, a.ID(), args, err.Error(), 1)}, nil
@@ -332,7 +331,7 @@ func parseGitleaksFindings(input AdapterInput, raw string) []models.Finding {
 }
 
 func fetchAndScanScripts(ctx context.Context, input AdapterInput, client HTTPDoer, rawURL string) (string, []models.Finding) {
-	pageBody, err := fetchText(ctx, client, rawURL)
+	pageBody, err := fetchText(ctx, input, client, rawURL)
 	if err != nil {
 		return err.Error(), nil
 	}
@@ -346,7 +345,7 @@ func fetchAndScanScripts(ctx context.Context, input AdapterInput, client HTTPDoe
 		if ok, _ := targetInScope(input, parsed.Hostname()); !ok {
 			continue
 		}
-		body, err := fetchText(ctx, client, scriptURL)
+		body, err := fetchText(ctx, input, client, scriptURL)
 		if err != nil {
 			rawParts = append(rawParts, scriptURL+"\n"+err.Error())
 			continue
@@ -357,12 +356,11 @@ func fetchAndScanScripts(ctx context.Context, input AdapterInput, client HTTPDoe
 	return strings.Join(rawParts, "\n---\n"), findings
 }
 
-func fetchText(ctx context.Context, client HTTPDoer, rawURL string) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+func fetchText(ctx context.Context, input AdapterInput, client HTTPDoer, rawURL string) (string, error) {
+	req, err := newHTTPRequestWithAuth(ctx, input, http.MethodGet, rawURL, nil, "nox/0.1 js-secret-scan")
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("User-Agent", "nox/0.1 js-secret-scan")
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", err

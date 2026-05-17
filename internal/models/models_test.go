@@ -142,6 +142,39 @@ func TestSessionTargetToolRunSerializationAndValidation(t *testing.T) {
 	})
 }
 
+func TestSessionJSONRedactsScanAuthOptions(t *testing.T) {
+	session := Session{
+		ID:          "session-1",
+		Status:      SessionStatusPending,
+		Mode:        ScanModeActive,
+		TargetInput: "https://example.test",
+		ToolParameters: map[string]map[string]any{
+			SessionScanOptionsKey: {
+				"route_seeds":         []string{"/admin"},
+				"auth_headers":        map[string]string{"Authorization": "Bearer secret"},
+				"auth_cookie_header":  "session=secret",
+				"auth_cookies":        map[string]string{"csrftoken": "secret"},
+				"non_sensitive_label": "kept",
+			},
+			"ffuf": {
+				"wordlist": "/tmp/words.txt",
+			},
+		},
+		CreatedAt: time.Now().UTC(),
+	}
+	body, err := json.Marshal(session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	if strings.Contains(text, "Bearer secret") || strings.Contains(text, "session=secret") || strings.Contains(text, "csrftoken") {
+		t.Fatalf("expected scan auth options to be redacted, got %s", text)
+	}
+	if !strings.Contains(text, "/admin") || !strings.Contains(text, "/tmp/words.txt") || !strings.Contains(text, "kept") {
+		t.Fatalf("expected non-secret scan and tool options to remain visible, got %s", text)
+	}
+}
+
 func TestCVEMatchAttackVectorAndReportSerializationAndValidation(t *testing.T) {
 	now := time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)
 	cve := CVEMatch{
