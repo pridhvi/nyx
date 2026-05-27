@@ -250,6 +250,7 @@ Add generic, bounded validators for common classes:
 
 - reflected XSS marker validation (implemented for seeded query routes)
 - stored XSS marker recall where a read-back route is known or discovered
+  (implemented for explicitly safe benchmark profiles)
 - DOM XSS candidate detection with browser-assisted confirmation as a later
   enhancement
 - SQL injection boolean/error validation with strict limits (implemented for
@@ -337,15 +338,16 @@ Add benchmark-specific output alongside normal Nyx reports:
 
 ```text
 DVWA Benchmark
-Covered: 9/14
-Confirmed: 6/14
+Covered: 10/14
+Confirmed: 7/14
 Detected: 2/14
 Partial: 1/14
-Missed: 5/14
+Missed: 4/14
 Skipped: 0/14
 
 SQL Injection: confirmed
 Reflected XSS: confirmed
+Stored XSS: confirmed
 File Inclusion: confirmed
 Command Injection: confirmed
 Weak Session IDs: confirmed
@@ -395,20 +397,21 @@ Acceptance criteria:
 
 Latest Linux VM acceptance baseline from this track:
 
-- DVWA: 9 of 14 modules covered, with regular SQL injection, blind SQL
-  injection, reflected XSS, file inclusion, command injection, and weak
-  session ID confirmed by built-in validators; current full-tool benchmark
-  runs have no failed tool runs.
+- DVWA: 10 of 14 modules covered, with regular SQL injection, blind SQL
+  injection, reflected XSS, stored XSS, file inclusion, command injection, and
+  weak session ID confirmed by built-in validators; current full-tool
+  benchmark runs have no failed tool runs.
 - Juice Shop: 4 of 15 categories covered; this is the current shared-validator
   regression floor, and current full-tool benchmark runs have no failed tool
   runs.
 
 Short-term:
 
-- DVWA: maintain at least 9 of 14 modules covered while improving confirmation
-  depth for stored XSS, DOM XSS, or brute-force workflows.
-- DVWA: maintain confirmed SQL injection, reflected XSS, file inclusion,
-  command injection, and weak session ID coverage in benchmark-safe mode.
+- DVWA: maintain at least 10 of 14 modules covered while improving confirmation
+  depth for DOM XSS or brute-force workflows.
+- DVWA: maintain confirmed SQL injection, reflected XSS, stored XSS, file
+  inclusion, command injection, and weak session ID coverage in benchmark-safe
+  mode.
 - Juice Shop: identify at least 25 category-level challenge signals or route
   risks.
 - Juice Shop: confirm at least OpenAPI exposure, CORS/header issues, selected

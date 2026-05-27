@@ -522,6 +522,109 @@ func TestReflectedXSSCheckDoesNotReportEscapedReflection(t *testing.T) {
 	}
 }
 
+func TestStoredXSSCheckConfirmsReadbackMarker(t *testing.T) {
+	var stored []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			if err := r.ParseForm(); err != nil {
+				t.Fatal(err)
+			}
+			stored = append(stored, r.Form.Get("message"))
+			_, _ = w.Write([]byte("saved"))
+		default:
+			_, _ = w.Write([]byte(`<form method="post" action="/guestbook"><input name="name"><textarea name="message"></textarea><button name="submit" value="Sign">Sign</button></form>`))
+			for _, value := range stored {
+				_, _ = w.Write([]byte(value))
+			}
+		}
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/guestbook")
+	input.ToolParameters = map[string]any{
+		"allow_stored_xss":         true,
+		"intentionally_vulnerable": true,
+		"non_production":           true,
+	}
+	adapter := NewStoredXSSCheck()
+	if !adapter.ShouldRun(input) {
+		t.Fatal("expected stored XSS check to run with seeded stored route")
+	}
+	out, err := adapter.Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
+	}
+	finding := out.Findings[0]
+	if finding.ToolID != "stored-xss-check" || finding.Parameter != "message" || finding.Status != "confirmed" || finding.Severity != models.SeverityHigh {
+		t.Fatalf("unexpected finding: %#v", finding)
+	}
+}
+
+func TestStoredXSSCheckRequiresBenchmarkSafetyGate(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`<form method="post" action="/guestbook"><textarea name="message"></textarea></form>`))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/guestbook")
+	out, err := NewStoredXSSCheck().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 0 {
+		t.Fatalf("expected no findings, got %#v", out.Findings)
+	}
+	if !strings.Contains(out.ToolRun.RawStdout, "active_stored_xss_requires") {
+		t.Fatalf("expected safety skip reason, got %s", out.ToolRun.RawStdout)
+	}
+}
+
+func TestStoredXSSCheckDoesNotReportEscapedReadback(t *testing.T) {
+	var stored []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			if err := r.ParseForm(); err != nil {
+				t.Fatal(err)
+			}
+			stored = append(stored, r.Form.Get("message"))
+			_, _ = w.Write([]byte("saved"))
+		default:
+			_, _ = w.Write([]byte(`<form method="post" action="/guestbook"><textarea name="message"></textarea></form>`))
+			for _, value := range stored {
+				_, _ = w.Write([]byte(html.EscapeString(value)))
+			}
+		}
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/guestbook")
+	input.ToolParameters = map[string]any{
+		"allow_stored_xss":         true,
+		"intentionally_vulnerable": true,
+		"non_production":           true,
+	}
+	out, err := NewStoredXSSCheck().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 0 {
+		t.Fatalf("expected no findings for escaped readback, got %#v", out.Findings)
+	}
+}
+
+func TestStoredXSSCandidatesUseDVWASeededRoutes(t *testing.T) {
+	input := testHTTPAdapterInput(t, "http://example.test",
+		"/vulnerabilities/xss_s/",
+		"/vulnerabilities/xss_r/?name=nyx",
+	)
+	candidates := storedXSSCandidateURLs(input, 10)
+	if len(candidates) != 1 || candidates[0] != "http://example.test/vulnerabilities/xss_s/" {
+		t.Fatalf("expected seeded DVWA stored XSS candidate, got %#v", candidates)
+	}
+}
+
 func TestQueryMutationCandidatesUsesDVWASeededRoutes(t *testing.T) {
 	input := testHTTPAdapterInput(t, "http://example.test",
 		"/vulnerabilities/sqli/?id=1&Submit=Submit",

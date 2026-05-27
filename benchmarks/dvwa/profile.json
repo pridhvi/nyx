@@ -43,6 +43,7 @@
   },
   "safe_active_checks": {
     "allow_command_injection": true,
+    "allow_stored_xss": true,
     "intentionally_vulnerable": true,
     "non_production": true
   },

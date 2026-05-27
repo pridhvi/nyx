@@ -30,6 +30,7 @@ func init() {
 	Register(NewJWTTool())
 	Register(NewOAuthCheck())
 	Register(NewReflectedXSSCheck())
+	Register(NewStoredXSSCheck())
 	Register(NewOpenRedirectCheck())
 	Register(NewSQLICheck())
 	Register(NewFileInclusionCheck())

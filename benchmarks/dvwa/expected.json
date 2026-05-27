@@ -233,14 +233,16 @@
       "route": "/vulnerabilities/xss_s/",
       "automation_suitable": true,
       "confirmation_strategy": "unique marker submission and read-back validation",
-      "match": {
+      "all_match": {
         "url": [
           "/vulnerabilities/xss_s/"
         ],
         "tool": [
-          "dalfox"
+          "dalfox",
+          "stored-xss-check"
         ],
         "title": [
+          "stored xss marker confirmed",
           "stored xss",
           "persistent xss"
         ]

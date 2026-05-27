@@ -3022,6 +3022,7 @@ func descriptionForTool(id string) string {
 		"jwt-tool":                "Checks JWT structure and common token weaknesses.",
 		"oauth-check":             "Checks OAuth and OIDC metadata for common misconfigurations.",
 		"reflected-xss-check":     "Safely validates seeded query parameters for reflected XSS markers.",
+		"stored-xss-check":        "Validates seeded stored-XSS forms only when explicitly marked intentionally vulnerable and non-production.",
 		"open-redirect-check":     "Safely validates seeded redirect-like parameters without following external redirects.",
 		"sqli-check":              "Safely validates seeded query parameters for SQL injection with bounded boolean and error canaries.",
 		"file-inclusion-check":    "Safely validates seeded file/path parameters with bounded local hosts-file marker probes.",
@@ -3113,6 +3114,12 @@ func parametersForTool(id string) []toolParameter {
 	case "command-injection-check":
 		return []toolParameter{
 			{Name: "allow_command_injection", Label: "Allow Command Check", Type: "boolean", Description: "Enable harmless marker command validation for explicitly safe targets."},
+			{Name: "intentionally_vulnerable", Label: "Intentionally Vulnerable", Type: "boolean", Description: "Confirms the target is a lab or benchmark built for active validation."},
+			{Name: "non_production", Label: "Non-production", Type: "boolean", Description: "Confirms the target is not a production system."},
+		}
+	case "stored-xss-check":
+		return []toolParameter{
+			{Name: "allow_stored_xss", Label: "Allow Stored XSS Check", Type: "boolean", Description: "Enable persistent marker validation for explicitly safe targets."},
 			{Name: "intentionally_vulnerable", Label: "Intentionally Vulnerable", Type: "boolean", Description: "Confirms the target is a lab or benchmark built for active validation."},
 			{Name: "non_production", Label: "Non-production", Type: "boolean", Description: "Confirms the target is not a production system."},
 		}

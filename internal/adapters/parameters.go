@@ -84,6 +84,14 @@ func supportedToolParameterNames(toolID string) map[string]bool {
 			"intentionally_vulnerable": true,
 			"non_production":           true,
 		}
+	case "stored-xss-check":
+		return map[string]bool{
+			"enabled":                  true,
+			"allow_active":             true,
+			"allow_stored_xss":         true,
+			"intentionally_vulnerable": true,
+			"non_production":           true,
+		}
 	default:
 		return map[string]bool{}
 	}

@@ -895,6 +895,7 @@ Any process that speaks this JSON contract over stdin/stdout is a valid Nyx plug
 | `jwt_tool` | subprocess | JWT: alg:none, weak secret, key confusion |
 | OAuth checks | Go stdlib HTTP | Open redirect in OAuth callbacks, CSRF |
 | Reflected XSS check | Go stdlib HTTP | Marker reflection in seeded query parameters |
+| Stored XSS check | Go stdlib HTTP | Marker submission plus authenticated read-back, gated to intentionally vulnerable non-production targets |
 | SQL injection check | Go stdlib HTTP | Bounded boolean/error canaries in seeded query parameters |
 | Open redirect check | Go stdlib HTTP | Controlled external redirects in seeded redirect-like parameters |
 | File inclusion check | Go stdlib HTTP | Safe local hosts-file marker probes in seeded file/path parameters |

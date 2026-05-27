@@ -36,6 +36,19 @@ func TestValidateToolParametersAllowsCommandInjectionSafetyGate(t *testing.T) {
 	}
 }
 
+func TestValidateToolParametersAllowsStoredXSSSafetyGate(t *testing.T) {
+	err := ValidateToolParameters(map[string]map[string]any{
+		"stored-xss-check": {
+			"allow_stored_xss":         true,
+			"intentionally_vulnerable": true,
+			"non_production":           true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected stored XSS safety gate params to validate: %v", err)
+	}
+}
+
 func TestValidateToolParametersRejectsUnsafeExtraArgs(t *testing.T) {
 	err := ValidateToolParameters(map[string]map[string]any{
 		"sqlmap": {"extra_args": []any{"--os-shell"}},

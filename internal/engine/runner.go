@@ -80,6 +80,7 @@ func DefaultSafeAdapters() []adapters.Adapter {
 		adapters.NewJWTTool(),
 		adapters.NewOAuthCheck(),
 		adapters.NewReflectedXSSCheck(),
+		adapters.NewStoredXSSCheck(),
 		adapters.NewOpenRedirectCheck(),
 		adapters.NewSQLICheck(),
 		adapters.NewFileInclusionCheck(),
