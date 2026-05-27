@@ -12,7 +12,7 @@ artifact_root="${NYX_BENCHMARK_ARTIFACT_DIR:-artifacts/benchmarks/$timestamp}"
 sessions_root="$artifact_root/sessions"
 mkdir -p "$artifact_root" "$sessions_root"
 
-tools_default="http-probe,security-headers,whatweb,graphql-introspection,openapi-discovery,arjun,linkfinder,js-secret-scan,cors-check,nmap,ffuf,nuclei-tech,nuclei-vuln,nikto,sqlmap,dalfox,brute-force-check,reflected-xss-check,dom-xss-check,stored-xss-check,sqli-check,open-redirect-check,file-inclusion-check,command-injection-check,upload-check,idor-check,workflow-assist,csp-review,csrf-check,weak-session-check,xxe-fuzz"
+tools_default="http-probe,security-headers,whatweb,graphql-introspection,openapi-discovery,arjun,linkfinder,js-secret-scan,cors-check,nmap,ffuf,nuclei-tech,nuclei-vuln,jwt-tool,nikto,sqlmap,dalfox,brute-force-check,reflected-xss-check,dom-xss-check,stored-xss-check,sqli-check,open-redirect-check,file-inclusion-check,command-injection-check,upload-check,idor-check,workflow-assist,csp-review,csrf-check,weak-session-check,xxe-fuzz"
 tools="${NYX_BENCHMARK_TOOLS:-$tools_default}"
 scan_timeout="${NYX_BENCHMARK_SCAN_TIMEOUT:-20m}"
 scan_concurrency="${NYX_BENCHMARK_CONCURRENCY:-1}"

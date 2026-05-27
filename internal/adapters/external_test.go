@@ -1,11 +1,15 @@
 package adapters
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"html"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -466,6 +470,118 @@ func TestParseJWTToolFindings(t *testing.T) {
 	if findings[0].ToolID != "jwt-tool" || findings[0].Severity != models.SeverityCritical {
 		t.Fatalf("unexpected finding: %#v", findings[0])
 	}
+}
+
+func TestCandidateJWTUsesAuthenticatedScanContext(t *testing.T) {
+	input := testExternalInput()
+	token := testJWT(t, map[string]any{"typ": "JWT", "alg": "RS256"}, map[string]any{"sub": "1"})
+	input.Session.ToolParameters = map[string]map[string]any{
+		models.SessionScanOptionsKey: {
+			"auth_headers": map[string]any{"Authorization": "Bearer " + token},
+		},
+	}
+	if got := candidateJWT(input); got != token {
+		t.Fatalf("expected JWT from auth header, got %q", got)
+	}
+}
+
+func TestStaticJWTReviewFindingsFlagMissingExpirationAndSensitiveClaims(t *testing.T) {
+	input := testExternalInput()
+	token := testJWT(t,
+		map[string]any{"typ": "JWT", "alg": "RS256"},
+		map[string]any{
+			"sub": "1",
+			"data": map[string]any{
+				"password":   "hash-value-that-must-not-be-recorded",
+				"totpSecret": "secret-value-that-must-not-be-recorded",
+			},
+		},
+	)
+	findings := staticJWTReviewFindings(input, token)
+	if len(findings) != 2 {
+		t.Fatalf("expected missing-exp and sensitive-claim findings, got %#v", findings)
+	}
+	joinedTitles := strings.ToLower(findings[0].Title + " " + findings[1].Title)
+	if !strings.Contains(joinedTitles, "expiration") || !strings.Contains(joinedTitles, "hash") {
+		t.Fatalf("expected expiration and hash findings, got %#v", findings)
+	}
+	for _, finding := range findings {
+		if strings.Contains(finding.EvidenceRaw, "hash-value-that-must-not-be-recorded") ||
+			strings.Contains(finding.EvidenceRaw, "secret-value-that-must-not-be-recorded") ||
+			strings.Contains(finding.EvidenceRaw, token) {
+			t.Fatalf("JWT review evidence should not contain token or claim values: %s", finding.EvidenceRaw)
+		}
+	}
+}
+
+func TestJWTToolUsesBuiltInReviewWhenExternalToolMissing(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+	input := testExternalInput()
+	token := testJWT(t,
+		map[string]any{"typ": "JWT", "alg": "RS256"},
+		map[string]any{"sub": "1"},
+	)
+	input.Session.ToolParameters = map[string]map[string]any{
+		models.SessionScanOptionsKey: {
+			"auth_headers": map[string]any{"Authorization": "Bearer " + token},
+		},
+	}
+	out, err := NewJWTTool().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.ToolRun.ExitCode != 0 || len(out.Findings) != 1 {
+		t.Fatalf("expected successful built-in JWT review finding, got run=%#v findings=%#v", out.ToolRun, out.Findings)
+	}
+	if strings.Contains(strings.Join(out.ToolRun.Args, " "), token) {
+		t.Fatalf("JWT token should not be persisted in tool args: %#v", out.ToolRun.Args)
+	}
+	if !strings.Contains(out.ToolRun.RawStdout, "external_skip_reason=jwt_tool_not_found") {
+		t.Fatalf("expected missing external tool skip reason, got %q", out.ToolRun.RawStdout)
+	}
+}
+
+func TestJWTToolDoesNotFailWhenExternalSupplementExitsAfterBuiltInFinding(t *testing.T) {
+	binDir := t.TempDir()
+	toolPath := filepath.Join(binDir, "jwt_tool")
+	if err := os.WriteFile(toolPath, []byte("#!/bin/sh\necho first-run setup\nexit 1\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir)
+	t.Setenv("HOME", t.TempDir())
+	input := testExternalInput()
+	token := testJWT(t,
+		map[string]any{"typ": "JWT", "alg": "RS256"},
+		map[string]any{"sub": "1"},
+	)
+	input.Session.ToolParameters = map[string]map[string]any{
+		models.SessionScanOptionsKey: {
+			"auth_headers": map[string]any{"Authorization": "Bearer " + token},
+		},
+	}
+	out, err := NewJWTTool().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.ToolRun.ExitCode != 0 || len(out.Findings) != 1 {
+		t.Fatalf("expected nonzero external supplement to be ignored after built-in finding, got run=%#v findings=%#v", out.ToolRun, out.Findings)
+	}
+	if !strings.Contains(out.ToolRun.RawStdout, "external_nonzero_ignored=true") {
+		t.Fatalf("expected ignored external nonzero marker, got %q", out.ToolRun.RawStdout)
+	}
+}
+
+func testJWT(t *testing.T, header, payload map[string]any) string {
+	t.Helper()
+	encode := func(values map[string]any) string {
+		body, err := json.Marshal(values)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return base64.RawURLEncoding.EncodeToString(body)
+	}
+	return encode(header) + "." + encode(payload) + ".signature"
 }
 
 func TestParseOAuthFindings(t *testing.T) {

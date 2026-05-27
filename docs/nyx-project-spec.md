@@ -892,7 +892,7 @@ Any process that speaks this JSON contract over stdin/stdout is a valid Nyx plug
 | `sqlmap` | subprocess | SQL injection in discovered parameters |
 | `dalfox` | subprocess | Reflected/stored/DOM XSS |
 | `SSRFmap` | subprocess | SSRF in URL parameters and headers |
-| `jwt_tool` | subprocess | JWT: alg:none, weak secret, key confusion |
+| JWT review / `jwt_tool` | Go stdlib parser plus optional subprocess | JWT missing expiration, sensitive hash/secret claim paths, alg:none, weak secret, key confusion |
 | OAuth checks | Go stdlib HTTP | Open redirect in OAuth callbacks, CSRF |
 | Brute force check | Go stdlib HTTP | Strict configured credential validation gated to intentionally vulnerable non-production targets |
 | Reflected XSS check | Go stdlib HTTP | Marker reflection in browser-facing seeded query parameters |

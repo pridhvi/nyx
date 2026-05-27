@@ -62,7 +62,9 @@ read-back validation, browser-backed DOM XSS marker validation for seeded
 hash/search routes with multiple browser payload shapes, seeded external
 redirect validation, CSP bypass
 human-assist review, CAPTCHA-protected sensitive-workflow review, CAPTCHA
-answer exposure checks, strict credential validation gated by
+answer exposure checks, built-in JWT claim review for missing expiration and
+sensitive hash-bearing claims without persisting token values, strict
+credential validation gated by
 intentionally-vulnerable/non-production profile flags, phase-ordered DAG
 scheduling with registered adapter order preserved inside a phase, and first
 adapter consumers for built-in HTTP checks plus `ffuf`, `sqlmap`, and `dalfox`.
@@ -637,8 +639,10 @@ work and must be carried forward:
   normalizes matched template findings.
 - Optional SSRFmap subprocess adapter uses query/hidden-parameter targets from
   Phase 8.
-- Optional `jwt_tool` subprocess adapter runs when a JWT-like token is present
-  in target input or prior evidence.
+- Built-in JWT review runs when a JWT-like token is present in authenticated
+  scan context, target input, or prior evidence; it checks for missing
+  expiration and sensitive hash/secret claim paths before optionally invoking
+  `jwt_tool` as an external supplement.
 - Built-in OAuth check probes untrusted `redirect_uri` behavior on OAuth-like
   surfaces.
 - Built-in reflected XSS validator mutates browser-facing seeded/query/hidden
@@ -686,12 +690,12 @@ work and must be carried forward:
 - Optional `nikto` subprocess adapter parses JSON or text web-server findings.
 - Existing `sqlmap` and `dalfox` wrappers now use Phase 8 hidden-parameter
   discoveries when the initial target URL has no query string.
-- Parser and adapter tests cover nuclei vulnerability output, SSRFmap, JWT,
-  OAuth, reflected XSS, open redirect, SQL injection validation, file inclusion
-  validation, command injection safety gates, upload validation, IDOR checks,
-  workflow-assist hints, CSRF form analysis, weak session sampling, CORS
-  reflected-origin handling, SSTI, XXE, Nikto, and hidden-parameter target
-  handoff.
+- Parser and adapter tests cover nuclei vulnerability output, SSRFmap, JWT
+  claim review and `jwt_tool` fallback behavior, OAuth, reflected XSS, open
+  redirect, SQL injection validation, file inclusion validation, command
+  injection safety gates, upload validation, IDOR checks, workflow-assist
+  hints, CSRF form analysis, weak session sampling, CORS reflected-origin
+  handling, SSTI, XXE, Nikto, and hidden-parameter target handoff.
 
 ### Remaining Work
 
