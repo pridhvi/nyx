@@ -21,7 +21,7 @@ func (Dalfox) Name() string { return "Dalfox" }
 
 func (Dalfox) Phase() Phase { return PhaseVulnScan }
 
-func (Dalfox) DependsOn() []string { return []string{"ffuf"} }
+func (Dalfox) DependsOn() []string { return []string{"ffuf", "dom-xss-check"} }
 
 func (Dalfox) ShouldRun(input AdapterInput) bool {
 	return activeOnly(input) && input.Target.IsAlive && hasVulnerabilityTargets(input)

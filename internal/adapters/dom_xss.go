@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/chromedp/cdproto/network"
+	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
 	"github.com/pridhvi/nyx/internal/models"
 )
@@ -136,6 +137,20 @@ func runDOMXSSBrowserProbe(ctx context.Context, input AdapterInput, browserPath,
 	defer cancelBrowser()
 	runCtx, cancelRun := context.WithTimeout(browserCtx, timeout)
 	defer cancelRun()
+	dialogMessages := make(chan string, 4)
+	chromedp.ListenTarget(browserCtx, func(ev any) {
+		event, ok := ev.(*page.EventJavascriptDialogOpening)
+		if !ok {
+			return
+		}
+		select {
+		case dialogMessages <- event.Message:
+		default:
+		}
+		go func() {
+			_ = page.HandleJavaScriptDialog(true).Do(browserCtx)
+		}()
+	})
 	var observed string
 	var html string
 	actions := []chromedp.Action{
@@ -146,6 +161,18 @@ func runDOMXSSBrowserProbe(ctx context.Context, input AdapterInput, browserPath,
 		chromedp.Navigate(rawURL),
 		chromedp.Sleep(wait),
 		chromedp.Evaluate(`(function(){return document.documentElement.getAttribute("data-nyx-dom-xss") || window.__nyxDOMXSSMarker || "";})()`, &observed),
+		chromedp.ActionFunc(func(context.Context) error {
+			for {
+				select {
+				case message := <-dialogMessages:
+					if message == marker {
+						observed = message
+					}
+				default:
+					return nil
+				}
+			}
+		}),
 		chromedp.OuterHTML("html", &html, chromedp.ByQuery),
 	}
 	if err := chromedp.Run(runCtx, actions...); err != nil {
@@ -367,6 +394,8 @@ func domXSSPayloads(marker string) []string {
 	js := fmt.Sprintf(`document.documentElement.setAttribute('data-nyx-dom-xss','%s');window.__nyxDOMXSSMarker='%s'`, marker, marker)
 	topJS := fmt.Sprintf(`top.document.documentElement.setAttribute('data-nyx-dom-xss','%s');top.__nyxDOMXSSMarker='%s'`, marker, marker)
 	return []string{
+		`<iframe src="javascript:alert('` + marker + `')"></iframe>`,
+		"<iframe src=\"javascript:alert(`" + marker + "`)\"></iframe>",
 		`<img src=x onerror="` + js + `">`,
 		`<iframe src="javascript:` + topJS + `"></iframe>`,
 		domXSSPayload(marker),

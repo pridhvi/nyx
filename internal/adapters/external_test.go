@@ -706,12 +706,12 @@ func TestDOMXSSMutatesQueryAndFragmentCandidates(t *testing.T) {
 func TestDOMXSSPayloadsCoverCommonBrowserSinkShapes(t *testing.T) {
 	payloads := domXSSPayloads("nyxdomtest")
 	joined := strings.Join(payloads, "\n")
-	for _, want := range []string{"data-nyx-dom-xss", "<img", "<iframe", "<svg"} {
+	for _, want := range []string{"data-nyx-dom-xss", "alert(", "<img", "<iframe", "<svg"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("expected DOM XSS payloads to include %q, got %q", want, joined)
 		}
 	}
-	if len(payloads) < 3 {
+	if len(payloads) < 5 {
 		t.Fatalf("expected multiple DOM XSS payload shapes, got %#v", payloads)
 	}
 }

@@ -896,7 +896,7 @@ Any process that speaks this JSON contract over stdin/stdout is a valid Nyx plug
 | OAuth checks | Go stdlib HTTP | Open redirect in OAuth callbacks, CSRF |
 | Brute force check | Go stdlib HTTP | Strict configured credential validation gated to intentionally vulnerable non-production targets |
 | Reflected XSS check | Go stdlib HTTP | Marker reflection in browser-facing seeded query parameters |
-| DOM XSS check | Chrome/Chromium via chromedp | Browser-backed DOM marker validation with multiple payload shapes for seeded query/hash routes gated to intentionally vulnerable non-production targets |
+| DOM XSS check | Chrome/Chromium via chromedp | Browser-backed DOM marker validation with multiple payload shapes and JavaScript dialog marker observation for seeded query/hash routes gated to intentionally vulnerable non-production targets |
 | Stored XSS check | Go stdlib HTTP | Marker submission plus authenticated read-back, gated to intentionally vulnerable non-production targets |
 | SQL injection check | Go stdlib HTTP | Bounded boolean/error canaries, including SQLite error markers, in seeded query parameters |
 | Open redirect check | Go stdlib HTTP | Controlled external redirects in seeded redirect-like parameters and operator-seeded external redirect URLs |

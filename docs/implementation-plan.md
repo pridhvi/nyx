@@ -59,15 +59,17 @@ for validation and refresh outcomes, redacted session JSON/tool-run arguments
 for auth material, auth-aware safe validators including file inclusion and weak
 session checks, benchmark-safe command injection validation, stored XSS
 read-back validation, browser-backed DOM XSS marker validation for seeded
-hash/search routes with multiple browser payload shapes, seeded external
-redirect validation, CSP bypass
+hash/search routes with multiple browser payload shapes and JavaScript dialog
+marker observation, seeded external redirect validation, CSP bypass
 human-assist review, CAPTCHA-protected sensitive-workflow review, CAPTCHA
 answer exposure checks, built-in JWT claim review for missing expiration and
 sensitive hash-bearing claims without persisting token values, strict
 credential validation gated by
 intentionally-vulnerable/non-production profile flags, phase-ordered DAG
-scheduling with registered adapter order preserved inside a phase, and first
-adapter consumers for built-in HTTP checks plus `ffuf`, `sqlmap`, and `dalfox`.
+scheduling with registered adapter order preserved inside a phase and slow
+external vulnerability scanners ordered after benchmark-safe built-in
+validators, and first adapter consumers for built-in HTTP checks plus `ffuf`,
+`sqlmap`, and `dalfox`.
 
 ## Current Baseline
 
@@ -647,6 +649,9 @@ work and must be carried forward:
   surfaces.
 - Built-in reflected XSS validator mutates browser-facing seeded/query/hidden
   parameters with a unique marker and only reports confirmed reflection.
+- Built-in DOM XSS validator mutates seeded query/hash routes with several
+  browser payload shapes and confirms either DOM marker state or marker-bearing
+  JavaScript dialog execution before slow external vulnerability tools run.
 - Built-in open redirect validator mutates seeded redirect-like query
   parameters with a controlled external marker and never follows the redirect.
 - Built-in SQL injection validator mutates seeded/query/hidden parameters with

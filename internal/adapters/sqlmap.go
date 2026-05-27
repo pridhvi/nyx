@@ -22,7 +22,7 @@ func (SQLMap) Name() string { return "sqlmap" }
 
 func (SQLMap) Phase() Phase { return PhaseVulnScan }
 
-func (SQLMap) DependsOn() []string { return []string{"ffuf"} }
+func (SQLMap) DependsOn() []string { return []string{"ffuf", "dom-xss-check"} }
 
 func (SQLMap) ShouldRun(input AdapterInput) bool {
 	return activeOnly(input) && input.Target.IsAlive && hasVulnerabilityTargets(input)
