@@ -204,6 +204,41 @@ func TestAdapterLevelsDetectDependencyErrors(t *testing.T) {
 	}
 }
 
+func TestAdapterLevelsPreservePhaseBarriersAndRegisteredOrder(t *testing.T) {
+	levels, err := adapterLevels([]adapters.Adapter{
+		fakeRunnerAdapter{id: "vuln-built-in", phase: adapters.PhaseVulnScan},
+		fakeRunnerAdapter{id: "recon", phase: adapters.PhaseRecon},
+		fakeRunnerAdapter{id: "enum", phase: adapters.PhaseEnumerate},
+		fakeRunnerAdapter{id: "vuln-heavy", phase: adapters.PhaseVulnScan},
+		fakeRunnerAdapter{id: "fingerprint", phase: adapters.PhaseFingerprint},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := adapterIDsByLevel(levels)
+	want := [][]string{
+		{"recon"},
+		{"fingerprint"},
+		{"enum"},
+		{"vuln-built-in", "vuln-heavy"},
+	}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("expected phase-barrier levels %v, got %v", want, got)
+	}
+}
+
+func adapterIDsByLevel(levels [][]adapters.Adapter) [][]string {
+	out := make([][]string, 0, len(levels))
+	for _, level := range levels {
+		ids := make([]string, 0, len(level))
+		for _, adapter := range level {
+			ids = append(ids, adapter.ID())
+		}
+		out = append(out, ids)
+	}
+	return out
+}
+
 func TestRunnerRunsSameLevelAdaptersInParallel(t *testing.T) {
 	ctx := context.Background()
 	session, store := testRunnerStore(t, ctx)

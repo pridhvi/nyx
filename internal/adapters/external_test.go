@@ -587,6 +587,19 @@ func TestDOMXSSMutatesQueryAndFragmentCandidates(t *testing.T) {
 	}
 }
 
+func TestDOMXSSPayloadsCoverCommonBrowserSinkShapes(t *testing.T) {
+	payloads := domXSSPayloads("nyxdomtest")
+	joined := strings.Join(payloads, "\n")
+	for _, want := range []string{"data-nyx-dom-xss", "<img", "<iframe", "<svg"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("expected DOM XSS payloads to include %q, got %q", want, joined)
+		}
+	}
+	if len(payloads) < 3 {
+		t.Fatalf("expected multiple DOM XSS payload shapes, got %#v", payloads)
+	}
+}
+
 func TestBruteForceCheckConfirmsConfiguredCredential(t *testing.T) {
 	var attempts int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -817,6 +830,45 @@ func TestQueryMutationCandidatesUsesDVWASeededRoutes(t *testing.T) {
 	}
 }
 
+func TestSQLIAndReflectedXSSCandidatesSkipRedirectParameters(t *testing.T) {
+	input := testHTTPAdapterInput(t, "http://example.test",
+		"/redirect?to=https://docs.example.test/path",
+		"/search?q=apple",
+		"/rest/products/search?q=apple",
+	)
+	for name, candidates := range map[string][]queryMutationCandidate{
+		"sqli":          sqliCandidates(input, 10),
+		"reflected-xss": reflectedXSSCandidates(input, 10),
+	} {
+		seen := map[string]bool{}
+		for _, candidate := range candidates {
+			seen[candidate.Parameter] = true
+		}
+		if seen["to"] {
+			t.Fatalf("%s candidates should skip redirect-like parameter, got %#v", name, candidates)
+		}
+		if !seen["q"] {
+			t.Fatalf("%s candidates should retain normal query parameter, got %#v", name, candidates)
+		}
+	}
+	reflected := reflectedXSSCandidates(input, 10)
+	for _, candidate := range reflected {
+		if strings.Contains(candidate.RawURL, "/rest/") {
+			t.Fatalf("reflected XSS candidates should skip API routes, got %#v", reflected)
+		}
+	}
+	sqli := sqliCandidates(input, 10)
+	seenAPI := false
+	for _, candidate := range sqli {
+		if strings.Contains(candidate.RawURL, "/rest/products/search") && candidate.Parameter == "q" {
+			seenAPI = true
+		}
+	}
+	if !seenAPI {
+		t.Fatalf("SQLi candidates should keep API query routes, got %#v", sqli)
+	}
+}
+
 func TestOpenRedirectCheckUsesSeededRoutesWithoutFollowingRedirect(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, r.URL.Query().Get("next"), http.StatusFound)
@@ -870,8 +922,25 @@ func TestOpenRedirectCheckIgnoresNonRedirectParameters(t *testing.T) {
 	}
 }
 
+func TestIDORCandidatesSkipRouteOnlyWithoutSecondaryIdentity(t *testing.T) {
+	input := testHTTPAdapterInput(t, "http://example.test",
+		"/api/Users/",
+		"/rest/basket/1",
+		"/api/BasketItems/1",
+	)
+	candidates := idorCandidates(input, 10)
+	if len(candidates) != 2 {
+		t.Fatalf("expected only mutable adjacent-ID candidates, got %#v", candidates)
+	}
+	for _, candidate := range candidates {
+		if candidate.MutatedURL == "" || candidate.Location != "path" {
+			t.Fatalf("expected path-mutable IDOR candidate, got %#v", candidate)
+		}
+	}
+}
+
 func TestDOMXSSCandidatesUseHashSearchSeededRoutes(t *testing.T) {
-	input := testHTTPAdapterInput(t, "http://example.test", "/#/search?q=apple")
+	input := testHTTPAdapterInput(t, "http://example.test", "/rest/products/search?q=apple", "/#/search?q=apple")
 	candidates := domXSSCandidates(input, 10)
 	if len(candidates) != 1 || candidates[0].RawURL != "http://example.test/#/search?q=apple" || candidates[0].Parameter != "#q" {
 		t.Fatalf("expected hash search DOM XSS candidate, got %#v", candidates)
@@ -966,6 +1035,33 @@ func TestSQLICheckReportsSQLErrorAsSuspected(t *testing.T) {
 	finding := out.Findings[0]
 	if finding.ToolID != "sqli-check" || finding.Parameter != "id" || finding.Status != "suspected" || finding.Severity != models.SeverityMedium {
 		t.Fatalf("unexpected finding: %#v", finding)
+	}
+}
+
+func TestSQLICheckReportsSQLiteErrorIndicator(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Query().Get("q"), "'") {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte("SQLITE_ERROR: near \"'\": syntax error"))
+			return
+		}
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/search?q=apple")
+	out, err := NewSQLICheck().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
+	}
+	finding := out.Findings[0]
+	if finding.ToolID != "sqli-check" || finding.Parameter != "q" || finding.Status != "suspected" || finding.Severity != models.SeverityMedium {
+		t.Fatalf("unexpected finding: %#v", finding)
+	}
+	if !strings.Contains(out.ToolRun.RawStdout, "sql_error_indicator=true") {
+		t.Fatalf("expected SQL error indicator evidence, got %s", out.ToolRun.RawStdout)
 	}
 }
 

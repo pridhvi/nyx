@@ -88,7 +88,9 @@
           "input validation",
           "parameter",
           "tamper",
-          "validation"
+          "validation",
+          "sql error indicator",
+          "error indicator"
         ]
       }
     },

@@ -15,6 +15,7 @@ mkdir -p "$artifact_root" "$sessions_root"
 tools_default="http-probe,security-headers,whatweb,graphql-introspection,openapi-discovery,arjun,linkfinder,js-secret-scan,cors-check,nmap,ffuf,nuclei-tech,nuclei-vuln,nikto,sqlmap,dalfox,brute-force-check,reflected-xss-check,dom-xss-check,stored-xss-check,sqli-check,open-redirect-check,file-inclusion-check,command-injection-check,upload-check,idor-check,workflow-assist,csp-review,csrf-check,weak-session-check,xxe-fuzz"
 tools="${NYX_BENCHMARK_TOOLS:-$tools_default}"
 scan_timeout="${NYX_BENCHMARK_SCAN_TIMEOUT:-20m}"
+scan_concurrency="${NYX_BENCHMARK_CONCURRENCY:-1}"
 go_cmd="${NYX_GO_CMD:-go run .}"
 benchmark_path="$HOME/go/bin:$HOME/.local/bin:$HOME/.config/composer/vendor/bin:$PATH"
 
@@ -357,6 +358,7 @@ run_one() {
   fi
   if ! $scan_prefix env PATH="$benchmark_path" NYX_SESSION_DIR="$sessions_root" $go_cmd scan \
     --target "$target_url" \
+    --concurrency "$scan_concurrency" \
     --tools "$tools" \
     --route-seed-file "benchmarks/$name/routes.txt" \
     --auth-profile "$auth_profile" \

@@ -75,10 +75,6 @@ func DefaultSafeAdapters() []adapters.Adapter {
 		adapters.NewCrtSH(),
 		adapters.NewNmap(),
 		adapters.NewFFUF(),
-		adapters.NewNucleiVuln(),
-		adapters.NewSSRFMap(),
-		adapters.NewJWTTool(),
-		adapters.NewOAuthCheck(),
 		adapters.NewBruteForceCheck(),
 		adapters.NewReflectedXSSCheck(),
 		adapters.NewDOMXSSCheck(),
@@ -95,6 +91,10 @@ func DefaultSafeAdapters() []adapters.Adapter {
 		adapters.NewWeakSessionIDCheck(),
 		adapters.NewSSTICheck(),
 		adapters.NewXXEFuzz(),
+		adapters.NewNucleiVuln(),
+		adapters.NewSSRFMap(),
+		adapters.NewJWTTool(),
+		adapters.NewOAuthCheck(),
 		adapters.NewNikto(),
 		adapters.NewSQLMap(),
 		adapters.NewDalfox(),
@@ -903,8 +903,10 @@ func stringSet(values []string) map[string]bool {
 
 func adapterLevels(scanAdapters []adapters.Adapter) ([][]adapters.Adapter, error) {
 	byID := make(map[string]adapters.Adapter, len(scanAdapters))
-	for _, adapter := range scanAdapters {
+	order := make(map[string]int, len(scanAdapters))
+	for index, adapter := range scanAdapters {
 		byID[adapter.ID()] = adapter
+		order[adapter.ID()] = index
 	}
 	dependents := map[string][]string{}
 	remainingDeps := map[string]int{}
@@ -949,13 +951,27 @@ func adapterLevels(scanAdapters []adapters.Adapter) ([][]adapters.Adapter, error
 	sort.Strings(ready)
 	var levels [][]adapters.Adapter
 	for len(ready) > 0 {
-		levelIDs := ready
-		ready = nil
+		minRank := int(^uint(0) >> 1)
+		for _, id := range ready {
+			if rank := phaseRank(byID[id].Phase()); rank < minRank {
+				minRank = rank
+			}
+		}
+		var levelIDs []string
+		var deferredReady []string
+		for _, id := range ready {
+			if phaseRank(byID[id].Phase()) == minRank {
+				levelIDs = append(levelIDs, id)
+			} else {
+				deferredReady = append(deferredReady, id)
+			}
+		}
+		ready = deferredReady
 		sort.Slice(levelIDs, func(i, j int) bool {
 			left := byID[levelIDs[i]]
 			right := byID[levelIDs[j]]
 			if left.Phase() == right.Phase() {
-				return left.ID() < right.ID()
+				return order[left.ID()] < order[right.ID()]
 			}
 			return left.Phase() < right.Phase()
 		})
@@ -975,6 +991,31 @@ func adapterLevels(scanAdapters []adapters.Adapter) ([][]adapters.Adapter, error
 		return nil, fmt.Errorf("adapter graph could not be fully scheduled")
 	}
 	return levels, nil
+}
+
+func phaseRank(phase adapters.Phase) int {
+	switch phase {
+	case adapters.PhaseRecon:
+		return 0
+	case adapters.PhaseFingerprint:
+		return 1
+	case adapters.PhaseEnumerate:
+		return 2
+	case adapters.PhaseVulnScan:
+		return 3
+	case adapters.PhaseCredential:
+		return 4
+	case adapters.PhaseOSINT:
+		return 5
+	case adapters.PhaseADDiscovery:
+		return 6
+	case adapters.PhaseADEnum:
+		return 7
+	case adapters.PhaseADPaths:
+		return 8
+	default:
+		return 100
+	}
 }
 
 func phaseName(level []adapters.Adapter) string {

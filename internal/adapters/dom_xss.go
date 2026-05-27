@@ -61,35 +61,40 @@ func (a DOMXSSCheck) Run(ctx context.Context, input AdapterInput) (AdapterOutput
 		}
 	}
 	marker := domXSSMarker(input)
-	payload := domXSSPayload(marker)
+	payloads := domXSSPayloads(marker)
 	var findings []models.Finding
 	for _, candidate := range candidates {
-		probeURL := mutateDOMXSSCandidate(candidate, payload)
-		if ok, reason := targetInScopeURL(input, probeURL); !ok {
-			raw = append(raw, fmt.Sprintf("%s#%s skip_reason=%s", candidate.RawURL, candidate.Parameter, reason))
-			continue
+		for payloadIndex, payload := range payloads {
+			probeURL := mutateDOMXSSCandidate(candidate, payload)
+			if ok, reason := targetInScopeURL(input, probeURL); !ok {
+				raw = append(raw, fmt.Sprintf("%s#%s payload=%d skip_reason=%s", candidate.RawURL, candidate.Parameter, payloadIndex, reason))
+				continue
+			}
+			result, err := runDOMXSSBrowserProbe(ctx, input, browserPath, probeURL, marker)
+			if err != nil {
+				raw = append(raw, fmt.Sprintf("%s#%s payload=%d browser_error=%s", candidate.RawURL, candidate.Parameter, payloadIndex, err))
+				continue
+			}
+			raw = append(raw, fmt.Sprintf("%s#%s payload=%d marker=%t observed=%s", candidate.RawURL, candidate.Parameter, payloadIndex, result.Confirmed, result.Observed))
+			if !result.Confirmed {
+				continue
+			}
+			evidence := result.HTML
+			if len(evidence) > 8192 {
+				evidence = evidence[:8192]
+			}
+			finding := externalFinding(input, a.ID(), models.FindingTypeVulnerability, models.SeverityHigh, "DOM XSS marker confirmed", "A seeded DOM-controlled parameter executed a browser-side marker payload in an explicitly benchmark-safe target.", "Avoid writing untrusted URL, hash, or storage values into DOM sinks. Use textContent/safe DOM APIs, strict allow-lists, and a restrictive Content Security Policy.", evidence, map[string]any{"url": probeURL, "source_url": candidate.RawURL, "parameter": candidate.Parameter, "validated": true, "marker": marker, "payload_index": payloadIndex}, []string{"xss", "dom-xss", "browser-validated", "validated"})
+			finding.URL = probeURL
+			finding.Parameter = candidate.Parameter
+			finding.Method = http.MethodGet
+			finding.Status = "confirmed"
+			finding.Confidence = 0.9
+			findings = append(findings, finding)
+			break
 		}
-		result, err := runDOMXSSBrowserProbe(ctx, input, browserPath, probeURL, marker)
-		if err != nil {
-			raw = append(raw, fmt.Sprintf("%s#%s browser_error=%s", candidate.RawURL, candidate.Parameter, err))
-			continue
+		if len(findings) > 0 {
+			break
 		}
-		raw = append(raw, fmt.Sprintf("%s#%s marker=%t observed=%s", candidate.RawURL, candidate.Parameter, result.Confirmed, result.Observed))
-		if !result.Confirmed {
-			continue
-		}
-		evidence := result.HTML
-		if len(evidence) > 8192 {
-			evidence = evidence[:8192]
-		}
-		finding := externalFinding(input, a.ID(), models.FindingTypeVulnerability, models.SeverityHigh, "DOM XSS marker confirmed", "A seeded DOM-controlled parameter executed a browser-side marker payload in an explicitly benchmark-safe target.", "Avoid writing untrusted URL, hash, or storage values into DOM sinks. Use textContent/safe DOM APIs, strict allow-lists, and a restrictive Content Security Policy.", evidence, map[string]any{"url": probeURL, "source_url": candidate.RawURL, "parameter": candidate.Parameter, "validated": true, "marker": marker}, []string{"xss", "dom-xss", "browser-validated", "validated"})
-		finding.URL = probeURL
-		finding.Parameter = candidate.Parameter
-		finding.Method = http.MethodGet
-		finding.Status = "confirmed"
-		finding.Confidence = 0.9
-		findings = append(findings, finding)
-		break
 	}
 	run.RawStdout = strings.Join(raw, "\n")
 	run.ExitCode = 0
@@ -222,7 +227,7 @@ func domXSSCandidates(input AdapterInput, limit int) []domXSSCandidate {
 		}
 	}
 	for _, rawURL := range seededURLs(input) {
-		if looksLikeDOMXSSSurface(rawURL) {
+		if !looksLikeAPIRoute(rawURL) && looksLikeDOMXSSSurface(rawURL) {
 			add(rawURL)
 			if limit > 0 && len(candidates) >= limit {
 				return candidates
@@ -230,7 +235,7 @@ func domXSSCandidates(input AdapterInput, limit int) []domXSSCandidate {
 		}
 	}
 	for _, route := range sourceValues(input.SourceFindings, models.SourceKindRoute) {
-		if looksLikeDOMXSSSurface(route) {
+		if !looksLikeAPIRoute(route) && looksLikeDOMXSSSurface(route) {
 			add(normalizeSeedURL(input.Target, route))
 			if limit > 0 && len(candidates) >= limit {
 				return candidates
@@ -356,6 +361,16 @@ func domXSSMarker(input AdapterInput) string {
 func domXSSPayload(marker string) string {
 	js := fmt.Sprintf(`document.documentElement.setAttribute('data-nyx-dom-xss','%s');window.__nyxDOMXSSMarker='%s'`, marker, marker)
 	return `</option></select><svg onload="` + js + `"></svg><select><option>`
+}
+
+func domXSSPayloads(marker string) []string {
+	js := fmt.Sprintf(`document.documentElement.setAttribute('data-nyx-dom-xss','%s');window.__nyxDOMXSSMarker='%s'`, marker, marker)
+	topJS := fmt.Sprintf(`top.document.documentElement.setAttribute('data-nyx-dom-xss','%s');top.__nyxDOMXSSMarker='%s'`, marker, marker)
+	return []string{
+		`<img src=x onerror="` + js + `">`,
+		`<iframe src="javascript:` + topJS + `"></iframe>`,
+		domXSSPayload(marker),
+	}
 }
 
 func domXSSBrowserPath(input AdapterInput) (string, error) {

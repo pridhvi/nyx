@@ -59,12 +59,13 @@ for validation and refresh outcomes, redacted session JSON/tool-run arguments
 for auth material, auth-aware safe validators including file inclusion and weak
 session checks, benchmark-safe command injection validation, stored XSS
 read-back validation, browser-backed DOM XSS marker validation for seeded
-hash/search routes, seeded external redirect validation, CSP bypass
+hash/search routes with multiple browser payload shapes, seeded external
+redirect validation, CSP bypass
 human-assist review, CAPTCHA-protected sensitive-workflow review, CAPTCHA
-answer exposure checks, and strict credential validation gated by
-intentionally-vulnerable/non-production profile flags, and first adapter
-consumers for built-in HTTP checks plus `ffuf`,
-`sqlmap`, and `dalfox`.
+answer exposure checks, strict credential validation gated by
+intentionally-vulnerable/non-production profile flags, phase-ordered DAG
+scheduling with registered adapter order preserved inside a phase, and first
+adapter consumers for built-in HTTP checks plus `ffuf`, `sqlmap`, and `dalfox`.
 
 ## Current Baseline
 
@@ -640,13 +641,14 @@ work and must be carried forward:
   in target input or prior evidence.
 - Built-in OAuth check probes untrusted `redirect_uri` behavior on OAuth-like
   surfaces.
-- Built-in reflected XSS validator mutates seeded/query/hidden parameters with
-  a unique marker and only reports confirmed reflection.
+- Built-in reflected XSS validator mutates browser-facing seeded/query/hidden
+  parameters with a unique marker and only reports confirmed reflection.
 - Built-in open redirect validator mutates seeded redirect-like query
   parameters with a controlled external marker and never follows the redirect.
 - Built-in SQL injection validator mutates seeded/query/hidden parameters with
   bounded boolean predicates and a quote canary; boolean differentials are
-  confirmed, while SQL error indicators are suspected findings.
+  confirmed, while SQL error indicators, including SQLite error markers, are
+  suspected findings.
 - Built-in file inclusion validator mutates seeded file/path query parameters
   with bounded local hosts-file marker payloads and confirms only when the
   baseline response lacks those markers.

@@ -32,7 +32,7 @@
   },
   "safe_active_checks": {
     "allow_dom_xss": true,
-    "dom_xss_wait_ms": 1000,
+    "dom_xss_wait_ms": 2500,
     "intentionally_vulnerable": true,
     "non_production": true
   },
