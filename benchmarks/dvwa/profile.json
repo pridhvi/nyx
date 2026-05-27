@@ -22,7 +22,7 @@
       "Login": "Login"
     },
     "validation_url": "/index.php",
-    "validation_contains": "Welcome",
+    "validation_contains": "Logout",
     "cookie_names": ["PHPSESSID", "security"],
     "post_login_setup": [
       {
@@ -40,6 +40,11 @@
     "validate_login": true,
     "security_level": "low",
     "fail_if_security_level_mismatch": true
+  },
+  "safe_active_checks": {
+    "allow_command_injection": true,
+    "intentionally_vulnerable": true,
+    "non_production": true
   },
   "notes": [
     "Auth, CSRF extraction, and security-level setup are benchmark profile data.",

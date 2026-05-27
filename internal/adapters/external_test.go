@@ -522,6 +522,24 @@ func TestReflectedXSSCheckDoesNotReportEscapedReflection(t *testing.T) {
 	}
 }
 
+func TestQueryMutationCandidatesUsesDVWASeededRoutes(t *testing.T) {
+	input := testHTTPAdapterInput(t, "http://example.test",
+		"/vulnerabilities/sqli/?id=1&Submit=Submit",
+		"/vulnerabilities/xss_r/?name=nyx",
+	)
+	candidates := queryMutationCandidates(input, 10)
+	seen := map[string]bool{}
+	for _, candidate := range candidates {
+		seen[candidate.RawURL+"#"+candidate.Parameter] = true
+	}
+	if !seen["http://example.test/vulnerabilities/sqli/?id=1&Submit=Submit#id"] {
+		t.Fatalf("expected seeded DVWA SQLi id parameter candidate, got %#v", candidates)
+	}
+	if !seen["http://example.test/vulnerabilities/xss_r/?name=nyx#name"] {
+		t.Fatalf("expected seeded DVWA reflected XSS name parameter candidate, got %#v", candidates)
+	}
+}
+
 func TestOpenRedirectCheckUsesSeededRoutesWithoutFollowingRedirect(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, r.URL.Query().Get("next"), http.StatusFound)
@@ -583,6 +601,39 @@ func TestSQLICheckConfirmsBooleanDifferential(t *testing.T) {
 	}
 }
 
+func TestSQLICheckConfirmsQuotedBooleanDifferentialForNumericSeed(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.URL.Query().Get("id")
+		_, _ = w.Write([]byte("ID: " + html.EscapeString(id) + "\n"))
+		switch {
+		case strings.Contains(id, "' AND '1'='2"):
+			_, _ = w.Write([]byte("no rows"))
+		case strings.Contains(id, "' AND '1'='1"):
+			_, _ = w.Write([]byte("user: alice"))
+		case id == "1":
+			_, _ = w.Write([]byte("user: alice"))
+		default:
+			_, _ = w.Write([]byte("no rows"))
+		}
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/item?id=1")
+	out, err := NewSQLICheck().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
+	}
+	finding := out.Findings[0]
+	if finding.ToolID != "sqli-check" || finding.Parameter != "id" || finding.Status != "confirmed" || finding.Severity != models.SeverityHigh {
+		t.Fatalf("unexpected finding: %#v", finding)
+	}
+	if !strings.Contains(out.ToolRun.RawStdout, "technique=quoted-boolean-differential boolean=true") {
+		t.Fatalf("expected quoted boolean evidence in stdout, got %s", out.ToolRun.RawStdout)
+	}
+}
+
 func TestSQLICheckReportsSQLErrorAsSuspected(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Query().Get("id"), "'") {
@@ -613,6 +664,141 @@ func TestSQLICheckDoesNotReportStableLiteralHandling(t *testing.T) {
 	defer server.Close()
 	input := testHTTPAdapterInput(t, server.URL, "/item?id=1")
 	out, err := NewSQLICheck().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 0 {
+		t.Fatalf("expected no findings, got %#v", out.Findings)
+	}
+}
+
+func TestFileInclusionCheckConfirmsHostsFileInclusion(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		page := r.URL.Query().Get("page")
+		switch {
+		case strings.Contains(page, "etc/hosts"):
+			_, _ = w.Write([]byte("127.0.0.1 localhost\n::1 localhost ip6-localhost\n"))
+		default:
+			_, _ = w.Write([]byte("normal include"))
+		}
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/view?page=include.php")
+	adapter := NewFileInclusionCheck()
+	if !adapter.ShouldRun(input) {
+		t.Fatal("expected file inclusion check to run with seeded page parameter")
+	}
+	out, err := adapter.Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
+	}
+	finding := out.Findings[0]
+	if finding.ToolID != "file-inclusion-check" || finding.Parameter != "page" || finding.Status != "confirmed" || finding.Severity != models.SeverityHigh {
+		t.Fatalf("unexpected finding: %#v", finding)
+	}
+	if !strings.Contains(strings.ToLower(finding.Title), "file inclusion") {
+		t.Fatalf("expected file inclusion title, got %q", finding.Title)
+	}
+}
+
+func TestFileInclusionCheckIgnoresStableLiteralHandling(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("normal include"))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/view?page=include.php")
+	out, err := NewFileInclusionCheck().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 0 {
+		t.Fatalf("expected no findings, got %#v", out.Findings)
+	}
+}
+
+func TestCommandInjectionCheckConfirmsBenchmarkSafeMarker(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			_, _ = w.Write([]byte(`<form method="post" action="/exec"><input name="ip"><input type="submit" name="Submit" value="Submit"></form>`))
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			t.Fatal(err)
+		}
+		value := r.Form.Get("ip")
+		fields := strings.Fields(value)
+		if strings.Contains(value, "echo ") && len(fields) > 0 {
+			_, _ = w.Write([]byte("ping output\n" + fields[len(fields)-1] + "\n"))
+			return
+		}
+		_, _ = w.Write([]byte("ping output"))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/exec")
+	input.Session.ToolParameters[models.SessionScanOptionsKey]["auth_profile"] = map[string]any{
+		"safe_active_checks": map[string]any{
+			"allow_command_injection":  true,
+			"intentionally_vulnerable": true,
+			"non_production":           true,
+		},
+	}
+	adapter := NewCommandInjectionCheck()
+	if !adapter.ShouldRun(input) {
+		t.Fatal("expected command injection check to run with exec seed")
+	}
+	out, err := adapter.Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
+	}
+	finding := out.Findings[0]
+	if finding.ToolID != "command-injection-check" || finding.Parameter != "ip" || finding.Method != http.MethodPost || finding.Status != "confirmed" || finding.Severity != models.SeverityHigh {
+		t.Fatalf("unexpected finding: %#v", finding)
+	}
+}
+
+func TestCommandInjectionCheckRequiresBenchmarkSafetyGate(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`<form method="post" action="/exec"><input name="ip"></form>`))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/exec")
+	out, err := NewCommandInjectionCheck().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 0 {
+		t.Fatalf("expected no findings, got %#v", out.Findings)
+	}
+	if !strings.Contains(out.ToolRun.RawStdout, "active_command_injection_requires") {
+		t.Fatalf("expected safety skip reason, got %s", out.ToolRun.RawStdout)
+	}
+}
+
+func TestCommandInjectionCheckIgnoresReflectedPayload(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			_, _ = w.Write([]byte(`<form method="post" action="/exec"><input name="command"></form>`))
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			t.Fatal(err)
+		}
+		_, _ = w.Write([]byte(html.EscapeString(r.Form.Get("command"))))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/exec")
+	input.ToolParameters = map[string]any{
+		"allow_command_injection":  true,
+		"intentionally_vulnerable": true,
+		"non_production":           true,
+	}
+	out, err := NewCommandInjectionCheck().Run(t.Context(), input)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -797,6 +983,32 @@ func TestWeakSessionIDCheckConfirmsSequentialCookie(t *testing.T) {
 	}
 }
 
+func TestWeakSessionIDCheckSubmitsGenerationForm(t *testing.T) {
+	counter := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			_, _ = w.Write([]byte(`<form method="post"><input type="submit" value="Generate"></form>`))
+			return
+		}
+		counter++
+		http.SetCookie(w, &http.Cookie{Name: "dvwaSession", Value: strconv.Itoa(counter), Path: "/"})
+		_, _ = w.Write([]byte("generated"))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/weak-session")
+	out, err := NewWeakSessionIDCheck().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
+	}
+	finding := out.Findings[0]
+	if finding.ToolID != "weak-session-check" || finding.Parameter != "dvwaSession" || finding.Method != http.MethodPost || finding.Status != "confirmed" || finding.Severity != models.SeverityHigh {
+		t.Fatalf("unexpected finding: %#v", finding)
+	}
+}
+
 func TestWeakSessionIDCheckIgnoresLongRandomCookie(t *testing.T) {
 	counter := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -876,6 +1088,22 @@ func TestParseNiktoFindings(t *testing.T) {
 	}
 	if findings[0].ToolID != "nikto" || findings[0].Severity != models.SeverityMedium {
 		t.Fatalf("unexpected finding: %#v", findings[0])
+	}
+}
+
+func TestParseNiktoTextFindings(t *testing.T) {
+	raw := `+ Target Hostname: 127.0.0.1
++ [95] /: Cookie PHPSESSID created without the httponly flag.
++ [013587] /: Suggested security header missing: x-content-type-options.
++ No CGI Directories found (use '-C all' to force check all possible dirs). CGI tests skipped.`
+	findings := parseNiktoFindings(testExternalInput(), raw)
+	if len(findings) != 2 {
+		t.Fatalf("expected 2 findings, got %d: %#v", len(findings), findings)
+	}
+	for _, finding := range findings {
+		if finding.ToolID != "nikto" || finding.Severity != models.SeverityMedium {
+			t.Fatalf("unexpected finding: %#v", finding)
+		}
 	}
 }
 

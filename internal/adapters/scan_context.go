@@ -18,6 +18,8 @@ type scanContext struct {
 	AuthHeaders               map[string]string
 	AuthCookies               map[string]string
 	CookieHeader              string
+	AuthProfile               map[string]any
+	SafeActiveChecks          map[string]any
 	SecondaryAuthHeaders      map[string]string
 	SecondaryAuthCookies      map[string]string
 	SecondaryAuthCookieHeader string
@@ -33,15 +35,40 @@ func inputScanContext(input AdapterInput) scanContext {
 		AuthHeaders:               anyStringMap(params["auth_headers"]),
 		AuthCookies:               anyStringMap(params["auth_cookies"]),
 		CookieHeader:              strings.TrimSpace(toString(params["auth_cookie_header"])),
+		AuthProfile:               anyMap(params["auth_profile"]),
+		SafeActiveChecks:          anyMap(params["safe_active_checks"]),
 		SecondaryAuthHeaders:      anyStringMap(params["secondary_auth_headers"]),
 		SecondaryAuthCookies:      anyStringMap(params["secondary_auth_cookies"]),
 		SecondaryAuthCookieHeader: strings.TrimSpace(toString(params["secondary_auth_cookie_header"])),
+	}
+	if len(ctx.SafeActiveChecks) == 0 && len(ctx.AuthProfile) > 0 {
+		ctx.SafeActiveChecks = anyMap(ctx.AuthProfile["safe_active_checks"])
 	}
 	if seedFile := strings.TrimSpace(toString(params["route_seed_file"])); seedFile != "" {
 		ctx.RouteSeeds = append(ctx.RouteSeeds, readRouteSeedFile(seedFile)...)
 	}
 	ctx.RouteSeeds = dedupeStrings(ctx.RouteSeeds)
 	return ctx
+}
+
+func anyMap(value any) map[string]any {
+	switch typed := value.(type) {
+	case nil:
+		return nil
+	case map[string]any:
+		return typed
+	case map[string]string:
+		out := make(map[string]any, len(typed))
+		for key, item := range typed {
+			key = strings.TrimSpace(key)
+			if key != "" {
+				out[key] = strings.TrimSpace(item)
+			}
+		}
+		return out
+	default:
+		return nil
+	}
 }
 
 func anyStringList(value any) []string {

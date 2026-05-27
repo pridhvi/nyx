@@ -99,6 +99,10 @@ check_optional waybackurls waybackurls -h
 check_optional wpscan wpscan --version
 
 if [ "$mode" = "linux-full" ]; then
+  check_required arjun arjun -h
+  check_required dalfox dalfox version
+  check_required linkfinder linkfinder --help
+  check_required nuclei nuclei -version
   check_required git git --version
   check_required go go version
   check_required sqlite3 sqlite3 --version

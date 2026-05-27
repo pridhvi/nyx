@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/pridhvi/nyx/internal/models"
@@ -136,6 +137,112 @@ func TestResolveSessionAuthFormProfile(t *testing.T) {
 	}
 	if got := req.Header.Get("Cookie"); got != "session=ok" {
 		t.Fatalf("expected resolved session cookie, got %q", got)
+	}
+}
+
+func TestResolveSessionAuthFormProfilePostLoginSetupPersistsCookies(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login.php":
+			if r.Method == http.MethodGet {
+				_, _ = w.Write([]byte(`<form><input name="user_token" value="login-token"></form>`))
+				return
+			}
+			if r.Method == http.MethodPost {
+				if err := r.ParseForm(); err != nil {
+					t.Fatal(err)
+				}
+				if r.Form.Get("user_token") != "login-token" || r.Form.Get("username") != "admin" || r.Form.Get("password") != "password" {
+					http.Error(w, "bad login", http.StatusUnauthorized)
+					return
+				}
+				http.SetCookie(w, &http.Cookie{Name: "PHPSESSID", Value: "session-ok", Path: "/"})
+				_, _ = w.Write([]byte("Welcome"))
+				return
+			}
+		case "/security.php":
+			if _, err := r.Cookie("PHPSESSID"); err != nil {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			if r.Method == http.MethodGet {
+				_, _ = w.Write([]byte(`<form><input name="user_token" value="security-token"></form>`))
+				return
+			}
+			if r.Method == http.MethodPost {
+				if err := r.ParseForm(); err != nil {
+					t.Fatal(err)
+				}
+				if r.Form.Get("user_token") != "security-token" || r.Form.Get("security") != "low" {
+					http.Error(w, "bad security setup", http.StatusUnauthorized)
+					return
+				}
+				http.SetCookie(w, &http.Cookie{Name: "security", Value: "low", Path: "/"})
+				_, _ = w.Write([]byte("Security level set"))
+				return
+			}
+		case "/index.php":
+			sessionCookie, sessionErr := r.Cookie("PHPSESSID")
+			securityCookie, securityErr := r.Cookie("security")
+			if sessionErr != nil || securityErr != nil || sessionCookie.Value != "session-ok" || securityCookie.Value != "low" {
+				http.Error(w, "login required", http.StatusUnauthorized)
+				return
+			}
+			_, _ = w.Write([]byte("Welcome to DVWA. Logout"))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	input := authTestInput(t, server.URL)
+	input.Session.ToolParameters = map[string]map[string]any{
+		models.SessionScanOptionsKey: {
+			"auth_profile": map[string]any{
+				"type":                "form",
+				"login_url":           "/login.php",
+				"username":            "admin",
+				"password":            "password",
+				"username_field":      "username",
+				"password_field":      "password",
+				"csrf_field":          "user_token",
+				"validation_url":      "/index.php",
+				"validation_contains": "Logout",
+				"post_login_setup": []any{
+					map[string]any{
+						"method":     "POST",
+						"path":       "/security.php",
+						"csrf_field": "user_token",
+						"form": map[string]any{
+							"security":      "low",
+							"seclev_submit": "Submit",
+						},
+					},
+				},
+			},
+		},
+	}
+	result, err := ResolveSessionAuth(context.Background(), input.Session, input.Target, input.Scope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Applied {
+		t.Fatal("expected auth profile to be applied")
+	}
+	input.Session = result.Session
+	req, err := newHTTPRequestWithAuth(context.Background(), input, http.MethodGet, server.URL+"/index.php", nil, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cookieHeader := req.Header.Get("Cookie")
+	if !strings.Contains(cookieHeader, "PHPSESSID=session-ok") || !strings.Contains(cookieHeader, "security=low") {
+		t.Fatalf("expected resolved login and security cookies, got %q", cookieHeader)
+	}
+
+	profile := input.Session.ToolParameters[models.SessionScanOptionsKey]["auth_profile"].(map[string]any)
+	profile["validation_contains"] = "Not present"
+	if _, err := ResolveSessionAuth(context.Background(), input.Session, input.Target, input.Scope); err == nil || !strings.Contains(err.Error(), "expected marker") {
+		t.Fatalf("expected validation marker failure, got %v", err)
 	}
 }
 

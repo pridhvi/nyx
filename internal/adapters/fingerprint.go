@@ -31,6 +31,9 @@ func (a WhatWeb) Run(ctx context.Context, input AdapterInput) (AdapterOutput, er
 	run := newToolRun(input, a.ID(), args)
 	result := RunCommand(ctx, 90*time.Second, "whatweb", args...)
 	technologies, findings := parseWhatWebOutput(input, result.Stdout)
+	if result.ExitCode != 0 && (len(technologies) > 0 || len(findings) > 0) {
+		result.ExitCode = 0
+	}
 	return AdapterOutput{Technologies: technologies, Findings: findings, ToolRun: finishToolRun(run, result, len(findings))}, nil
 }
 

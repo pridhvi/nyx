@@ -210,6 +210,10 @@ the default interval and `validate_each_phase` forces validation before every
 adapter phase for short-lived benchmark sessions. Auth validation, invalidation,
 refresh, failure, and skip states emit `auth_status` events.
 
+DVWA benchmark setup initializes the database with the setup CSRF token when an
+authenticated login reaches the setup page, then validates login plus low
+security before the scan starts.
+
 ## Phase 4: Route And State Seeding
 
 Improve crawler and adapter reach without target-specific scanner code:
@@ -253,13 +257,15 @@ Add generic, bounded validators for common classes:
 - open redirect validation with controlled marker URLs (implemented for seeded
   redirect-like query parameters without following external redirects)
 - command injection marker checks only when the configured profile marks the
-  target as intentionally vulnerable and non-production
+  target as intentionally vulnerable and non-production (implemented for seeded
+  command-like forms)
 - harmless file upload and retrieval validation (implemented for seeded upload
   routes; accepted-but-not-retrieved uploads remain suspected)
 - IDOR adjacent-object checks and secondary-identity replay (implemented for
   seeded object identifier routes; adjacent-object access remains suspected
   unless a secondary identity can replay the same object successfully)
-- file inclusion path marker checks with safe local-only payloads
+- file inclusion path marker checks with safe local-only payloads (implemented
+  for seeded file/path query parameters)
 - CORS validation
 - XXE non-exfiltrating marker validation (implemented with internal XML entity
   markers; no file or network entity exfiltration)
@@ -331,17 +337,20 @@ Add benchmark-specific output alongside normal Nyx reports:
 
 ```text
 DVWA Benchmark
-Detected: 8/14
-Confirmed: 5/14
-Partial: 3/14
-Missed: 6/14
+Covered: 9/14
+Confirmed: 6/14
+Detected: 2/14
+Partial: 1/14
+Missed: 5/14
 Skipped: 0/14
 
 SQL Injection: confirmed
 Reflected XSS: confirmed
-File Upload: partial
-CSRF: missed
-Command Injection: skipped (active validator disabled)
+File Inclusion: confirmed
+Command Injection: confirmed
+Weak Session IDs: confirmed
+File Upload: detected
+CSRF: detected
 ```
 
 The JSON summary should include:
@@ -384,11 +393,22 @@ Acceptance criteria:
 
 ## Initial Targets
 
+Latest Linux VM acceptance baseline from this track:
+
+- DVWA: 9 of 14 modules covered, with regular SQL injection, blind SQL
+  injection, reflected XSS, file inclusion, command injection, and weak
+  session ID confirmed by built-in validators; current full-tool benchmark
+  runs have no failed tool runs.
+- Juice Shop: 4 of 15 categories covered; this is the current shared-validator
+  regression floor, and current full-tool benchmark runs have no failed tool
+  runs.
+
 Short-term:
 
-- DVWA: detect or partially classify at least 8 of 14 modules.
-- DVWA: confirm at least SQL injection, reflected XSS, file upload or command
-  injection in benchmark-safe mode.
+- DVWA: maintain at least 9 of 14 modules covered while improving confirmation
+  depth for stored XSS, DOM XSS, or brute-force workflows.
+- DVWA: maintain confirmed SQL injection, reflected XSS, file inclusion,
+  command injection, and weak session ID coverage in benchmark-safe mode.
 - Juice Shop: identify at least 25 category-level challenge signals or route
   risks.
 - Juice Shop: confirm at least OpenAPI exposure, CORS/header issues, selected

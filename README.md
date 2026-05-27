@@ -117,7 +117,7 @@ All external tools are optional. Missing tools are recorded as tool runs and the
 | Recon | `http-probe`, `security-headers`, `subfinder`, `dnsx`, `naabu`, `httpx`, `whois`, `waybackurls`, `nmap`, `crt.sh` |
 | Fingerprinting | `whatweb`, `nuclei-tech`, `testssl.sh`, GraphQL introspection, OpenAPI/Swagger discovery, `wpscan`, `droopescan` |
 | Enumeration | `ffuf`, `arjun`, `linkfinder`, `gitleaks`, JavaScript secret scanning, CORS checks, scoped cloud bucket checks |
-| Vulnerability | `nuclei-vuln`, `sqlmap`, `dalfox`, SSRFmap, `jwt_tool`, OAuth checks, reflected XSS validation, SQL injection validation, open redirect validation, upload validation, IDOR route checks, workflow-assist review hints, CSRF form analysis, weak session ID sampling, SSTI checks, XXE fuzzing, `nikto` |
+| Vulnerability | `nuclei-vuln`, `sqlmap`, `dalfox`, SSRFmap, `jwt_tool`, OAuth checks, reflected XSS validation, SQL injection validation, open redirect validation, file inclusion validation, command injection validation for explicitly safe benchmark targets, upload validation, IDOR route checks, workflow-assist review hints, CSRF form analysis, weak session ID sampling, SSTI checks, XXE fuzzing, `nikto` |
 
 Static audit tools are registered as `audit/<id>`. Built-in source analyzers always run; optional tools such as `semgrep`, `bandit`, `gosec`, `govulncheck`, `npm audit`, `retire.js`, `safety`, `brakeman`, `spotbugs`, `psalm`, `trufflehog`, `gitleaks`, and `grype` run when installed. Their native outputs are parsed into normalized findings or package CVEs where possible, with a generic JSON fallback for future adapter shapes.
 
@@ -222,17 +222,21 @@ Benchmark-driven scanner depth uses DVWA and OWASP Juice Shop as repeatable
 ground-truth targets for generic scanner improvements. App-specific credentials,
 target setup, route seeds, and expected coverage mappings live under
 `benchmarks/`; scanner adapters must remain target-agnostic. The benchmark
-harness preflights DVWA login plus low security level and creates/reuses the
-Juice Shop benchmark user before scanning, so authentication failures are
-reported as setup failures instead of noisy low-coverage scans. Active-mode
+harness preflights DVWA token-backed database setup when needed, login, and low
+security level, and creates/reuses the Juice Shop benchmark user before
+scanning, so authentication failures are reported as setup failures instead of
+noisy low-coverage scans. Active-mode
 scans now include bounded, auth-aware built-in validators for reflected XSS
-markers, SQL injection boolean/error canaries, harmless file uploads, IDOR
-adjacent-object checks with optional secondary-identity replay, workflow-assist
-review hints for seeded high-value forms and business-control parameters, CSRF
-form-token analysis, weak session identifier sampling, non-exfiltrating XML
-entity markers, and open redirects on seeded query routes; they do not follow
-external redirects and only report confirmed validation when the marker,
-predicate behavior, or secondary-identity replay is observed.
+markers, SQL injection boolean/error canaries, local hosts-file marker probes
+for file inclusion, harmless command-injection marker checks only when a
+profile marks the target intentionally vulnerable and non-production, harmless
+file uploads, IDOR adjacent-object checks with optional secondary-identity
+replay, workflow-assist review hints for seeded high-value forms and
+business-control parameters, CSRF form-token analysis, weak session identifier
+sampling, non-exfiltrating XML entity markers, and open redirects on seeded
+query routes; they do not follow external redirects and only report confirmed
+validation when the marker, predicate behavior, or secondary-identity replay is
+observed.
 
 ```sh
 make benchmark-targets-up
@@ -244,7 +248,11 @@ make benchmark-targets-down
 
 Benchmark artifacts are written under `artifacts/benchmarks/<timestamp>/` and
 include session directories, normal reports, SARIF, target metadata, and
-coverage summaries. See
+coverage summaries. Linux full-tool acceptance should be run with user-local
+Go/Python/Ruby binary directories on `PATH`; `NYX_TOOL_SMOKE_STRICT=1
+scripts/tool-version-smoke.sh linux-full` now fails when benchmark-critical
+dynamic tools such as `arjun`, `dalfox`, `linkfinder`, or `nuclei` are missing.
+See
 [docs/benchmark-driven-scanner-depth.md](docs/benchmark-driven-scanner-depth.md)
 for the staged plan.
 

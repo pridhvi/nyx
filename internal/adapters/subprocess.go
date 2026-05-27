@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	"github.com/pridhvi/nyx/internal/models"
@@ -62,7 +64,8 @@ type CommandResult struct {
 
 func RunCommand(ctx context.Context, timeout time.Duration, binary string, args ...string) CommandResult {
 	started := time.Now().UTC()
-	if _, err := exec.LookPath(binary); err != nil {
+	path, err := lookupCommand(binary)
+	if err != nil {
 		return CommandResult{
 			Stderr:     err.Error(),
 			ExitCode:   127,
@@ -75,11 +78,11 @@ func RunCommand(ctx context.Context, timeout time.Duration, binary string, args 
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
-	cmd := exec.CommandContext(ctx, binary, args...)
+	cmd := exec.CommandContext(ctx, path, args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	err := cmd.Run()
+	err = cmd.Run()
 	exitCode := 0
 	if err != nil {
 		exitCode = 1
@@ -101,4 +104,28 @@ func RunCommand(ctx context.Context, timeout time.Duration, binary string, args 
 		DurationMS: time.Since(started).Milliseconds(),
 		Err:        err,
 	}
+}
+
+func lookupCommand(binary string) (string, error) {
+	if path, err := exec.LookPath(binary); err == nil {
+		return path, nil
+	} else if filepath.Base(binary) != binary {
+		return "", err
+	}
+	home, homeErr := os.UserHomeDir()
+	if homeErr != nil || home == "" {
+		return "", exec.ErrNotFound
+	}
+	for _, dir := range []string{
+		filepath.Join(home, "go", "bin"),
+		filepath.Join(home, ".local", "bin"),
+		filepath.Join(home, ".config", "composer", "vendor", "bin"),
+	} {
+		candidate := filepath.Join(dir, binary)
+		info, err := os.Stat(candidate)
+		if err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
+			return candidate, nil
+		}
+	}
+	return "", exec.ErrNotFound
 }

@@ -12,10 +12,11 @@ artifact_root="${NYX_BENCHMARK_ARTIFACT_DIR:-artifacts/benchmarks/$timestamp}"
 sessions_root="$artifact_root/sessions"
 mkdir -p "$artifact_root" "$sessions_root"
 
-tools_default="http-probe,security-headers,whatweb,graphql-introspection,openapi-discovery,arjun,linkfinder,js-secret-scan,cors-check,nmap,ffuf,nuclei-tech,nuclei-vuln,nikto,sqlmap,dalfox,reflected-xss-check,sqli-check,open-redirect-check,upload-check,idor-check,workflow-assist,csrf-check,weak-session-check,xxe-fuzz"
+tools_default="http-probe,security-headers,whatweb,graphql-introspection,openapi-discovery,arjun,linkfinder,js-secret-scan,cors-check,nmap,ffuf,nuclei-tech,nuclei-vuln,nikto,sqlmap,dalfox,reflected-xss-check,sqli-check,open-redirect-check,file-inclusion-check,command-injection-check,upload-check,idor-check,workflow-assist,csrf-check,weak-session-check,xxe-fuzz"
 tools="${NYX_BENCHMARK_TOOLS:-$tools_default}"
 scan_timeout="${NYX_BENCHMARK_SCAN_TIMEOUT:-20m}"
 go_cmd="${NYX_GO_CMD:-go run .}"
+benchmark_path="$HOME/go/bin:$HOME/.local/bin:$HOME/.config/composer/vendor/bin:$PATH"
 
 fail() {
   echo "Benchmark failed: $*" >&2
@@ -99,6 +100,8 @@ name = sys.argv[1]
 output = Path(sys.argv[2])
 profile = json.loads(Path(f"benchmarks/{name}/profile.json").read_text(encoding="utf-8"))
 auth = profile.get("auth") or {}
+if profile.get("safe_active_checks"):
+    auth["safe_active_checks"] = profile["safe_active_checks"]
 output.write_text(json.dumps(auth, indent=2) + "\n", encoding="utf-8")
 PY
   printf '%s' "$output"
@@ -138,6 +141,12 @@ jar = http.cookiejar.CookieJar()
 opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 
 
+def reset_session() -> None:
+    global jar, opener
+    jar = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+
+
 def request(method: str, path: str, *, form=None, json_body=None, headers=None) -> tuple[int, str]:
     payload = None
     req_headers = dict(headers or {})
@@ -173,22 +182,37 @@ def cookie_value(cookie_name: str) -> str:
     return ""
 
 
-def setup_dvwa() -> None:
-    log(f"preparing DVWA benchmark at {target_url}")
+def dvwa_authenticated(body: str) -> bool:
+    return "Logout" in body and "Login ::" not in body and "Setup ::" not in body
+
+
+def dvwa_setup_required(body: str) -> bool:
+    return "Database Setup" in body or "Setup DVWA" in body or "Setup ::" in body
+
+
+def create_dvwa_database() -> None:
+    status, setup_page = request("GET", "/setup.php")
+    log(f"GET /setup.php status={status}")
+    setup_token = csrf_token(setup_page)
+    setup_status, setup_body = request(
+        "POST",
+        "/setup.php",
+        form={
+            "create_db": "Create / Reset Database",
+            "user_token": setup_token,
+        },
+    )
+    log(f"POST /setup.php create_db status={setup_status}")
+    if setup_status >= 400 or "Could not" in setup_body:
+        raise SystemExit(f"DVWA database setup failed with HTTP {setup_status}")
+
+
+def login_dvwa(label: str) -> str:
     status, login_page = request("GET", "/login.php")
-    log(f"GET /login.php status={status}")
+    log(f"GET /login.php {label} status={status}")
     if status >= 400:
         raise SystemExit(f"DVWA login page returned HTTP {status}")
-
-    try:
-        token = csrf_token(login_page)
-    except SystemExit:
-        setup_status, _ = request("POST", "/setup.php", form={"create_db": "Create / Reset Database"})
-        log(f"POST /setup.php create_db status={setup_status}")
-        status, login_page = request("GET", "/login.php")
-        log(f"GET /login.php after setup status={status}")
-        token = csrf_token(login_page)
-
+    token = csrf_token(login_page)
     login_status, body = request(
         "POST",
         "/login.php",
@@ -199,9 +223,35 @@ def setup_dvwa() -> None:
             "user_token": token,
         },
     )
-    log(f"POST /login.php status={login_status}")
+    log(f"POST /login.php {label} status={login_status}")
     if login_status >= 400 or "Login failed" in body:
         raise SystemExit(f"DVWA login failed with HTTP {login_status}")
+    home_status, home_page = request("GET", "/index.php")
+    log(
+        f"GET /index.php {label} status={home_status} "
+        f"authenticated={dvwa_authenticated(home_page)} setup_required={dvwa_setup_required(body) or dvwa_setup_required(home_page)}"
+    )
+    return body + "\n" + home_page
+
+
+def setup_dvwa() -> None:
+    log(f"preparing DVWA benchmark at {target_url}")
+    try:
+        login_body = login_dvwa("initial")
+    except SystemExit as exc:
+        log(f"initial DVWA login was not ready: {exc}")
+        create_dvwa_database()
+        reset_session()
+        login_body = login_dvwa("after setup")
+
+    if dvwa_setup_required(login_body) or not dvwa_authenticated(login_body):
+        log("DVWA login reached setup or unauthenticated page; resetting database and retrying")
+        create_dvwa_database()
+        reset_session()
+        login_body = login_dvwa("after setup")
+
+    if not dvwa_authenticated(login_body):
+        raise SystemExit("DVWA login did not reach an authenticated page")
 
     security_status, security_page = request("GET", "/security.php")
     log(f"GET /security.php status={security_status}")
@@ -305,7 +355,7 @@ run_one() {
   else
     scan_prefix=""
   fi
-  if ! $scan_prefix env NYX_SESSION_DIR="$sessions_root" $go_cmd scan \
+  if ! $scan_prefix env PATH="$benchmark_path" NYX_SESSION_DIR="$sessions_root" $go_cmd scan \
     --target "$target_url" \
     --tools "$tools" \
     --route-seed-file "benchmarks/$name/routes.txt" \

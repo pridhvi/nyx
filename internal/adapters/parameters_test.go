@@ -23,6 +23,19 @@ func TestValidateToolParametersAllowsSafeExtraArgs(t *testing.T) {
 	}
 }
 
+func TestValidateToolParametersAllowsCommandInjectionSafetyGate(t *testing.T) {
+	err := ValidateToolParameters(map[string]map[string]any{
+		"command-injection-check": {
+			"allow_command_injection":  true,
+			"intentionally_vulnerable": true,
+			"non_production":           true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected command injection safety gate params to validate: %v", err)
+	}
+}
+
 func TestValidateToolParametersRejectsUnsafeExtraArgs(t *testing.T) {
 	err := ValidateToolParameters(map[string]map[string]any{
 		"sqlmap": {"extra_args": []any{"--os-shell"}},

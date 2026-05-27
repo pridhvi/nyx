@@ -27,13 +27,16 @@
       "route": "/vulnerabilities/exec/",
       "automation_suitable": true,
       "confirmation_strategy": "non-destructive marker command validation on intentionally vulnerable benchmark targets",
-      "match": {
+      "all_match": {
         "url": [
           "/vulnerabilities/exec/"
         ],
         "title": [
           "command injection",
           "os command"
+        ],
+        "tool": [
+          "command-injection-check"
         ]
       }
     },

@@ -897,6 +897,8 @@ Any process that speaks this JSON contract over stdin/stdout is a valid Nyx plug
 | Reflected XSS check | Go stdlib HTTP | Marker reflection in seeded query parameters |
 | SQL injection check | Go stdlib HTTP | Bounded boolean/error canaries in seeded query parameters |
 | Open redirect check | Go stdlib HTTP | Controlled external redirects in seeded redirect-like parameters |
+| File inclusion check | Go stdlib HTTP | Safe local hosts-file marker probes in seeded file/path parameters |
+| Command injection check | Go stdlib HTTP | Harmless echo-marker validation gated to intentionally vulnerable non-production targets |
 | Upload check | Go stdlib HTTP | Harmless marker-file upload validation on seeded upload routes |
 | IDOR check | Go stdlib HTTP | Adjacent-object identifier checks and optional secondary-identity replay |
 | Workflow assist | Go stdlib HTTP | Human-assist review hints for seeded high-value forms and business-control parameters |

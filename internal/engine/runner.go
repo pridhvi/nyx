@@ -82,6 +82,8 @@ func DefaultSafeAdapters() []adapters.Adapter {
 		adapters.NewReflectedXSSCheck(),
 		adapters.NewOpenRedirectCheck(),
 		adapters.NewSQLICheck(),
+		adapters.NewFileInclusionCheck(),
+		adapters.NewCommandInjectionCheck(),
 		adapters.NewUploadCheck(),
 		adapters.NewIDORCheck(),
 		adapters.NewWorkflowAssistCheck(),

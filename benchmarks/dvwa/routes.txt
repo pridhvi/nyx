@@ -1,7 +1,7 @@
 /vulnerabilities/brute/
 /vulnerabilities/exec/
 /vulnerabilities/csrf/
-/vulnerabilities/fi/
+/vulnerabilities/fi/?page=include.php
 /vulnerabilities/upload/
 /vulnerabilities/captcha/
 /vulnerabilities/weak_id/

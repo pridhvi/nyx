@@ -49,14 +49,17 @@ profiles only; scanner adapters must remain target-agnostic.
 
 Current benchmark-depth implementation includes the opt-in DVWA/Juice Shop
 harness, benchmark profile/expected mapping files, benchmark-only target
-preflight setup for DVWA low-security mode and Juice Shop user registration,
-strict `all_match` coverage mappings where tool plus route/title evidence must
-line up, CLI/API/UI route seed inputs, static auth header/cookie scan context,
-generic form and JSON login auth profiles with CSRF/token extraction and
-validation requests, bounded validation/re-login refresh during long scans,
-`auth_status` lifecycle events for validation and refresh outcomes, redacted
-session JSON/tool-run arguments for auth material, and first adapter consumers
-for built-in HTTP checks plus `ffuf`, `sqlmap`, and `dalfox`.
+preflight setup for DVWA token-backed database initialization, low-security
+mode, and Juice Shop user registration, strict `all_match` coverage mappings
+where tool plus route/title evidence must line up, CLI/API/UI route seed inputs,
+static auth header/cookie scan context, generic form and JSON login auth
+profiles with CSRF/token extraction and validation requests, bounded
+validation/re-login refresh during long scans, `auth_status` lifecycle events
+for validation and refresh outcomes, redacted session JSON/tool-run arguments
+for auth material, auth-aware safe validators including file inclusion and weak
+session checks, benchmark-safe command injection validation gated by
+intentionally-vulnerable/non-production profile flags, and first adapter
+consumers for built-in HTTP checks plus `ffuf`, `sqlmap`, and `dalfox`.
 
 ## Current Baseline
 
@@ -639,6 +642,13 @@ work and must be carried forward:
 - Built-in SQL injection validator mutates seeded/query/hidden parameters with
   bounded boolean predicates and a quote canary; boolean differentials are
   confirmed, while SQL error indicators are suspected findings.
+- Built-in file inclusion validator mutates seeded file/path query parameters
+  with bounded local hosts-file marker payloads and confirms only when the
+  baseline response lacks those markers.
+- Built-in command injection validator submits harmless echo-marker payloads
+  only when the target profile or tool parameters mark the target intentionally
+  vulnerable and non-production; reflected payloads do not count as confirmed
+  execution.
 - Built-in upload validator submits a harmless text marker file to seeded upload
   routes and confirms only response echo or scoped retrieval of the marker.
 - Built-in IDOR check tests seeded object identifier routes with adjacent-object
@@ -661,9 +671,11 @@ work and must be carried forward:
 - Existing `sqlmap` and `dalfox` wrappers now use Phase 8 hidden-parameter
   discoveries when the initial target URL has no query string.
 - Parser and adapter tests cover nuclei vulnerability output, SSRFmap, JWT,
-  OAuth, reflected XSS, open redirect, SQL injection validation, upload
-  validation, IDOR checks, workflow-assist hints, CSRF form analysis, weak session sampling, CORS reflected-origin handling, SSTI, XXE, Nikto, and
-  hidden-parameter target handoff.
+  OAuth, reflected XSS, open redirect, SQL injection validation, file inclusion
+  validation, command injection safety gates, upload validation, IDOR checks,
+  workflow-assist hints, CSRF form analysis, weak session sampling, CORS
+  reflected-origin handling, SSTI, XXE, Nikto, and hidden-parameter target
+  handoff.
 
 ### Remaining Work
 
