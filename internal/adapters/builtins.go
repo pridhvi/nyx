@@ -29,6 +29,7 @@ func init() {
 	Register(NewSSRFMap())
 	Register(NewJWTTool())
 	Register(NewOAuthCheck())
+	Register(NewBruteForceCheck())
 	Register(NewReflectedXSSCheck())
 	Register(NewStoredXSSCheck())
 	Register(NewOpenRedirectCheck())

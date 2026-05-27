@@ -42,8 +42,19 @@
     "fail_if_security_level_mismatch": true
   },
   "safe_active_checks": {
+    "allow_credential_validation": true,
     "allow_command_injection": true,
     "allow_stored_xss": true,
+    "credential_max_attempts": 1,
+    "credential_candidates": [
+      {
+        "username": "admin",
+        "password": "password"
+      }
+    ],
+    "credential_success_contains": [
+      "Welcome to the password protected area"
+    ],
     "intentionally_vulnerable": true,
     "non_production": true
   },

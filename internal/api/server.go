@@ -3021,6 +3021,7 @@ func descriptionForTool(id string) string {
 		"ssrfmap":                 "Runs scoped SSRF checks where input evidence supports it.",
 		"jwt-tool":                "Checks JWT structure and common token weaknesses.",
 		"oauth-check":             "Checks OAuth and OIDC metadata for common misconfigurations.",
+		"brute-force-check":       "Validates explicitly configured benchmark credentials with a strict attempt budget only on intentionally vulnerable non-production targets.",
 		"reflected-xss-check":     "Safely validates seeded query parameters for reflected XSS markers.",
 		"stored-xss-check":        "Validates seeded stored-XSS forms only when explicitly marked intentionally vulnerable and non-production.",
 		"open-redirect-check":     "Safely validates seeded redirect-like parameters without following external redirects.",
@@ -3111,6 +3112,14 @@ func parametersForTool(id string) []toolParameter {
 		return append([]toolParameter{{Name: "level", Label: "Level", Type: "number", Default: 1, Description: "sqlmap level, clamped to 1-5."}, {Name: "risk", Label: "Risk", Type: "number", Default: 1, Description: "sqlmap risk, clamped to 1-3."}}, common...)
 	case "dalfox":
 		return append([]toolParameter{{Name: "blind", Label: "Blind Callback", Type: "string"}, {Name: "skip_grepping", Label: "Skip Grepping", Type: "boolean"}}, common...)
+	case "brute-force-check":
+		return []toolParameter{
+			{Name: "allow_credential_validation", Label: "Allow Credential Check", Type: "boolean", Description: "Enable strict configured credential validation for explicitly safe targets."},
+			{Name: "allow_brute_force", Label: "Allow Brute Force Check", Type: "boolean", Description: "Alias for allowing the benchmark brute-force validator."},
+			{Name: "intentionally_vulnerable", Label: "Intentionally Vulnerable", Type: "boolean", Description: "Confirms the target is a lab or benchmark built for active validation."},
+			{Name: "non_production", Label: "Non-production", Type: "boolean", Description: "Confirms the target is not a production system."},
+			{Name: "max_attempts", Label: "Max Attempts", Type: "number", Default: 1, Description: "Total credential attempts, clamped to 1-3."},
+		}
 	case "command-injection-check":
 		return []toolParameter{
 			{Name: "allow_command_injection", Label: "Allow Command Check", Type: "boolean", Description: "Enable harmless marker command validation for explicitly safe targets."},

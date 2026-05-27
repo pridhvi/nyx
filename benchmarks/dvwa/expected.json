@@ -9,9 +9,12 @@
       "route": "/vulnerabilities/brute/",
       "automation_suitable": true,
       "confirmation_strategy": "lockout-aware credential validation with strict limits",
-      "match": {
+      "all_match": {
         "url": [
           "/vulnerabilities/brute/"
+        ],
+        "tool": [
+          "brute-force-check"
         ],
         "title": [
           "brute force",

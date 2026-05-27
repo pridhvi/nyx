@@ -76,6 +76,16 @@ func supportedToolParameterNames(toolID string) map[string]bool {
 		return mergeParameterNames(common, "level", "risk")
 	case "dalfox":
 		return mergeParameterNames(common, "blind", "skip_grepping")
+	case "brute-force-check":
+		return map[string]bool{
+			"enabled":                     true,
+			"allow_active":                true,
+			"allow_credential_validation": true,
+			"allow_brute_force":           true,
+			"intentionally_vulnerable":    true,
+			"non_production":              true,
+			"max_attempts":                true,
+		}
 	case "command-injection-check":
 		return map[string]bool{
 			"enabled":                  true,

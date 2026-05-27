@@ -49,6 +49,20 @@ func TestValidateToolParametersAllowsStoredXSSSafetyGate(t *testing.T) {
 	}
 }
 
+func TestValidateToolParametersAllowsCredentialValidationSafetyGate(t *testing.T) {
+	err := ValidateToolParameters(map[string]map[string]any{
+		"brute-force-check": {
+			"allow_credential_validation": true,
+			"intentionally_vulnerable":    true,
+			"non_production":              true,
+			"max_attempts":                1,
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected credential validation safety gate params to validate: %v", err)
+	}
+}
+
 func TestValidateToolParametersRejectsUnsafeExtraArgs(t *testing.T) {
 	err := ValidateToolParameters(map[string]map[string]any{
 		"sqlmap": {"extra_args": []any{"--os-shell"}},

@@ -338,13 +338,14 @@ Add benchmark-specific output alongside normal Nyx reports:
 
 ```text
 DVWA Benchmark
-Covered: 10/14
-Confirmed: 7/14
+Covered: 11/14
+Confirmed: 8/14
 Detected: 2/14
 Partial: 1/14
-Missed: 4/14
+Missed: 3/14
 Skipped: 0/14
 
+Brute Force: confirmed
 SQL Injection: confirmed
 Reflected XSS: confirmed
 Stored XSS: confirmed
@@ -397,9 +398,10 @@ Acceptance criteria:
 
 Latest Linux VM acceptance baseline from this track:
 
-- DVWA: 10 of 14 modules covered, with regular SQL injection, blind SQL
-  injection, reflected XSS, stored XSS, file inclusion, command injection, and
-  weak session ID confirmed by built-in validators; current full-tool
+- DVWA: 11 of 14 modules covered, with brute-force/default credential,
+  regular SQL injection, blind SQL injection, reflected XSS, stored XSS, file
+  inclusion, command injection, and weak session ID confirmed by built-in
+  validators; current full-tool
   benchmark runs have no failed tool runs.
 - Juice Shop: 4 of 15 categories covered; this is the current shared-validator
   regression floor, and current full-tool benchmark runs have no failed tool
@@ -407,11 +409,11 @@ Latest Linux VM acceptance baseline from this track:
 
 Short-term:
 
-- DVWA: maintain at least 10 of 14 modules covered while improving confirmation
-  depth for DOM XSS or brute-force workflows.
-- DVWA: maintain confirmed SQL injection, reflected XSS, stored XSS, file
-  inclusion, command injection, and weak session ID coverage in benchmark-safe
-  mode.
+- DVWA: maintain at least 11 of 14 modules covered while improving DOM XSS,
+  CSP, or workflow/CAPTCHA review signals.
+- DVWA: maintain confirmed brute-force/default credential, SQL injection,
+  reflected XSS, stored XSS, file inclusion, command injection, and weak
+  session ID coverage in benchmark-safe mode.
 - Juice Shop: identify at least 25 category-level challenge signals or route
   risks.
 - Juice Shop: confirm at least OpenAPI exposure, CORS/header issues, selected

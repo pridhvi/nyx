@@ -522,6 +522,115 @@ func TestReflectedXSSCheckDoesNotReportEscapedReflection(t *testing.T) {
 	}
 }
 
+func TestBruteForceCheckConfirmsConfiguredCredential(t *testing.T) {
+	var attempts int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("username") == "admin" && r.URL.Query().Get("password") == "password" {
+			attempts++
+			_, _ = w.Write([]byte("Welcome to the password protected area admin"))
+			return
+		}
+		_, _ = w.Write([]byte(`<form method="get" action="/brute"><input name="username"><input name="password" type="password"><button name="Login" value="Login">Login</button></form>`))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/brute")
+	input.Session.ToolParameters[models.SessionScanOptionsKey]["safe_active_checks"] = map[string]any{
+		"allow_credential_validation": true,
+		"intentionally_vulnerable":    true,
+		"non_production":              true,
+		"credential_max_attempts":     1,
+		"credential_candidates": []any{
+			map[string]any{"username": "admin", "password": "password"},
+		},
+		"credential_success_contains": []any{"Welcome to the password protected area"},
+	}
+	adapter := NewBruteForceCheck()
+	if !adapter.ShouldRun(input) {
+		t.Fatal("expected brute-force check to run with seeded credential route")
+	}
+	out, err := adapter.Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if attempts != 1 {
+		t.Fatalf("expected exactly one credential attempt, got %d; stdout=%s", attempts, out.ToolRun.RawStdout)
+	}
+	if len(out.Findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
+	}
+	finding := out.Findings[0]
+	if finding.ToolID != "brute-force-check" || finding.Status != "confirmed" || finding.Severity != models.SeverityHigh || finding.Parameter != "username,password" {
+		t.Fatalf("unexpected finding: %#v", finding)
+	}
+	if strings.Contains(out.ToolRun.RawStdout, "password") || strings.Contains(finding.EvidenceRaw, "password") {
+		t.Fatalf("expected password to be redacted from evidence/stdout, stdout=%s evidence=%s", out.ToolRun.RawStdout, finding.EvidenceRaw)
+	}
+}
+
+func TestBruteForceCheckRequiresBenchmarkSafetyGate(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`<form method="post" action="/login"><input name="username"><input name="password"></form>`))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/login")
+	out, err := NewBruteForceCheck().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 0 {
+		t.Fatalf("expected no findings, got %#v", out.Findings)
+	}
+	if !strings.Contains(out.ToolRun.RawStdout, "active_credential_validation_requires") {
+		t.Fatalf("expected safety skip reason, got %s", out.ToolRun.RawStdout)
+	}
+}
+
+func TestBruteForceCheckStopsOnLockout(t *testing.T) {
+	var attempts int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			attempts++
+			w.WriteHeader(http.StatusLocked)
+			_, _ = w.Write([]byte("locked"))
+			return
+		}
+		_, _ = w.Write([]byte(`<form method="post" action="/login"><input name="username"><input name="password"></form>`))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/login")
+	input.Session.ToolParameters[models.SessionScanOptionsKey]["safe_active_checks"] = map[string]any{
+		"allow_credential_validation": true,
+		"intentionally_vulnerable":    true,
+		"non_production":              true,
+		"credential_max_attempts":     3,
+		"credential_candidates": []any{
+			map[string]any{"username": "admin", "password": "one"},
+			map[string]any{"username": "admin", "password": "two"},
+		},
+	}
+	out, err := NewBruteForceCheck().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if attempts != 1 {
+		t.Fatalf("expected lockout to stop after one attempt, got %d", attempts)
+	}
+	if len(out.Findings) != 0 || !strings.Contains(out.ToolRun.RawStdout, "lockout=true") {
+		t.Fatalf("expected lockout without findings, findings=%#v stdout=%s", out.Findings, out.ToolRun.RawStdout)
+	}
+}
+
+func TestBruteForceCandidatesUseDVWASeededRoutes(t *testing.T) {
+	input := testHTTPAdapterInput(t, "http://example.test",
+		"/vulnerabilities/brute/",
+		"/vulnerabilities/xss_s/",
+	)
+	candidates := bruteForceCandidateURLs(input, 10)
+	if len(candidates) != 1 || candidates[0] != "http://example.test/vulnerabilities/brute/" {
+		t.Fatalf("expected seeded DVWA brute force candidate, got %#v", candidates)
+	}
+}
+
 func TestStoredXSSCheckConfirmsReadbackMarker(t *testing.T) {
 	var stored []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

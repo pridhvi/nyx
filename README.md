@@ -117,7 +117,7 @@ All external tools are optional. Missing tools are recorded as tool runs and the
 | Recon | `http-probe`, `security-headers`, `subfinder`, `dnsx`, `naabu`, `httpx`, `whois`, `waybackurls`, `nmap`, `crt.sh` |
 | Fingerprinting | `whatweb`, `nuclei-tech`, `testssl.sh`, GraphQL introspection, OpenAPI/Swagger discovery, `wpscan`, `droopescan` |
 | Enumeration | `ffuf`, `arjun`, `linkfinder`, `gitleaks`, JavaScript secret scanning, CORS checks, scoped cloud bucket checks |
-| Vulnerability | `nuclei-vuln`, `sqlmap`, `dalfox`, SSRFmap, `jwt_tool`, OAuth checks, reflected XSS validation, stored XSS read-back validation for explicitly safe benchmark targets, SQL injection validation, open redirect validation, file inclusion validation, command injection validation for explicitly safe benchmark targets, upload validation, IDOR route checks, workflow-assist review hints, CSRF form analysis, weak session ID sampling, SSTI checks, XXE fuzzing, `nikto` |
+| Vulnerability | `nuclei-vuln`, `sqlmap`, `dalfox`, SSRFmap, `jwt_tool`, OAuth checks, strict credential validation for explicitly safe benchmark targets, reflected XSS validation, stored XSS read-back validation for explicitly safe benchmark targets, SQL injection validation, open redirect validation, file inclusion validation, command injection validation for explicitly safe benchmark targets, upload validation, IDOR route checks, workflow-assist review hints, CSRF form analysis, weak session ID sampling, SSTI checks, XXE fuzzing, `nikto` |
 
 Static audit tools are registered as `audit/<id>`. Built-in source analyzers always run; optional tools such as `semgrep`, `bandit`, `gosec`, `govulncheck`, `npm audit`, `retire.js`, `safety`, `brakeman`, `spotbugs`, `psalm`, `trufflehog`, `gitleaks`, and `grype` run when installed. Their native outputs are parsed into normalized findings or package CVEs where possible, with a generic JSON fallback for future adapter shapes.
 
@@ -228,16 +228,18 @@ scanning, so authentication failures are reported as setup failures instead of
 noisy low-coverage scans. Active-mode
 scans now include bounded, auth-aware built-in validators for reflected XSS
 markers, stored XSS read-back markers only when a profile marks the target
-intentionally vulnerable and non-production, SQL injection boolean/error
-canaries, local hosts-file marker probes for file inclusion, harmless
-command-injection marker checks only when a profile marks the target
-intentionally vulnerable and non-production, harmless file uploads, IDOR
-adjacent-object checks with optional secondary-identity replay, workflow-assist
-review hints for seeded high-value forms and business-control parameters, CSRF
-form-token analysis, weak session identifier sampling, non-exfiltrating XML
-entity markers, and open redirects on seeded query routes; they do not follow
-external redirects and only report confirmed validation when the marker,
-predicate behavior, or secondary-identity replay is observed.
+intentionally vulnerable and non-production, strict credential validation with
+an explicit attempt budget only when benchmark credentials are configured, SQL
+injection boolean/error canaries, local hosts-file marker probes for file
+inclusion, harmless command-injection marker checks only when a profile marks
+the target intentionally vulnerable and non-production, harmless file uploads,
+IDOR adjacent-object checks with optional secondary-identity replay,
+workflow-assist review hints for seeded high-value forms and business-control
+parameters, CSRF form-token analysis, weak session identifier sampling,
+non-exfiltrating XML entity markers, and open redirects on seeded query routes;
+they do not follow external redirects and only report confirmed validation when
+the marker, predicate behavior, credential success marker, or
+secondary-identity replay is observed.
 
 ```sh
 make benchmark-targets-up

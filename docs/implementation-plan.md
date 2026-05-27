@@ -57,10 +57,10 @@ profiles with CSRF/token extraction and validation requests, bounded
 validation/re-login refresh during long scans, `auth_status` lifecycle events
 for validation and refresh outcomes, redacted session JSON/tool-run arguments
 for auth material, auth-aware safe validators including file inclusion and weak
-session checks, benchmark-safe command injection validation and stored XSS
-read-back validation gated by intentionally-vulnerable/non-production profile
-flags, and first adapter consumers for built-in HTTP checks plus `ffuf`,
-`sqlmap`, and `dalfox`.
+session checks, benchmark-safe command injection validation, stored XSS
+read-back validation, and strict credential validation gated by
+intentionally-vulnerable/non-production profile flags, and first adapter
+consumers for built-in HTTP checks plus `ffuf`, `sqlmap`, and `dalfox`.
 
 ## Current Baseline
 
@@ -654,6 +654,9 @@ work and must be carried forward:
   forms only when the target profile or tool parameters mark the target
   intentionally vulnerable and non-production, then confirms only on a later
   authenticated read-back request.
+- Built-in brute-force validator submits explicitly configured benchmark
+  credentials with a total attempt budget clamped to 1-3, stops on lockout
+  indicators, and redacts passwords from tool-run output and findings.
 - Built-in upload validator submits a harmless text marker file to seeded upload
   routes and confirms only response echo or scoped retrieval of the marker.
 - Built-in IDOR check tests seeded object identifier routes with adjacent-object
