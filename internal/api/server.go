@@ -3032,6 +3032,7 @@ func descriptionForTool(id string) string {
 		"upload-check":            "Safely validates file upload endpoints with a harmless text marker file.",
 		"idor-check":              "Checks seeded object identifier routes for adjacent-object access and optional secondary-identity replay.",
 		"workflow-assist":         "Surfaces seeded high-value workflow forms and parameters for manual business-logic review without submitting state changes.",
+		"csp-review":              "Surfaces seeded CSP bypass review candidates without attempting exploit execution.",
 		"csrf-check":              "Analyzes seeded state-changing forms for missing anti-CSRF token fields without submitting them.",
 		"weak-session-check":      "Samples seeded session-related routes for predictable cookie or token values with tight limits.",
 		"ssti-check":              "Performs safe server-side template injection checks.",
@@ -3141,6 +3142,10 @@ func parametersForTool(id string) []toolParameter {
 			{Name: "allow_stored_xss", Label: "Allow Stored XSS Check", Type: "boolean", Description: "Enable persistent marker validation for explicitly safe targets."},
 			{Name: "intentionally_vulnerable", Label: "Intentionally Vulnerable", Type: "boolean", Description: "Confirms the target is a lab or benchmark built for active validation."},
 			{Name: "non_production", Label: "Non-production", Type: "boolean", Description: "Confirms the target is not a production system."},
+		}
+	case "csp-review":
+		return []toolParameter{
+			{Name: "max_pages", Label: "Max Pages", Type: "number", Default: 10, Description: "Maximum seeded CSP-related pages to review, clamped to 25."},
 		}
 	default:
 		return nil

@@ -273,6 +273,9 @@ Add generic, bounded validators for common classes:
 - weak session ID sampling (implemented for seeded session-related routes)
 - CSRF missing-token checks (implemented as non-mutating form analysis for
   seeded state-changing routes; token-reuse checks remain deferred)
+- CSP bypass review (implemented as human-assist analysis of seeded
+  CSP-related routes, script policies, and user-controlled source/include
+  fields without attempting execution)
 
 Acceptance criteria:
 
@@ -338,11 +341,11 @@ Add benchmark-specific output alongside normal Nyx reports:
 
 ```text
 DVWA Benchmark
-Covered: 12/14
+Covered: 13/14
 Confirmed: 9/14
 Detected: 2/14
-Partial: 1/14
-Missed: 2/14
+Partial: 2/14
+Missed: 1/14
 Skipped: 0/14
 
 Brute Force: confirmed
@@ -355,6 +358,7 @@ Command Injection: confirmed
 Weak Session IDs: confirmed
 File Upload: detected
 CSRF: detected
+CSP Bypass: partial
 ```
 
 The JSON summary should include:
@@ -399,22 +403,24 @@ Acceptance criteria:
 
 Latest Linux VM acceptance baseline from this track:
 
-- DVWA: 12 of 14 modules covered, with brute-force/default credential,
+- DVWA: 13 of 14 modules covered, with brute-force/default credential,
   regular SQL injection, blind SQL injection, reflected XSS, stored XSS, file
   inclusion, DOM XSS, command injection, and weak session ID confirmed by
-  built-in validators; current full-tool benchmark runs have no failed tool
-  runs. The remaining missed DVWA modules are insecure CAPTCHA and CSP bypass.
+  built-in validators, plus CSP bypass covered as a human-assist partial;
+  current full-tool benchmark runs have no failed tool runs. The remaining
+  missed DVWA module is insecure CAPTCHA.
 - Juice Shop: 4 of 15 categories covered; this is the current shared-validator
   regression floor, and current full-tool benchmark runs have no failed tool
   runs.
 
 Short-term:
 
-- DVWA: maintain at least 12 of 14 modules covered while improving CSP or
+- DVWA: maintain at least 13 of 14 modules covered while improving
   workflow/CAPTCHA review signals.
 - DVWA: maintain confirmed brute-force/default credential, SQL injection,
   reflected XSS, stored XSS, DOM XSS, file inclusion, command injection, and
-  weak session ID coverage in benchmark-safe mode.
+  weak session ID coverage in benchmark-safe mode plus CSP bypass partial
+  coverage as human-assist output.
 - Juice Shop: identify at least 25 category-level challenge signals or route
   risks.
 - Juice Shop: confirm at least OpenAPI exposure, CORS/header issues, selected
@@ -422,7 +428,7 @@ Short-term:
 
 Strong target:
 
-- DVWA: 12 or more modules detected, with several confirmed.
+- DVWA: 13 or more modules detected, with several confirmed.
 - Juice Shop: 50 or more challenge signals or category-level detections.
 - Authenticated crawling, route seeding, and validator evidence become reusable
   for real authorized targets.

@@ -113,6 +113,11 @@ func supportedToolParameterNames(toolID string) map[string]bool {
 			"intentionally_vulnerable": true,
 			"non_production":           true,
 		}
+	case "csp-review":
+		return map[string]bool{
+			"enabled":   true,
+			"max_pages": true,
+		}
 	default:
 		return map[string]bool{}
 	}

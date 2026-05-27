@@ -38,6 +38,7 @@ func init() {
 	Register(NewFileInclusionCheck())
 	Register(NewCommandInjectionCheck())
 	Register(NewUploadCheck())
+	Register(NewCSPReviewCheck())
 	Register(NewSSTICheck())
 	Register(NewXXEFuzz())
 	Register(NewNikto())

@@ -58,10 +58,10 @@ validation/re-login refresh during long scans, `auth_status` lifecycle events
 for validation and refresh outcomes, redacted session JSON/tool-run arguments
 for auth material, auth-aware safe validators including file inclusion and weak
 session checks, benchmark-safe command injection validation, stored XSS
-read-back validation, browser-backed DOM XSS marker validation, and strict
-credential validation gated by intentionally-vulnerable/non-production profile
-flags, and first adapter consumers for built-in HTTP checks plus `ffuf`,
-`sqlmap`, and `dalfox`.
+read-back validation, browser-backed DOM XSS marker validation, CSP bypass
+human-assist review, and strict credential validation gated by
+intentionally-vulnerable/non-production profile flags, and first adapter
+consumers for built-in HTTP checks plus `ffuf`, `sqlmap`, and `dalfox`.
 
 ## Current Baseline
 

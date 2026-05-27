@@ -279,11 +279,15 @@
       "route": "/vulnerabilities/csp/",
       "automation_suitable": false,
       "confirmation_strategy": "human-assist CSP policy and bypass review",
-      "match": {
+      "all_match": {
         "url": [
           "/vulnerabilities/csp/"
         ],
+        "tool": [
+          "csp-review"
+        ],
         "title": [
+          "potential csp bypass review candidate",
           "csp bypass",
           "content-security-policy bypass"
         ]

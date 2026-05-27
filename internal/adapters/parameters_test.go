@@ -79,6 +79,17 @@ func TestValidateToolParametersAllowsDOMXSSSafetyGate(t *testing.T) {
 	}
 }
 
+func TestValidateToolParametersAllowsCSPReviewLimit(t *testing.T) {
+	err := ValidateToolParameters(map[string]map[string]any{
+		"csp-review": {
+			"max_pages": 5,
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected CSP review params to validate: %v", err)
+	}
+}
+
 func TestValidateToolParametersRejectsUnsafeExtraArgs(t *testing.T) {
 	err := ValidateToolParameters(map[string]map[string]any{
 		"sqlmap": {"extra_args": []any{"--os-shell"}},

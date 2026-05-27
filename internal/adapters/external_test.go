@@ -1187,6 +1187,71 @@ func TestWorkflowAssistReportsGETStateChangingForm(t *testing.T) {
 	}
 }
 
+func TestCSPReviewCandidatesUseSeededRoutes(t *testing.T) {
+	input := testHTTPAdapterInput(t, "http://example.test",
+		"/vulnerabilities/csp/",
+		"/vulnerabilities/xss_r/?name=nyx",
+	)
+	candidates := cspReviewCandidateURLs(input, 10)
+	if len(candidates) != 1 || candidates[0] != "http://example.test/vulnerabilities/csp/" {
+		t.Fatalf("expected seeded CSP route candidate, got %#v", candidates)
+	}
+}
+
+func TestCSPReviewReportsExternalScriptIncludeForm(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Security-Policy", "script-src 'self' https://cdn.example code.jquery.com")
+		_, _ = w.Write([]byte(`<html><head><title>Content Security Policy Bypass</title></head><body><form method="post" action="/csp"><input name="include"><button>Include</button></form></body></html>`))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/csp")
+	adapter := NewCSPReviewCheck()
+	if !adapter.ShouldRun(input) {
+		t.Fatal("expected CSP review to run with seeded CSP route")
+	}
+	out, err := adapter.Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
+	}
+	finding := out.Findings[0]
+	if finding.ToolID != "csp-review" || finding.Status != "suspected" || finding.Severity != models.SeverityMedium {
+		t.Fatalf("unexpected finding: %#v", finding)
+	}
+	if !strings.Contains(strings.ToLower(finding.Title), "csp bypass") {
+		t.Fatalf("expected CSP bypass title, got %q", finding.Title)
+	}
+	if !strings.Contains(finding.EvidenceNormalized, "cdn.example") || !strings.Contains(finding.EvidenceNormalized, "include") {
+		t.Fatalf("expected policy and source-field evidence, got %s", finding.EvidenceNormalized)
+	}
+}
+
+func TestCSPReviewDoesNotReportRestrictivePolicy(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'")
+		_, _ = w.Write([]byte(`<html><head><title>Content Security Policy</title></head><body>No script include controls.</body></html>`))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/csp")
+	out, err := NewCSPReviewCheck().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 0 {
+		t.Fatalf("expected no findings, got %#v", out.Findings)
+	}
+}
+
+func TestCSPReviewSkipsOutOfScopeSeed(t *testing.T) {
+	input := testHTTPAdapterInput(t, "http://example.test", "http://other.example.test/csp")
+	input.Scope = fakeScope{allowed: map[string]bool{"example.test": true}}
+	if candidates := cspReviewCandidateURLs(input, 10); len(candidates) != 0 {
+		t.Fatalf("expected out-of-scope CSP seed to be filtered, got %#v", candidates)
+	}
+}
+
 func TestCSRFCheckReportsStateChangingFormWithoutToken(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`<form method="get" action="/change-password"><input name="password_new"><input name="password_conf"><button name="Change" value="Change">Change</button></form>`))
