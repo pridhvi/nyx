@@ -30,6 +30,12 @@
     "security_answer": "nyx",
     "login_preflight": true
   },
+  "safe_active_checks": {
+    "allow_dom_xss": true,
+    "dom_xss_wait_ms": 1000,
+    "intentionally_vulnerable": true,
+    "non_production": true
+  },
   "notes": [
     "Juice Shop benchmark setup may create or reuse a benchmark user.",
     "Core scanner adapters must not hardcode Juice Shop challenge names or routes."

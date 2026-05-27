@@ -876,7 +876,7 @@ Any process that speaks this JSON contract over stdin/stdout is a valid Nyx plug
 |---|---|---|
 | `ffuf` / `feroxbuster` | subprocess | Hidden directories and files |
 | `arjun` | subprocess | Hidden HTTP parameters |
-| `linkfinder` | subprocess | Endpoints extracted from JavaScript files |
+| `linkfinder` | subprocess | Hidden endpoints extracted from JavaScript files |
 | `gitleaks` / `trufflehog` | subprocess | Secrets in JS files, git repos, public pages |
 | CORS check | Go stdlib HTTP | Misconfigured CORS (allow-all origins, etc.) |
 | S3/GCS enumeration | Go stdlib HTTP | Public cloud storage buckets |
@@ -896,15 +896,15 @@ Any process that speaks this JSON contract over stdin/stdout is a valid Nyx plug
 | OAuth checks | Go stdlib HTTP | Open redirect in OAuth callbacks, CSRF |
 | Brute force check | Go stdlib HTTP | Strict configured credential validation gated to intentionally vulnerable non-production targets |
 | Reflected XSS check | Go stdlib HTTP | Marker reflection in seeded query parameters |
-| DOM XSS check | Chrome/Chromium via chromedp | Browser-backed DOM marker validation gated to intentionally vulnerable non-production targets |
+| DOM XSS check | Chrome/Chromium via chromedp | Browser-backed DOM marker validation for seeded query/hash routes gated to intentionally vulnerable non-production targets |
 | Stored XSS check | Go stdlib HTTP | Marker submission plus authenticated read-back, gated to intentionally vulnerable non-production targets |
 | SQL injection check | Go stdlib HTTP | Bounded boolean/error canaries in seeded query parameters |
-| Open redirect check | Go stdlib HTTP | Controlled external redirects in seeded redirect-like parameters |
+| Open redirect check | Go stdlib HTTP | Controlled external redirects in seeded redirect-like parameters and operator-seeded external redirect URLs |
 | File inclusion check | Go stdlib HTTP | Safe local hosts-file marker probes in seeded file/path parameters |
 | Command injection check | Go stdlib HTTP | Harmless echo-marker validation gated to intentionally vulnerable non-production targets |
 | Upload check | Go stdlib HTTP | Harmless marker-file upload validation on seeded upload routes |
 | IDOR check | Go stdlib HTTP | Adjacent-object identifier checks and optional secondary-identity replay |
-| Workflow assist | Go stdlib HTTP | Human-assist review hints for seeded high-value forms, business-control parameters, and CAPTCHA-protected sensitive workflows |
+| Workflow assist | Go stdlib HTTP | Human-assist review hints for seeded high-value forms, business-control parameters, CAPTCHA-protected sensitive workflows, and exposed CAPTCHA answers |
 | CSP review | Go stdlib HTTP | Human-assist CSP bypass review candidates for seeded CSP-related routes |
 | CSRF check | Go stdlib HTTP | Missing token analysis for seeded state-changing forms without submission |
 | Weak session check | Go stdlib HTTP | Bounded sampling for predictable session cookies and body tokens |

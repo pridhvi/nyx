@@ -292,7 +292,7 @@ func parseEndpointFindings(input AdapterInput, toolID, raw string) []models.Find
 			continue
 		}
 		seen[absolute] = true
-		findings = append(findings, externalFinding(input, toolID, models.FindingTypeInfo, models.SeverityInfo, "JavaScript endpoint discovered", fmt.Sprintf("%s discovered endpoint %s.", toolID, absolute), "Review discovered endpoints for authorization and input validation coverage.", raw, map[string]any{"url": absolute, "path": parsed.Path}, []string{toolID, "javascript-endpoint"}))
+		findings = append(findings, externalFinding(input, toolID, models.FindingTypeInfo, models.SeverityInfo, "Hidden JavaScript endpoint discovered", fmt.Sprintf("%s discovered endpoint %s.", toolID, absolute), "Review discovered endpoints for authorization and input validation coverage.", raw, map[string]any{"url": absolute, "path": parsed.Path}, []string{toolID, "javascript-endpoint", "hidden-route"}))
 	}
 	return findings
 }

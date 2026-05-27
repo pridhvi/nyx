@@ -5,6 +5,7 @@
 /api/Feedbacks/
 /api/Users/
 /rest/products/search?q=apple
+/rest/captcha/
 /rest/user/login
 /rest/basket
 /rest/basket/1
@@ -12,6 +13,8 @@
 /rest/admin/application-version
 /ftp/
 /redirect?to=/score-board
+/redirect?to=https://github.com/juice-shop/juice-shop
+/#/search?q=apple
 /profile
 /administration
 /score-board

@@ -244,10 +244,12 @@
       "all_match": {
         "tool": [
           "dalfox",
+          "dom-xss-check",
           "reflected-xss-check"
         ],
         "title": [
           "cross-site scripting",
+          "dom xss marker",
           "reflected xss marker",
           "xss"
         ]

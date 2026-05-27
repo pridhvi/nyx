@@ -252,11 +252,13 @@ Add generic, bounded validators for common classes:
 - stored XSS marker recall where a read-back route is known or discovered
   (implemented for explicitly safe benchmark profiles)
 - DOM XSS candidate detection with browser-assisted confirmation (implemented
-  for explicitly safe benchmark profiles with installed Chrome/Chromium)
+  for seeded query/hash routes on explicitly safe benchmark profiles with
+  installed Chrome/Chromium)
 - SQL injection boolean/error validation with strict limits (implemented for
   seeded query routes; time-based probing remains deferred)
 - open redirect validation with controlled marker URLs (implemented for seeded
-  redirect-like query parameters without following external redirects)
+  redirect-like query parameters and operator-seeded external redirect URLs
+  without following external redirects)
 - command injection marker checks only when the configured profile marks the
   target as intentionally vulnerable and non-production (implemented for seeded
   command-like forms)
@@ -276,8 +278,9 @@ Add generic, bounded validators for common classes:
 - CSP bypass review (implemented as human-assist analysis of seeded
   CSP-related routes, script policies, and user-controlled source/include
   fields without attempting execution)
-- CAPTCHA-protected sensitive workflow review (implemented as human-assist form
-  analysis without submitting or bypassing CAPTCHA-protected transitions)
+- CAPTCHA-protected sensitive workflow review and CAPTCHA answer exposure
+  detection (implemented without submitting or bypassing CAPTCHA-protected
+  transitions)
 
 Acceptance criteria:
 
@@ -412,9 +415,11 @@ Latest Linux VM acceptance baseline from this track:
   built-in validators, plus CSP bypass and insecure CAPTCHA covered as
   human-assist partials; current full-tool benchmark runs have no failed tool
   runs.
-- Juice Shop: 4 of 15 categories covered; this is the current shared-validator
-  regression floor, and current full-tool benchmark runs have no failed tool
-  runs.
+- Juice Shop: 7 of 15 categories covered, with broken access control,
+  anti-automation/CAPTCHA answer exposure, security misconfiguration,
+  security-through-obscurity hidden JavaScript endpoint hints, sensitive data
+  exposure, open redirect, and vulnerable component categories mapped; current
+  full-tool benchmark runs have no failed tool runs.
 
 Short-term:
 
@@ -424,10 +429,11 @@ Short-term:
   reflected XSS, stored XSS, DOM XSS, file inclusion, command injection, and
   weak session ID coverage in benchmark-safe mode plus CSP bypass partial
   coverage and insecure CAPTCHA partial coverage as human-assist output.
-- Juice Shop: identify at least 25 category-level challenge signals or route
-  risks.
-- Juice Shop: confirm at least OpenAPI exposure, CORS/header issues, selected
-  XSS/redirect/API-access issues where safe.
+- Juice Shop: raise category coverage above 7 of 15 by targeting generic
+  authentication, input-validation, XSS, injection, and crypto/deserialization
+  signals.
+- Juice Shop: maintain mapped OpenAPI/CORS/header, CAPTCHA answer exposure,
+  seeded external redirect, and selected API-access signals where safe.
 
 Strong target:
 

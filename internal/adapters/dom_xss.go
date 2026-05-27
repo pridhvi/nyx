@@ -252,13 +252,11 @@ func domXSSParameterNames(parsed *url.URL) []string {
 		params = append(params, key)
 	}
 	if parsed.Fragment != "" {
-		fragment, err := url.ParseQuery(parsed.Fragment)
-		if err == nil {
-			for _, key := range sortedQueryKeys(fragment) {
-				if key != "" && !seen["#"+key] {
-					seen["#"+key] = true
-					params = append(params, "#"+key)
-				}
+		_, fragment := fragmentQueryValues(parsed.Fragment)
+		for _, key := range sortedQueryKeys(fragment) {
+			if key != "" && !seen["#"+key] {
+				seen["#"+key] = true
+				params = append(params, "#"+key)
 			}
 		}
 	}
@@ -271,7 +269,9 @@ func looksLikeDOMXSSSurface(raw string) bool {
 		strings.Contains(lower, "xss_d") ||
 		strings.Contains(lower, "hash") ||
 		strings.Contains(lower, "fragment") ||
-		strings.Contains(lower, "client")
+		strings.Contains(lower, "client") ||
+		strings.Contains(lower, "#/") ||
+		strings.Contains(lower, "search")
 }
 
 func mutateDOMXSSCandidate(candidate domXSSCandidate, payload string) string {
@@ -281,15 +281,24 @@ func mutateDOMXSSCandidate(candidate domXSSCandidate, payload string) string {
 	}
 	if strings.HasPrefix(candidate.Parameter, "#") {
 		key := strings.TrimPrefix(candidate.Parameter, "#")
-		fragment, _ := url.ParseQuery(parsed.Fragment)
+		prefix, fragment := fragmentQueryValues(parsed.Fragment)
 		fragment.Set(key, payload)
 		parsed.Fragment = ""
-		return parsed.String() + "#" + encodeDOMXSSParams(fragment, key)
+		return parsed.String() + "#" + prefix + encodeDOMXSSParams(fragment, key)
 	}
 	query := parsed.Query()
 	query.Set(candidate.Parameter, payload)
 	parsed.RawQuery = encodeDOMXSSParams(query, candidate.Parameter)
 	return parsed.String()
+}
+
+func fragmentQueryValues(fragment string) (string, url.Values) {
+	if index := strings.Index(fragment, "?"); index >= 0 {
+		values, _ := url.ParseQuery(fragment[index+1:])
+		return fragment[:index+1], values
+	}
+	values, _ := url.ParseQuery(fragment)
+	return "", values
 }
 
 func encodeDOMXSSParams(values url.Values, payloadKey string) string {

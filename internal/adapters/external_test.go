@@ -46,6 +46,15 @@ func (s fakeScope) IsInScope(raw string) (bool, string) {
 	return false, "out of scope"
 }
 
+func mustHost(t *testing.T, rawURL string) string {
+	t.Helper()
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return parsed.Hostname()
+}
+
 func TestParseNmapFindings(t *testing.T) {
 	raw := `<nmaprun><host><ports><port protocol="tcp" portid="80"><state state="closed"/></port><port protocol="tcp" portid="443"><state state="open"/><service name="https" product="nginx" version="1.25"/></port><port protocol="tcp" portid="8443"><state state="open"/></port></ports></host></nmaprun>`
 	findings := parseNmapFindings(testExternalInput(), raw)
@@ -341,7 +350,7 @@ https://other.example.net/out-of-scope`
 	if len(findings) != 2 {
 		t.Fatalf("expected 2 findings, got %d", len(findings))
 	}
-	if findings[0].ToolID != "linkfinder" || findings[0].Tags[1] != "javascript-endpoint" {
+	if findings[0].ToolID != "linkfinder" || findings[0].Title != "Hidden JavaScript endpoint discovered" || findings[0].Tags[1] != "javascript-endpoint" {
 		t.Fatalf("unexpected finding: %#v", findings[0])
 	}
 }
@@ -831,10 +840,45 @@ func TestOpenRedirectCheckUsesSeededRoutesWithoutFollowingRedirect(t *testing.T)
 	}
 }
 
+func TestOpenRedirectCheckConfirmsSeededExternalRedirect(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, r.URL.Query().Get("to"), http.StatusFound)
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/redirect?to=https://docs.example.test/path")
+	input.Scope = fakeScope{allowed: map[string]bool{mustHost(t, server.URL): true}}
+	out, err := NewOpenRedirectCheck().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
+	}
+	finding := out.Findings[0]
+	if finding.ToolID != "open-redirect-check" || finding.Parameter != "to" || finding.Status != "confirmed" || finding.Severity != models.SeverityHigh {
+		t.Fatalf("unexpected finding: %#v", finding)
+	}
+	if !strings.Contains(finding.EvidenceNormalized, "seeded-external-redirect") && !testHasTag(finding.Tags, "seeded-external-redirect") {
+		t.Fatalf("expected seeded external redirect evidence, got %#v %s", finding.Tags, finding.EvidenceNormalized)
+	}
+}
+
 func TestOpenRedirectCheckIgnoresNonRedirectParameters(t *testing.T) {
 	input := testHTTPAdapterInput(t, "http://example.test", "/search?q=seed")
 	if NewOpenRedirectCheck().ShouldRun(input) {
 		t.Fatal("expected open redirect check to skip non-redirect parameters")
+	}
+}
+
+func TestDOMXSSCandidatesUseHashSearchSeededRoutes(t *testing.T) {
+	input := testHTTPAdapterInput(t, "http://example.test", "/#/search?q=apple")
+	candidates := domXSSCandidates(input, 10)
+	if len(candidates) != 1 || candidates[0].RawURL != "http://example.test/#/search?q=apple" || candidates[0].Parameter != "#q" {
+		t.Fatalf("expected hash search DOM XSS candidate, got %#v", candidates)
+	}
+	probe := mutateDOMXSSCandidate(candidates[0], "nyxdom")
+	if probe != "http://example.test/#/search?q=nyxdom" {
+		t.Fatalf("expected hash route to be preserved during mutation, got %q", probe)
 	}
 }
 
@@ -1231,6 +1275,33 @@ func TestWorkflowAssistReportsCaptchaProtectedSensitiveWorkflow(t *testing.T) {
 	}
 	if !strings.Contains(finding.EvidenceNormalized, "g-recaptcha-response") || !strings.Contains(finding.EvidenceNormalized, "password_new") {
 		t.Fatalf("expected CAPTCHA and sensitive workflow evidence, got %s", finding.EvidenceNormalized)
+	}
+}
+
+func TestWorkflowAssistReportsCaptchaAnswerExposure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"captchaId":2,"captcha":"1-1*5","answer":"-4"}`))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/rest/captcha/")
+	adapter := NewWorkflowAssistCheck()
+	if !adapter.ShouldRun(input) {
+		t.Fatal("expected workflow assist to run with seeded CAPTCHA API route")
+	}
+	out, err := adapter.Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
+	}
+	finding := out.Findings[0]
+	if finding.ToolID != "workflow-assist" || finding.Status != "confirmed" || finding.Severity != models.SeverityMedium {
+		t.Fatalf("unexpected finding: %#v", finding)
+	}
+	if !strings.Contains(strings.ToLower(finding.Title), "captcha answer exposed") || !strings.Contains(finding.EvidenceNormalized, `"answer_present":true`) {
+		t.Fatalf("expected CAPTCHA answer exposure evidence, got %q %s", finding.Title, finding.EvidenceNormalized)
 	}
 }
 
