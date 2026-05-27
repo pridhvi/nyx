@@ -110,11 +110,13 @@
       "route": "/vulnerabilities/captcha/",
       "automation_suitable": false,
       "confirmation_strategy": "human-assist workflow review",
-      "match": {
+      "all_match": {
         "url": [
           "/vulnerabilities/captcha/"
         ],
         "title": [
+          "captcha-protected workflow",
+          "insecure captcha",
           "captcha",
           "workflow",
           "business"

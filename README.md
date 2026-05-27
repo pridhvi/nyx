@@ -236,12 +236,12 @@ inclusion, harmless command-injection marker checks only when a profile marks
 the target intentionally vulnerable and non-production, harmless file uploads,
 IDOR adjacent-object checks with optional secondary-identity replay,
 workflow-assist review hints for seeded high-value forms and business-control
-parameters, CSP bypass review candidates from seeded CSP-related routes, CSRF
-form-token analysis, weak session identifier sampling, non-exfiltrating XML
-entity markers, and open redirects on seeded query routes; they do not follow
-external redirects and only report confirmed validation when the marker,
-predicate behavior, credential success marker, or secondary-identity replay is
-observed.
+parameters including CAPTCHA-protected sensitive workflows, CSP bypass review
+candidates from seeded CSP-related routes, CSRF form-token analysis, weak
+session identifier sampling, non-exfiltrating XML entity markers, and open
+redirects on seeded query routes; they do not follow external redirects and
+only report confirmed validation when the marker, predicate behavior,
+credential success marker, or secondary-identity replay is observed.
 
 ```sh
 make benchmark-targets-up

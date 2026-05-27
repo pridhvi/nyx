@@ -904,7 +904,7 @@ Any process that speaks this JSON contract over stdin/stdout is a valid Nyx plug
 | Command injection check | Go stdlib HTTP | Harmless echo-marker validation gated to intentionally vulnerable non-production targets |
 | Upload check | Go stdlib HTTP | Harmless marker-file upload validation on seeded upload routes |
 | IDOR check | Go stdlib HTTP | Adjacent-object identifier checks and optional secondary-identity replay |
-| Workflow assist | Go stdlib HTTP | Human-assist review hints for seeded high-value forms and business-control parameters |
+| Workflow assist | Go stdlib HTTP | Human-assist review hints for seeded high-value forms, business-control parameters, and CAPTCHA-protected sensitive workflows |
 | CSP review | Go stdlib HTTP | Human-assist CSP bypass review candidates for seeded CSP-related routes |
 | CSRF check | Go stdlib HTTP | Missing token analysis for seeded state-changing forms without submission |
 | Weak session check | Go stdlib HTTP | Bounded sampling for predictable session cookies and body tokens |

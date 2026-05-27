@@ -1187,6 +1187,76 @@ func TestWorkflowAssistReportsGETStateChangingForm(t *testing.T) {
 	}
 }
 
+func TestWorkflowAssistCandidatesUseCaptchaSeededRoutes(t *testing.T) {
+	input := testHTTPAdapterInput(t, "http://example.test",
+		"/vulnerabilities/captcha/",
+		"/vulnerabilities/xss_r/?name=nyx",
+	)
+	candidates := workflowCandidateURLs(input, 10)
+	if len(candidates) != 1 || candidates[0] != "http://example.test/vulnerabilities/captcha/" {
+		t.Fatalf("expected seeded CAPTCHA workflow candidate, got %#v", candidates)
+	}
+}
+
+func TestWorkflowAssistReportsCaptchaProtectedSensitiveWorkflow(t *testing.T) {
+	var postSeen bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			postSeen = true
+		}
+		_, _ = w.Write([]byte(`<form method="post" action="/captcha"><input name="password_new"><input name="password_conf"><input name="g-recaptcha-response"><input name="step" value="1"><button name="Change" value="Change">Change</button></form>`))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/captcha")
+	adapter := NewWorkflowAssistCheck()
+	if !adapter.ShouldRun(input) {
+		t.Fatal("expected workflow assist to run with seeded CAPTCHA route")
+	}
+	out, err := adapter.Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if postSeen {
+		t.Fatal("workflow assist must not submit CAPTCHA-protected forms")
+	}
+	if len(out.Findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
+	}
+	finding := out.Findings[0]
+	if finding.ToolID != "workflow-assist" || finding.Status != "suspected" || finding.Severity != models.SeverityLow {
+		t.Fatalf("unexpected finding: %#v", finding)
+	}
+	if !strings.Contains(strings.ToLower(finding.Title), "captcha-protected workflow") {
+		t.Fatalf("expected CAPTCHA workflow title, got %q", finding.Title)
+	}
+	if !strings.Contains(finding.EvidenceNormalized, "g-recaptcha-response") || !strings.Contains(finding.EvidenceNormalized, "password_new") {
+		t.Fatalf("expected CAPTCHA and sensitive workflow evidence, got %s", finding.EvidenceNormalized)
+	}
+}
+
+func TestWorkflowAssistIgnoresCaptchaWithoutSensitiveWorkflow(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`<form method="post" action="/captcha"><input name="g-recaptcha-response"><input name="captcha"><button>Continue</button></form>`))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/captcha")
+	out, err := NewWorkflowAssistCheck().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 0 {
+		t.Fatalf("expected no findings, got %#v", out.Findings)
+	}
+}
+
+func TestWorkflowAssistSkipsOutOfScopeCaptchaSeed(t *testing.T) {
+	input := testHTTPAdapterInput(t, "http://example.test", "http://other.example.test/captcha")
+	input.Scope = fakeScope{allowed: map[string]bool{"example.test": true}}
+	if candidates := workflowCandidateURLs(input, 10); len(candidates) != 0 {
+		t.Fatalf("expected out-of-scope CAPTCHA seed to be filtered, got %#v", candidates)
+	}
+}
+
 func TestCSPReviewCandidatesUseSeededRoutes(t *testing.T) {
 	input := testHTTPAdapterInput(t, "http://example.test",
 		"/vulnerabilities/csp/",

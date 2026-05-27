@@ -3031,7 +3031,7 @@ func descriptionForTool(id string) string {
 		"command-injection-check": "Validates seeded command-like forms only when explicitly marked intentionally vulnerable and non-production.",
 		"upload-check":            "Safely validates file upload endpoints with a harmless text marker file.",
 		"idor-check":              "Checks seeded object identifier routes for adjacent-object access and optional secondary-identity replay.",
-		"workflow-assist":         "Surfaces seeded high-value workflow forms and parameters for manual business-logic review without submitting state changes.",
+		"workflow-assist":         "Surfaces seeded high-value workflow, business-control, and CAPTCHA-protected sensitive forms for manual review without submitting state changes.",
 		"csp-review":              "Surfaces seeded CSP bypass review candidates without attempting exploit execution.",
 		"csrf-check":              "Analyzes seeded state-changing forms for missing anti-CSRF token fields without submitting them.",
 		"weak-session-check":      "Samples seeded session-related routes for predictable cookie or token values with tight limits.",
