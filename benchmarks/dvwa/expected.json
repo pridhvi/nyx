@@ -258,14 +258,16 @@
       "route": "/vulnerabilities/xss_d/",
       "automation_suitable": true,
       "confirmation_strategy": "browser-assisted marker validation",
-      "match": {
+      "all_match": {
         "url": [
           "/vulnerabilities/xss_d/"
         ],
         "tool": [
-          "dalfox"
+          "dalfox",
+          "dom-xss-check"
         ],
         "title": [
+          "dom xss marker confirmed",
           "dom xss"
         ]
       }

@@ -3023,6 +3023,7 @@ func descriptionForTool(id string) string {
 		"oauth-check":             "Checks OAuth and OIDC metadata for common misconfigurations.",
 		"brute-force-check":       "Validates explicitly configured benchmark credentials with a strict attempt budget only on intentionally vulnerable non-production targets.",
 		"reflected-xss-check":     "Safely validates seeded query parameters for reflected XSS markers.",
+		"dom-xss-check":           "Uses an installed Chrome/Chromium browser to validate seeded DOM XSS markers only on intentionally vulnerable non-production targets.",
 		"stored-xss-check":        "Validates seeded stored-XSS forms only when explicitly marked intentionally vulnerable and non-production.",
 		"open-redirect-check":     "Safely validates seeded redirect-like parameters without following external redirects.",
 		"sqli-check":              "Safely validates seeded query parameters for SQL injection with bounded boolean and error canaries.",
@@ -3119,6 +3120,15 @@ func parametersForTool(id string) []toolParameter {
 			{Name: "intentionally_vulnerable", Label: "Intentionally Vulnerable", Type: "boolean", Description: "Confirms the target is a lab or benchmark built for active validation."},
 			{Name: "non_production", Label: "Non-production", Type: "boolean", Description: "Confirms the target is not a production system."},
 			{Name: "max_attempts", Label: "Max Attempts", Type: "number", Default: 1, Description: "Total credential attempts, clamped to 1-3."},
+		}
+	case "dom-xss-check":
+		return []toolParameter{
+			{Name: "allow_dom_xss", Label: "Allow DOM XSS Check", Type: "boolean", Description: "Enable browser-backed DOM marker validation for explicitly safe targets."},
+			{Name: "intentionally_vulnerable", Label: "Intentionally Vulnerable", Type: "boolean", Description: "Confirms the target is a lab or benchmark built for active validation."},
+			{Name: "non_production", Label: "Non-production", Type: "boolean", Description: "Confirms the target is not a production system."},
+			{Name: "browser_path", Label: "Browser Path", Type: "path", Description: "Optional Chrome or Chromium executable path."},
+			{Name: "timeout_seconds", Label: "Timeout", Type: "number", Default: 25, Description: "Per-browser probe timeout in seconds."},
+			{Name: "wait_ms", Label: "Wait", Type: "number", Default: 500, Description: "Milliseconds to wait after navigation before checking the DOM marker."},
 		}
 	case "command-injection-check":
 		return []toolParameter{

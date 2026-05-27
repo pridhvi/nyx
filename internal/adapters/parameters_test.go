@@ -63,6 +63,22 @@ func TestValidateToolParametersAllowsCredentialValidationSafetyGate(t *testing.T
 	}
 }
 
+func TestValidateToolParametersAllowsDOMXSSSafetyGate(t *testing.T) {
+	err := ValidateToolParameters(map[string]map[string]any{
+		"dom-xss-check": {
+			"allow_dom_xss":            true,
+			"intentionally_vulnerable": true,
+			"non_production":           true,
+			"browser_path":             "chromium",
+			"timeout_seconds":          10,
+			"wait_ms":                  500,
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected DOM XSS safety gate params to validate: %v", err)
+	}
+}
+
 func TestValidateToolParametersRejectsUnsafeExtraArgs(t *testing.T) {
 	err := ValidateToolParameters(map[string]map[string]any{
 		"sqlmap": {"extra_args": []any{"--os-shell"}},

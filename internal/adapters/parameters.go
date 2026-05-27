@@ -86,6 +86,17 @@ func supportedToolParameterNames(toolID string) map[string]bool {
 			"non_production":              true,
 			"max_attempts":                true,
 		}
+	case "dom-xss-check":
+		return map[string]bool{
+			"enabled":                  true,
+			"allow_active":             true,
+			"allow_dom_xss":            true,
+			"intentionally_vulnerable": true,
+			"non_production":           true,
+			"browser_path":             true,
+			"timeout_seconds":          true,
+			"wait_ms":                  true,
+		}
 	case "command-injection-check":
 		return map[string]bool{
 			"enabled":                  true,

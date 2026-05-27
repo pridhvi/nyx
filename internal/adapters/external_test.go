@@ -522,6 +522,62 @@ func TestReflectedXSSCheckDoesNotReportEscapedReflection(t *testing.T) {
 	}
 }
 
+func TestDOMXSSCheckRequiresBenchmarkSafetyGate(t *testing.T) {
+	input := testHTTPAdapterInput(t, "http://example.test", "/vulnerabilities/xss_d/?default=English")
+	out, err := NewDOMXSSCheck().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 0 {
+		t.Fatalf("expected no findings, got %#v", out.Findings)
+	}
+	if !strings.Contains(out.ToolRun.RawStdout, "active_dom_xss_requires") {
+		t.Fatalf("expected safety skip reason, got %s", out.ToolRun.RawStdout)
+	}
+}
+
+func TestDOMXSSCandidatesUseDVWASeededRoutes(t *testing.T) {
+	input := testHTTPAdapterInput(t, "http://example.test",
+		"/vulnerabilities/xss_d/?default=English",
+		"/vulnerabilities/xss_s/",
+	)
+	candidates := domXSSCandidates(input, 10)
+	if len(candidates) != 1 || candidates[0].RawURL != "http://example.test/vulnerabilities/xss_d/?default=English" || candidates[0].Parameter != "default" {
+		t.Fatalf("expected seeded DVWA DOM XSS candidate, got %#v", candidates)
+	}
+}
+
+func TestDOMXSSMutatesQueryAndFragmentCandidates(t *testing.T) {
+	query := mutateDOMXSSCandidate(domXSSCandidate{RawURL: "http://example.test/page?default=English", Parameter: "default"}, "payload")
+	parsedQuery, err := url.Parse(query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsedQuery.Query().Get("default") != "payload" {
+		t.Fatalf("expected mutated query payload, got %s", query)
+	}
+	fragment := mutateDOMXSSCandidate(domXSSCandidate{RawURL: "http://example.test/page#route=home", Parameter: "#route"}, "payload")
+	parsedFragment, err := url.Parse(fragment)
+	if err != nil {
+		t.Fatal(err)
+	}
+	values, err := url.ParseQuery(parsedFragment.Fragment)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if values.Get("route") != "payload" {
+		t.Fatalf("expected mutated fragment payload, got %s", fragment)
+	}
+	dvwaPayload := domXSSPayload("nyxdomtest")
+	dvwaURL := mutateDOMXSSCandidate(domXSSCandidate{RawURL: "http://example.test/vulnerabilities/xss_d/?default=English", Parameter: "default"}, dvwaPayload)
+	if strings.Contains(dvwaURL, "+onload%3D") || strings.Contains(strings.ToLower(dvwaURL), "%2foption") || strings.Contains(strings.ToLower(dvwaURL), "%2c") {
+		t.Fatalf("expected DOM payload encoding to preserve decodeURI-sensitive characters, got %s", dvwaURL)
+	}
+	if !strings.Contains(dvwaURL, "%20onload=") || !strings.Contains(dvwaURL, "%3C/option%3E") {
+		t.Fatalf("expected DOM payload encoding to keep browser-location payload executable, got %s", dvwaURL)
+	}
+}
+
 func TestBruteForceCheckConfirmsConfiguredCredential(t *testing.T) {
 	var attempts int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

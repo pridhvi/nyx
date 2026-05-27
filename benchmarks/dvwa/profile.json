@@ -44,6 +44,7 @@
   "safe_active_checks": {
     "allow_credential_validation": true,
     "allow_command_injection": true,
+    "allow_dom_xss": true,
     "allow_stored_xss": true,
     "credential_max_attempts": 1,
     "credential_candidates": [
@@ -55,6 +56,7 @@
     "credential_success_contains": [
       "Welcome to the password protected area"
     ],
+    "dom_xss_wait_ms": 750,
     "intentionally_vulnerable": true,
     "non_production": true
   },

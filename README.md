@@ -227,10 +227,11 @@ security level, and creates/reuses the Juice Shop benchmark user before
 scanning, so authentication failures are reported as setup failures instead of
 noisy low-coverage scans. Active-mode
 scans now include bounded, auth-aware built-in validators for reflected XSS
-markers, stored XSS read-back markers only when a profile marks the target
-intentionally vulnerable and non-production, strict credential validation with
-an explicit attempt budget only when benchmark credentials are configured, SQL
-injection boolean/error canaries, local hosts-file marker probes for file
+markers, browser-backed DOM XSS markers, stored XSS read-back markers only when
+a profile marks the target intentionally vulnerable and non-production, strict
+credential validation with an explicit attempt budget only when benchmark
+credentials are configured, SQL injection boolean/error canaries, local
+hosts-file marker probes for file
 inclusion, harmless command-injection marker checks only when a profile marks
 the target intentionally vulnerable and non-production, harmless file uploads,
 IDOR adjacent-object checks with optional secondary-identity replay,
