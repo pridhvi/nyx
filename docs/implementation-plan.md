@@ -71,6 +71,8 @@ external vulnerability scanners ordered after benchmark-safe built-in
 validators, XXE marker validation for raw XML and multipart upload-like routes,
 observability-assist review for seeded metrics/debug/health/monitoring surfaces,
 deserialization-assist review for seeded upload/import/restore/object-state surfaces,
+structured human-assist response context with redacted excerpts and relevant
+form metadata where available,
 first adapter consumers for built-in HTTP checks plus `ffuf`, `sqlmap`, and
 `dalfox`, and benchmark summary gates that fail the opt-in benchmark commands if
 DVWA drops below 14 covered items, Juice Shop drops below 15 covered items, or

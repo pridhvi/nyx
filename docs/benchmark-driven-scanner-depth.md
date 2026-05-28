@@ -449,7 +449,9 @@ Short-term:
   weak session ID coverage in benchmark-safe mode plus CSP bypass partial
   coverage and insecure CAPTCHA partial coverage as human-assist output.
 - Juice Shop: maintain 15 of 15 category coverage while improving the evidence
-  quality and confidence of human-assist categories.
+  quality and confidence of human-assist categories. Observability and
+  deserialization human-assist findings now include safe response context,
+  redacted body excerpts, and relevant form metadata where available.
 - Juice Shop: maintain mapped OpenAPI/CORS/header, CAPTCHA answer exposure,
   seeded external redirect, XXE multipart upload marker validation, and
   observability-assist metrics review, deserialization-assist upload review,

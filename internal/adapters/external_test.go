@@ -1558,7 +1558,8 @@ func TestObservabilityAssistReportsMetricsSurface(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		_, _ = w.Write([]byte("# HELP process_cpu_seconds_total Total user and system CPU time\n# TYPE process_cpu_seconds_total counter\n"))
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		_, _ = w.Write([]byte("# HELP process_cpu_seconds_total Total user and system CPU time\n# TYPE process_cpu_seconds_total counter\ntoken=secret-value\n"))
 	}))
 	defer server.Close()
 	input := testHTTPAdapterInput(t, server.URL, "/metrics")
@@ -1579,6 +1580,13 @@ func TestObservabilityAssistReportsMetricsSurface(t *testing.T) {
 	}
 	if !strings.Contains(strings.ToLower(finding.Title), "observability") || !strings.Contains(finding.EvidenceNormalized, "prometheus-metrics") {
 		t.Fatalf("expected observability metrics evidence, got %q %s", finding.Title, finding.EvidenceNormalized)
+	}
+	var evidence map[string]any
+	if err := json.Unmarshal([]byte(finding.EvidenceNormalized), &evidence); err != nil {
+		t.Fatal(err)
+	}
+	if evidence["content_type"] != "text/plain; version=0.0.4" || !strings.Contains(evidence["body_excerpt"].(string), "process_cpu_seconds_total") || strings.Contains(evidence["body_excerpt"].(string), "secret-value") {
+		t.Fatalf("expected observability response context, got %#v", evidence)
 	}
 }
 
@@ -1627,6 +1635,7 @@ func TestDeserializationAssistReportsUploadImportSurface(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = w.Write([]byte(`<form method="post" action="/restore"><input name="backup_yaml"><input name="state_file"><button>Import YAML backup</button></form>`))
 	}))
 	defer server.Close()
@@ -1651,6 +1660,21 @@ func TestDeserializationAssistReportsUploadImportSurface(t *testing.T) {
 	}
 	if !strings.Contains(strings.ToLower(finding.Title), "deserialization") || !strings.Contains(finding.EvidenceNormalized, "yaml-data") {
 		t.Fatalf("expected deserialization YAML evidence, got %q %s", finding.Title, finding.EvidenceNormalized)
+	}
+	var evidence map[string]any
+	if err := json.Unmarshal([]byte(finding.EvidenceNormalized), &evidence); err != nil {
+		t.Fatal(err)
+	}
+	forms, ok := evidence["forms"].([]any)
+	if !ok || len(forms) != 1 {
+		t.Fatalf("expected deserialization form context, got %#v", evidence)
+	}
+	form := forms[0].(map[string]any)
+	if form["method"] != http.MethodPost || form["action"] != server.URL+"/restore" {
+		t.Fatalf("unexpected deserialization form metadata: %#v", form)
+	}
+	if evidence["content_type"] != "text/html; charset=utf-8" || !strings.Contains(evidence["body_excerpt"].(string), "backup_yaml") {
+		t.Fatalf("expected deserialization response context, got %#v", evidence)
 	}
 }
 

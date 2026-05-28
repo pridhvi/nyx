@@ -242,7 +242,9 @@ responses that expose answers, observability-assist review hints for seeded
 metrics, logging, debug, health, and monitoring surfaces, CSP bypass review
 candidates from seeded CSP-related routes, deserialization-assist review hints
 for upload, import, restore, serialized-object, YAML, pickle, and archive
-surfaces, CSRF form-token analysis, weak session identifier sampling,
+surfaces, structured human-assist evidence with response context, redacted
+excerpts, and relevant form metadata where available, CSRF form-token analysis,
+weak session identifier sampling,
 non-exfiltrating XML entity markers for raw XML and upload-like multipart
 routes, and open redirects on seeded query routes or operator-seeded external
 redirect URLs; they do not follow external
