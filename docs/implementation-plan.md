@@ -68,8 +68,9 @@ credential validation gated by
 intentionally-vulnerable/non-production profile flags, phase-ordered DAG
 scheduling with registered adapter order preserved inside a phase and slow
 external vulnerability scanners ordered after benchmark-safe built-in
-validators, and first adapter consumers for built-in HTTP checks plus `ffuf`,
-`sqlmap`, and `dalfox`.
+validators, XXE marker validation for raw XML and multipart upload-like routes,
+and first adapter consumers for built-in HTTP checks plus `ffuf`, `sqlmap`, and
+`dalfox`.
 
 ## Current Baseline
 
@@ -689,7 +690,8 @@ work and must be carried forward:
 - Built-in SSTI check sends a bounded arithmetic template probe against query or
   hidden-parameter targets.
 - Built-in XXE fuzz check now uses a non-exfiltrating internal XML entity marker
-  and only reports direct marker resolution.
+  against raw XML routes and multipart upload-like routes, and only reports
+  direct marker resolution.
 - Built-in CORS check records both simple and preflight response headers and
   flags reflected arbitrary origins even without credentials at lower severity.
 - Optional `nikto` subprocess adapter parses JSON or text web-server findings.

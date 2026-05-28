@@ -240,8 +240,9 @@ workflow-assist review hints for seeded high-value forms and business-control
 parameters including CAPTCHA-protected sensitive workflows and CAPTCHA challenge
 responses that expose answers, CSP bypass review candidates from seeded
 CSP-related routes, CSRF form-token analysis, weak session identifier sampling,
-non-exfiltrating XML entity markers, and open redirects on seeded query routes
-or operator-seeded external redirect URLs; they do not follow external
+non-exfiltrating XML entity markers for raw XML and upload-like multipart
+routes, and open redirects on seeded query routes or operator-seeded external
+redirect URLs; they do not follow external
 redirects and only report confirmed validation when the marker, predicate
 behavior, credential success marker, seeded redirect response, or
 secondary-identity replay is observed.

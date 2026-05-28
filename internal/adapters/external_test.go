@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -1763,6 +1764,44 @@ func TestParseXXEFindings(t *testing.T) {
 	}
 	if findings[0].ToolID != "xxe-fuzz" || findings[0].Severity != models.SeverityHigh || findings[0].Status != "confirmed" {
 		t.Fatalf("unexpected finding: %#v", findings[0])
+	}
+}
+
+func TestXXEFuzzUsesMultipartForUploadCandidate(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/file-upload" {
+			http.NotFound(w, r)
+			return
+		}
+		if !strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+			t.Fatalf("expected multipart content type, got %q", r.Header.Get("Content-Type"))
+		}
+		file, _, err := r.FormFile("file")
+		if err != nil {
+			t.Fatalf("expected file field: %v", err)
+		}
+		defer file.Close()
+		body, _ := io.ReadAll(file)
+		marker := regexp.MustCompile(`nyx-xxe-[A-Za-z0-9-]+`).FindString(string(body))
+		if marker == "" {
+			t.Fatalf("expected XXE marker in multipart file body: %s", string(body))
+		}
+		_, _ = w.Write([]byte("expanded " + marker))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/file-upload")
+	out, err := NewXXEFuzz().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 1 {
+		t.Fatalf("expected 1 XXE finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
+	}
+	if out.Findings[0].ToolID != "xxe-fuzz" || out.Findings[0].Status != "confirmed" {
+		t.Fatalf("unexpected finding: %#v", out.Findings[0])
+	}
+	if !strings.Contains(out.ToolRun.RawStdout, "mode=multipart") {
+		t.Fatalf("expected multipart mode in stdout, got %s", out.ToolRun.RawStdout)
 	}
 }
 

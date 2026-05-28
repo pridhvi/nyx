@@ -12,6 +12,7 @@
 /api/BasketItems/1
 /rest/admin/application-version
 /ftp/
+/file-upload
 /redirect?to=/score-board
 /redirect?to=https://github.com/juice-shop/juice-shop
 /#/search?q=apple

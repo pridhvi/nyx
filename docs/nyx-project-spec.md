@@ -909,7 +909,7 @@ Any process that speaks this JSON contract over stdin/stdout is a valid Nyx plug
 | CSRF check | Go stdlib HTTP | Missing token analysis for seeded state-changing forms without submission |
 | Weak session check | Go stdlib HTTP | Bounded sampling for predictable session cookies and body tokens |
 | SSTI detection | Go stdlib HTTP | Server-side template injection |
-| XXE fuzzing | Go stdlib HTTP | Non-exfiltrating XML internal entity marker validation |
+| XXE fuzzing | Go stdlib HTTP | Non-exfiltrating XML internal entity marker validation for raw XML and upload-like multipart routes |
 | `nikto` | subprocess | Generic web server vulnerability scanner |
 
 **DependsOn:** all Phase 3 adapters (needs parameters, endpoints, and tech info)
