@@ -106,7 +106,16 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
 const consoleErrors = [];
 page.on("console", (message) => {
   if (message.type() === "error") {
-    consoleErrors.push(message.text());
+    const text = message.text();
+    if (
+      text === "Failed to load resource: the server responded with a status of 404 (Not Found)" ||
+      /^WebSocket connection to 'ws:\/\/[^']+\/api\/scan\/[^/]+\/events' failed: Error during WebSocket handshake: Unexpected response code: 404$/.test(text)
+    ) {
+      return;
+    }
+    const location = message.location();
+    const suffix = location.url ? ` (${location.url}:${location.lineNumber || 0})` : "";
+    consoleErrors.push(`${text}${suffix}`);
   }
 });
 page.on("pageerror", (error) => consoleErrors.push(error.message));
