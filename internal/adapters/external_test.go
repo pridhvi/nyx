@@ -1678,6 +1678,36 @@ func TestDeserializationAssistReportsUploadImportSurface(t *testing.T) {
 	}
 }
 
+func TestDeserializationAssistLabelsAuthChallengeWithoutLoginFormContext(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/file-upload" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte(`<title>Login :: Example</title><form method="post" action="/login"><input name="username"><input name="password"><button name="Login">Login</button></form>`))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/file-upload")
+	out, err := NewDeserializationAssistCheck().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
+	}
+	var evidence map[string]any
+	if err := json.Unmarshal([]byte(out.Findings[0].EvidenceNormalized), &evidence); err != nil {
+		t.Fatal(err)
+	}
+	if evidence["auth_challenge"] != true {
+		t.Fatalf("expected auth challenge evidence, got %#v", evidence)
+	}
+	if _, ok := evidence["forms"]; ok {
+		t.Fatalf("login form should not be recorded as deserialization form context: %#v", evidence)
+	}
+}
+
 func TestDeserializationAssistIgnoresGenericRoute(t *testing.T) {
 	input := testHTTPAdapterInput(t, "http://example.test",
 		"/rest/user/login",
