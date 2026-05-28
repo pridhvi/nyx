@@ -156,10 +156,11 @@ function MessageContent({
 }) {
   const normalizedReasoning = reasoningContent.trim();
   if (normalizedReasoning) {
+    const visibleContent = cleanFinalAnswerLabels(content);
     return (
       <>
         <ReasoningDisclosure content={normalizedReasoning} expanded={reasoningExpanded} onToggle={onReasoningToggle} />
-        {content.trim() ? <StandardMessageContent content={content} expanded={expanded} onToggle={onToggle} /> : null}
+        {visibleContent ? <StandardMessageContent content={visibleContent} expanded={expanded} onToggle={onToggle} /> : null}
       </>
     );
   }
@@ -292,6 +293,10 @@ export function splitReasoningContent(content: string) {
     reasoning: body.slice(0, finalMarker.index).trim(),
     answer: body.slice(finalMarker.index + finalMarker[0].length).trim(),
   };
+}
+
+function cleanFinalAnswerLabels(content: string) {
+  return content.replace(/\r\n/g, "\n").replace(/(^|\n)\s*(final answer|final output|answer|response|final)\s*:\s*/gi, "$1").trim();
 }
 
 function isInternalContextMessage(content: string) {

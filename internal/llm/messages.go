@@ -14,6 +14,7 @@ var (
 	thinkTagPattern       = regexp.MustCompile(`(?is)^<think>\s*(.*?)\s*</think>\s*(.*)$`)
 	reasoningLabelPattern = regexp.MustCompile(`(?is)^(thinking process|reasoning|thought process)\s*:\s*`)
 	finalLabelPattern     = regexp.MustCompile(`(?is)\n\s*(final answer|final output|answer|response|final)\s*:\s*`)
+	visibleFinalPattern   = regexp.MustCompile(`(?im)(^|\n)\s*(final answer|final output|answer|response|final)\s*:\s*`)
 )
 
 type splitReasoningResult struct {
@@ -59,6 +60,14 @@ func modelMessage(message openai.ChatCompletionMessage) models.LLMMessage {
 			modelMessage.Content = reasoningOnlyPlaceholder
 			return modelMessage
 		}
+		modelMessage.Content = cleanFinalAnswerLabels(rawContent)
+		if strings.TrimSpace(modelMessage.Content) == "" {
+			modelMessage.Content = reasoningOnlyPlaceholder
+		}
+		if modelMessage.Content != rawContent {
+			modelMessage.RawContent = rawContent
+		}
+		return modelMessage
 	}
 
 	split := splitReasoningContent(rawContent)
@@ -100,4 +109,8 @@ func splitReasoningContent(content string) splitReasoningResult {
 		}
 	}
 	return splitReasoningResult{Reasoning: body, Matched: true}
+}
+
+func cleanFinalAnswerLabels(content string) string {
+	return strings.TrimSpace(visibleFinalPattern.ReplaceAllString(strings.ReplaceAll(content, "\r\n", "\n"), "$1"))
 }

@@ -222,6 +222,23 @@ func TestModelMessageUsesPlaceholderForReasoningOnlyOutput(t *testing.T) {
 	}
 }
 
+func TestModelMessageRemovesFinalAnswerLabelWithNativeReasoning(t *testing.T) {
+	message := modelMessage(openai.ChatCompletionMessage{
+		Role:             openai.ChatMessageRoleAssistant,
+		ReasoningContent: "Inspect findings before answering.",
+		Content:          "- **Risk:** confirmed SQL injection\n\nFinal Answer: Confirmed SQL injection is the strongest risk.",
+	})
+	if strings.Contains(message.Content, "Final Answer:") {
+		t.Fatalf("expected final answer label to be removed, got %#v", message)
+	}
+	if !strings.Contains(message.Content, "confirmed SQL injection") || !strings.Contains(message.Content, "Confirmed SQL injection") {
+		t.Fatalf("expected visible content to be preserved, got %#v", message)
+	}
+	if message.RawContent == "" {
+		t.Fatalf("expected raw content to be preserved when visible content is cleaned, got %#v", message)
+	}
+}
+
 func TestToolRunnerConstrainsScanRequestsToSessionScope(t *testing.T) {
 	ctx := context.Background()
 	session, store := testLLMStore(t, ctx)
