@@ -90,7 +90,7 @@ func RecordKerberoastRequest(ctx context.Context, store *db.Store, session model
 		return models.ADArtifact{}, err
 	}
 	if !req.AllowPublic && !InternalSession(session, targets) {
-		return models.ADArtifact{}, fmt.Errorf("Kerberoast requires private/link-local/loopback scope or explicit override")
+		return models.ADArtifact{}, fmt.Errorf("kerberoast requires private/link-local/loopback scope or explicit override")
 	}
 	now := time.Now().UTC()
 	artifact := models.ADArtifact{

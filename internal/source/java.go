@@ -2,7 +2,7 @@ package source
 
 import "github.com/pridhvi/nyx/internal/models"
 
-type JavaExtractor struct{ genericExtractor }
+type JavaExtractor struct{}
 
 func (e JavaExtractor) extractor() genericExtractor {
 	return genericExtractor{language: "java", framework: "java", extensions: []string{".java"}, markers: []string{"pom.xml", "build.gradle"}}

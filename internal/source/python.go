@@ -2,7 +2,7 @@ package source
 
 import "github.com/pridhvi/nyx/internal/models"
 
-type PythonExtractor struct{ genericExtractor }
+type PythonExtractor struct{}
 
 func (e PythonExtractor) extractor() genericExtractor {
 	return genericExtractor{language: "python", framework: "python", extensions: []string{".py"}, markers: []string{"requirements.txt", "pyproject.toml", "setup.py"}}

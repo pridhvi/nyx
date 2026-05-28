@@ -50,15 +50,6 @@ LIMIT 1`)
 	return config, err
 }
 
-func (s *Store) InsertBurpCallback(ctx context.Context, callback models.BurpCallback) error {
-	_, err := s.db.ExecContext(ctx, `
-INSERT INTO burp_callbacks (id, provider, token, finding_id, session_id, source_ip, raw_event, created_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		callback.ID, callback.Provider, callback.Token, callback.FindingID, callback.SessionID,
-		callback.SourceIP, callback.RawEvent, formatTime(callback.CreatedAt))
-	return err
-}
-
 func (s *Store) ListBurpCallbacks(ctx context.Context, sessionID string) ([]models.BurpCallback, error) {
 	query := `SELECT id, provider, token, finding_id, session_id, source_ip, raw_event, created_at FROM burp_callbacks`
 	args := []any{}

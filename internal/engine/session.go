@@ -23,14 +23,6 @@ type NewSessionInput struct {
 	LLMBaseURL     string
 }
 
-func NewPendingSession(input NewSessionInput) (models.Session, models.Target, error) {
-	session, targets, err := NewPendingSessionWithTargets(input)
-	if err != nil {
-		return models.Session{}, models.Target{}, err
-	}
-	return session, targets[0], nil
-}
-
 func NewPendingSourceSession(input NewSessionInput) (models.Session, error) {
 	sourcePath := strings.TrimSpace(input.SourcePath)
 	if sourcePath == "" {

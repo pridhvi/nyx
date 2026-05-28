@@ -69,9 +69,6 @@ func (e genericExtractor) Detect(repoPath string) bool {
 	return found
 }
 
-func (e genericExtractor) Language() string  { return e.language }
-func (e genericExtractor) Framework() string { return e.framework }
-
 func (e genericExtractor) Extract(repoPath, sessionID string) ([]models.SourceFinding, error) {
 	var findings []models.SourceFinding
 	root, err := os.OpenRoot(repoPath)

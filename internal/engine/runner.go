@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -37,17 +36,6 @@ type RunnerOptions struct {
 	ToolTimeout        time.Duration
 	Lean               bool
 	LLMAllowedHosts    []string
-}
-
-func NewRunner(store *db.Store) *Runner {
-	runner := &Runner{
-		store:      store,
-		adapters:   DefaultSafeAdapters(),
-		httpClient: &http.Client{Timeout: 15 * time.Second},
-		options:    defaultRunnerOptions(),
-	}
-	runner.loadConfiguredPlugins(context.Background())
-	return runner
 }
 
 func DefaultSafeAdapters() []adapters.Adapter {
@@ -102,15 +90,6 @@ func DefaultSafeAdapters() []adapters.Adapter {
 		adapters.NewSQLMap(),
 		adapters.NewDalfox(),
 	}
-}
-
-func NewRunnerWithHTTPClient(store *db.Store, client adapters.HTTPDoer) *Runner {
-	if client == nil {
-		client = &http.Client{Timeout: 15 * time.Second}
-	}
-	runner := &Runner{store: store, adapters: DefaultSafeAdapters(), httpClient: client, options: defaultRunnerOptions()}
-	runner.loadConfiguredPlugins(context.Background())
-	return runner
 }
 
 func NewRunnerWithAdapters(store *db.Store, scanAdapters []adapters.Adapter, client adapters.HTTPDoer) *Runner {
@@ -831,18 +810,6 @@ func (r *Runner) emit(event ScanEvent) {
 		event.At = time.Now().UTC()
 	}
 	r.onEvent(event)
-}
-
-func orderAdapters(scanAdapters []adapters.Adapter) ([]adapters.Adapter, error) {
-	levels, err := adapterLevels(scanAdapters)
-	if err != nil {
-		return nil, err
-	}
-	var ordered []adapters.Adapter
-	for _, level := range levels {
-		ordered = append(ordered, level...)
-	}
-	return ordered, nil
 }
 
 func selectedAdapters(scanAdapters []adapters.Adapter, selectedTools, selectedPhases []string) ([]adapters.Adapter, error) {

@@ -2,7 +2,7 @@ package source
 
 import "github.com/pridhvi/nyx/internal/models"
 
-type PHPExtractor struct{ genericExtractor }
+type PHPExtractor struct{}
 
 func (e PHPExtractor) extractor() genericExtractor {
 	return genericExtractor{language: "php", framework: "php", extensions: []string{".php"}, markers: []string{"composer.json"}}

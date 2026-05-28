@@ -147,10 +147,3 @@ func executeToolCalls(ctx context.Context, store Store, sessionID string, calls 
 	}
 	return results
 }
-
-func gracefulLLMError(err error) bool {
-	if err == nil {
-		return true
-	}
-	return errors.Is(err, ErrNotConfigured) || strings.Contains(err.Error(), "connection refused")
-}

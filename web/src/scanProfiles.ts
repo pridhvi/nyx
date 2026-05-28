@@ -8,7 +8,7 @@ export type ScanProfile = {
   request: Partial<StartScanRequest>;
 };
 
-export const builtinProfiles: ScanProfile[] = [
+const builtinProfiles: ScanProfile[] = [
   {
     id: "builtin-passive-recon",
     name: "Passive recon",

@@ -2,7 +2,7 @@ package source
 
 import "github.com/pridhvi/nyx/internal/models"
 
-type JavaScriptExtractor struct{ genericExtractor }
+type JavaScriptExtractor struct{}
 
 func (e JavaScriptExtractor) extractor() genericExtractor {
 	return genericExtractor{language: "javascript", framework: "javascript", extensions: []string{".js", ".jsx", ".ts", ".tsx"}, markers: []string{"package.json"}}

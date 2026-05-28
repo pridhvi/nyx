@@ -1,6 +1,6 @@
-export type SessionStatus = "pending" | "running" | "paused" | "completed" | "failed" | "cancelled";
+type SessionStatus = "pending" | "running" | "paused" | "completed" | "failed" | "cancelled";
 
-export type Session = {
+type Session = {
   id: string;
   name: string;
   status: SessionStatus;
@@ -23,7 +23,7 @@ export type Session = {
   completed_at?: string;
 };
 
-export type RunnerOptions = {
+type RunnerOptions = {
   concurrency?: number;
   per_tool_concurrency?: number;
   tool_timeout_seconds?: number;
@@ -43,7 +43,7 @@ export type SessionRecord = {
   db_path: string;
 };
 
-export type Technology = {
+type Technology = {
   id: string;
   target_id: string;
   name: string;
@@ -80,7 +80,7 @@ export type CVEMatch = {
   references?: string[];
 };
 
-export type HTTPEvidence = {
+type HTTPEvidence = {
   request_raw: string;
   response_raw: string;
   status_code: number;
@@ -138,7 +138,7 @@ export type AttackGraphEdge = {
   created_at: string;
 };
 
-export type AttackStep = {
+type AttackStep = {
   order: number;
   description: string;
   finding_id?: string;
@@ -173,7 +173,7 @@ export type ToolRun = {
   started_at: string;
 };
 
-export type LLMToolCall = {
+type LLMToolCall = {
   id?: string;
   name: string;
   arguments?: string;
@@ -393,7 +393,7 @@ export type ScanProfileRecord = {
   updated_at: string;
 };
 
-export type MonitorNotificationConfig = {
+type MonitorNotificationConfig = {
   slack_webhook_url?: string;
   discord_webhook_url?: string;
   email?: string;
@@ -446,7 +446,7 @@ export type SurfaceChange = {
   created_at: string;
 };
 
-export type ToolParameter = {
+type ToolParameter = {
   name: string;
   label: string;
   type: "string" | "number" | "boolean" | "enum" | "path" | "list";
@@ -501,7 +501,7 @@ export type EffectiveConfig = {
   power?: Record<string, unknown>;
 };
 
-export type ScanEventType =
+type ScanEventType =
   | "queued"
   | "running"
   | "tool_started"
@@ -551,16 +551,8 @@ export function login(apiKey: string) {
   });
 }
 
-export function logout() {
-  return api<{ authenticated: boolean }>("/api/auth/logout", { method: "POST", body: "{}" });
-}
-
 export function listSessions() {
   return api<SessionRecord[]>("/api/sessions");
-}
-
-export function getSession(sessionID: string) {
-  return api<Session>(`/api/sessions/${sessionID}`);
 }
 
 export function getSessionStats(sessionID: string) {

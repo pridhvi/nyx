@@ -252,10 +252,6 @@ func restRequest(ctx context.Context, config models.BurpConfig, method, endpoint
 	return req, nil
 }
 
-func ReadAll(reader io.Reader) ([]byte, error) {
-	return io.ReadAll(reader)
-}
-
 func mapSeverity(value string) models.Severity {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "high":

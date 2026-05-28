@@ -49,8 +49,6 @@ func Open(ctx context.Context, path string) (*Store, error) {
 
 func (s *Store) Close() error { return s.db.Close() }
 
-func (s *Store) Path() string { return s.path }
-
 func (s *Store) migrate(ctx context.Context) error {
 	statements := []string{
 		`PRAGMA journal_mode = WAL`,

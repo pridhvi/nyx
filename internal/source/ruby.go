@@ -2,7 +2,7 @@ package source
 
 import "github.com/pridhvi/nyx/internal/models"
 
-type RubyExtractor struct{ genericExtractor }
+type RubyExtractor struct{}
 
 func (e RubyExtractor) extractor() genericExtractor {
 	return genericExtractor{language: "ruby", framework: "ruby", extensions: []string{".rb"}, markers: []string{"Gemfile"}}

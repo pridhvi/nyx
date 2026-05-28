@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -719,8 +718,4 @@ func requireAffected(result sql.Result) error {
 		return ErrNotFound
 	}
 	return nil
-}
-
-func unsupportedAction(name string) error {
-	return fmt.Errorf("%s is not configured for automatic execution in this safe slice", name)
 }

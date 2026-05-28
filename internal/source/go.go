@@ -2,7 +2,7 @@ package source
 
 import "github.com/pridhvi/nyx/internal/models"
 
-type GoExtractor struct{ genericExtractor }
+type GoExtractor struct{}
 
 func (e GoExtractor) extractor() genericExtractor {
 	return genericExtractor{language: "go", framework: "go", extensions: []string{".go"}, markers: []string{"go.mod"}}
