@@ -1718,6 +1718,7 @@ Any adapter that attempts to connect to an out-of-scope host must receive an err
 - **Power integration tests** are opt-in with `NYX_RUN_POWER_INTEGRATION=1`: exercise safe payload validation, credential redaction, provider skip states, PoC records, and power report sections.
 - **Browser smoke tests** are opt-in with `NYX_RUN_BROWSER_SMOKE=1`: start a fixture-backed UI session, drive dashboard/findings/power/reports/attack-path pages in Chromium, fail on console errors, and write screenshots to `/tmp/nyx-browser-*.png`.
 - **Linux full-tool validation** is opt-in with `NYX_RUN_LINUX_FULL=1`: after external tools are installed, run the fixture-backed dynamic, lean, audit, and combined paths with broader subprocess adapter coverage. `scripts/tool-version-smoke.sh linux-full` reports scanner versions and can be made strict with `NYX_TOOL_SMOKE_STRICT=1`.
+- **Benchmark validation** is opt-in with `NYX_RUN_BENCHMARKS=1`: run DVWA and OWASP Juice Shop against profile-owned credentials, route seeds, and expected mappings. The summary gate enforces the accepted Linux VM baseline by default: DVWA must cover at least 14 expected items, Juice Shop must cover at least 15 expected items, and benchmark tool runs must have zero nonzero exits unless an explicit local override is set.
 - **API tests** use `net/http/httptest` to test all REST endpoints against an in-memory SQLite DB.
 
 Future enhancement modules are tracked separately in

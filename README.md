@@ -260,10 +260,17 @@ make benchmark-targets-down
 
 Benchmark artifacts are written under `artifacts/benchmarks/<timestamp>/` and
 include session directories, normal reports, SARIF, target metadata, and
-coverage summaries. Linux full-tool acceptance should be run with user-local
-Go/Python/Ruby binary directories on `PATH`; `NYX_TOOL_SMOKE_STRICT=1
-scripts/tool-version-smoke.sh linux-full` now fails when benchmark-critical
-dynamic tools such as `arjun`, `dalfox`, `linkfinder`, or `nuclei` are missing.
+coverage summaries. Benchmark summaries enforce the current accepted Linux VM
+baseline by default: DVWA must cover at least 14 expected items, Juice Shop must
+cover at least 15 expected items, and benchmark tool runs must not exit
+nonzero. Use `NYX_BENCHMARK_MIN_COVERED_DVWA`,
+`NYX_BENCHMARK_MIN_COVERED_JUICE_SHOP`, or
+`NYX_BENCHMARK_ALLOW_FAILED_TOOLS=1` only for local experiments where a
+temporary lower gate is intentional. Linux full-tool acceptance should be run
+with user-local Go/Python/Ruby binary directories on `PATH`;
+`NYX_TOOL_SMOKE_STRICT=1 scripts/tool-version-smoke.sh linux-full` now fails
+when benchmark-critical dynamic tools such as `arjun`, `dalfox`, `linkfinder`,
+or `nuclei` are missing.
 See
 [docs/benchmark-driven-scanner-depth.md](docs/benchmark-driven-scanner-depth.md)
 for the staged plan.

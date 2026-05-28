@@ -398,9 +398,9 @@ Add scheduled/manual benchmark CI only after the harness is stable:
 - `NYX_RUN_BENCHMARKS=1 make benchmark-all`
 - nightly/manual GitHub Actions workflow
 - upload benchmark artifacts on failure
-- compare coverage against a checked-in baseline
-- initially warn on absolute misses
-- fail only on regressions from the baseline
+- compare coverage against the accepted baseline enforced by the local harness
+- fail on coverage regressions from that baseline and on nonzero benchmark tool
+  runs
 
 Acceptance criteria:
 
@@ -430,6 +430,15 @@ Latest Linux VM acceptance baseline from this track:
   a human-assist partial through a seeded metrics surface, and insecure
   deserialization covered as a human-assist partial through a seeded upload
   surface; current full-tool benchmark runs have no failed tool runs.
+
+The opt-in benchmark harness now enforces this baseline locally: `make
+benchmark-dvwa` requires at least 14 covered expected items, `make
+benchmark-juice` requires at least 15 covered expected items, and both commands
+fail when any benchmark tool run exits nonzero. Temporary local experimentation
+can lower those gates with `NYX_BENCHMARK_MIN_COVERED_DVWA`,
+`NYX_BENCHMARK_MIN_COVERED_JUICE_SHOP`, or
+`NYX_BENCHMARK_ALLOW_FAILED_TOOLS=1`; baseline changes should be intentional and
+reviewed.
 
 Short-term:
 

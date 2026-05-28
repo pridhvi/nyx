@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -200,6 +201,22 @@ def build_summary(
     }
 
 
+def benchmark_gate(summary: dict[str, Any], min_covered: int | None, allow_failed_tools: bool) -> dict[str, Any]:
+    failures = []
+    if min_covered is not None and summary["covered_count"] < min_covered:
+        failures.append(
+            f"coverage {summary['covered_count']}/{summary['expected_count']} is below required minimum {min_covered}"
+        )
+    if not allow_failed_tools and summary["failed_tool_runs"]:
+        failures.append(f"{len(summary['failed_tool_runs'])} tool run(s) exited nonzero")
+    return {
+        "passed": len(failures) == 0,
+        "min_covered": min_covered,
+        "allow_failed_tools": allow_failed_tools,
+        "failures": failures,
+    }
+
+
 def markdown(summary: dict[str, Any]) -> str:
     lines = [
         f"# {summary['benchmark']} Benchmark",
@@ -215,12 +232,27 @@ def markdown(summary: dict[str, Any]) -> str:
         f"- Partial: {summary['partial_count']}",
         f"- Missed: {summary['missed_count']}",
         f"- Skipped: {summary['skipped_count']}",
-        "",
-        "## Expected Coverage",
-        "",
-        "| Status | Class | Label | Route | Findings |",
-        "|---|---|---|---|---|",
     ]
+    gate = summary.get("gate") or {}
+    if gate:
+        lines.extend(
+            [
+                f"- Gate: {'passed' if gate.get('passed') else 'failed'}",
+                f"- Gate minimum covered: {gate.get('min_covered') if gate.get('min_covered') is not None else 'not enforced'}",
+                f"- Gate failed tool runs: {'allowed' if gate.get('allow_failed_tools') else 'not allowed'}",
+            ]
+        )
+        for failure in gate.get("failures") or []:
+            lines.append(f"- Gate failure: {failure}")
+    lines.extend(
+        [
+            "",
+            "## Expected Coverage",
+            "",
+            "| Status | Class | Label | Route | Findings |",
+            "|---|---|---|---|---|",
+        ]
+    )
     for item in summary["items"]:
         titles = "<br>".join(item["finding_titles"]) if item["finding_titles"] else ""
         lines.append(
@@ -243,16 +275,30 @@ def main() -> int:
     parser.add_argument("--artifact-dir", required=True, type=Path)
     parser.add_argument("--json-output", required=True, type=Path)
     parser.add_argument("--markdown-output", required=True, type=Path)
+    parser.add_argument("--min-covered", type=int)
+    parser.add_argument("--allow-failed-tools", action="store_true")
     args = parser.parse_args()
 
     summary = build_summary(args.benchmark, args.expected, args.db, args.target_url, args.artifact_dir)
+    summary["gate"] = benchmark_gate(summary, args.min_covered, args.allow_failed_tools)
     args.json_output.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     args.markdown_output.write_text(markdown(summary), encoding="utf-8")
     print(
         f"{summary['benchmark']}: covered {summary['covered_count']}/{summary['expected_count']} "
         f"({summary['coverage_percent']}%), findings={summary['finding_count']}"
     )
-    return 0
+    gate = summary["gate"]
+    if gate["passed"]:
+        print(
+            f"{summary['benchmark']} benchmark gate passed "
+            f"(min_covered={gate['min_covered'] if gate['min_covered'] is not None else 'none'}, "
+            f"allow_failed_tools={str(gate['allow_failed_tools']).lower()})"
+        )
+        return 0
+    print(f"{summary['benchmark']} benchmark gate failed:", file=sys.stderr)
+    for failure in gate["failures"]:
+        print(f"- {failure}", file=sys.stderr)
+    return 1
 
 
 if __name__ == "__main__":

@@ -335,6 +335,32 @@ target_url_for() {
   esac
 }
 
+min_covered_for() {
+  name="$1"
+  case "$name" in
+    dvwa)
+      printf '%s' "${NYX_BENCHMARK_MIN_COVERED_DVWA:-14}"
+      ;;
+    juice-shop)
+      printf '%s' "${NYX_BENCHMARK_MIN_COVERED_JUICE_SHOP:-15}"
+      ;;
+    *)
+      fail "unknown benchmark target $name"
+      ;;
+  esac
+}
+
+summary_gate_args() {
+  name="$1"
+  min_covered="$(min_covered_for "$name")"
+  if [ -n "$min_covered" ]; then
+    printf ' --min-covered %s' "$min_covered"
+  fi
+  if [ "${NYX_BENCHMARK_ALLOW_FAILED_TOOLS:-}" = "1" ]; then
+    printf ' --allow-failed-tools'
+  fi
+}
+
 run_one() {
   name="$1"
   target_url="$(target_url_for "$name")"
@@ -389,14 +415,19 @@ run_one() {
     --config /dev/null >>"$log" 2>&1 || fail "$name SARIF report failed"
   assert_report_artifact "$report_sarif"
 
-  scripts/benchmark-summary.py \
+  gate_args="$(summary_gate_args "$name")"
+  # shellcheck disable=SC2086
+  if ! scripts/benchmark-summary.py \
     --benchmark "$name" \
     --expected "benchmarks/$name/expected.json" \
     --db "$db_path" \
     --target-url "$target_url" \
     --artifact-dir "$artifact_root" \
     --json-output "$summary_json" \
-    --markdown-output "$summary_md"
+    --markdown-output "$summary_md" \
+    $gate_args; then
+    fail "$name benchmark gate failed"
+  fi
 
   echo "$name session: $session_id"
   echo "$name artifacts: $artifact_root/$name"
