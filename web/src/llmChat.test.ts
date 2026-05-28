@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chatMessages, markdownBlocks, visibleChatMessages } from "./pages/LLMChat";
+import { chatMessages, markdownBlocks, splitReasoningContent, visibleChatMessages } from "./pages/LLMChat";
 import type { LLMAnalysis } from "./api/client";
 
 describe("LLM chat helpers", () => {
@@ -42,5 +42,32 @@ describe("LLM chat helpers", () => {
       { type: "ol", items: ["Confirm scope", "Re-test"] },
       { type: "paragraph", items: ["Final paragraph continues here."] },
     ]);
+  });
+
+  it("splits reasoning-prefixed output from final assistant content", () => {
+    expect(splitReasoningContent([
+      "Thinking Process:",
+      "Check the scan context.",
+      "",
+      "Final Answer:",
+      "- **Risk:** confirmed SQL injection",
+    ].join("\n"))).toEqual({
+      reasoning: "Check the scan context.",
+      answer: "- **Risk:** confirmed SQL injection",
+    });
+  });
+
+  it("treats unmarked reasoning output as hidden reasoning without final text", () => {
+    expect(splitReasoningContent("Reasoning:\nInspect findings first.")).toEqual({
+      reasoning: "Inspect findings first.",
+      answer: "",
+    });
+  });
+
+  it("supports explicit think tags from local reasoning models", () => {
+    expect(splitReasoningContent("<think>Inspect context.</think>\n- Final bullet")).toEqual({
+      reasoning: "Inspect context.",
+      answer: "- Final bullet",
+    });
   });
 });

@@ -13,6 +13,7 @@ export function LLMChat() {
   const { selectedSessionID: selected } = useSessionContext();
   const [message, setMessage] = useState("");
   const [expandedMessages, setExpandedMessages] = useState<Record<string, boolean>>({});
+  const [expandedReasoning, setExpandedReasoning] = useState<Record<string, boolean>>({});
   const [expandedToolCalls, setExpandedToolCalls] = useState<Record<string, boolean>>({});
   const [copiedMessage, setCopiedMessage] = useState("");
   const historyQuery = useQuery({ queryKey: ["llm-history", selected], queryFn: () => llmHistory(selected), enabled: selected !== "" });
@@ -66,36 +67,41 @@ export function LLMChat() {
         <div className="chat-layout">
           <div className="chat-main">
             <div className="message-list">
-              {visibleMessages.map((item, index) => (
-                <article key={`${item.analysisID}-${index}`} className={`message ${item.role}`}>
-                  <div className="message-meta">
-                    <strong className="message-header">{messageLabel(item.role)}</strong>
-                    {item.role === "assistant" && isReasoningDerived(item.content) ? <span className="message-badge">Reasoning output</span> : null}
+              {visibleMessages.map((item, index) => {
+                const messageID = `${item.analysisID}-${index}`;
+                return (
+                  <article key={messageID} className={`message ${item.role}`}>
+                    <div className="message-meta">
+                      <strong className="message-header">{messageLabel(item.role)}</strong>
+                      {item.role === "assistant" && isReasoningDerived(item.content) ? <span className="message-badge">Reasoning output</span> : null}
+                      {item.content.trim() ? (
+                        <button className="icon-button message-copy" type="button" onClick={() => void copyMessage(messageID, item.content)} aria-label="Copy message">
+                          {copiedMessage === messageID ? <Check size={15} /> : <Clipboard size={15} />}
+                        </button>
+                      ) : null}
+                    </div>
                     {item.content.trim() ? (
-                      <button className="icon-button message-copy" type="button" onClick={() => void copyMessage(`${item.analysisID}-${index}`, item.content)} aria-label="Copy message">
-                        {copiedMessage === `${item.analysisID}-${index}` ? <Check size={15} /> : <Clipboard size={15} />}
-                      </button>
+                      <MessageContent
+                        content={item.content}
+                        expanded={expandedMessages[messageID] ?? false}
+                        reasoningExpanded={expandedReasoning[messageID] ?? false}
+                        onReasoningToggle={() => setExpandedReasoning((current) => ({ ...current, [messageID]: !current[messageID] }))}
+                        onToggle={() => setExpandedMessages((current) => ({ ...current, [messageID]: !current[messageID] }))}
+                      />
                     ) : null}
-                  </div>
-                  {item.content.trim() ? (
-                    <MessageContent
-                      content={item.content}
-                      expanded={expandedMessages[`${item.analysisID}-${index}`] ?? false}
-                      onToggle={() => setExpandedMessages((current) => ({ ...current, [`${item.analysisID}-${index}`]: !current[`${item.analysisID}-${index}`] }))}
-                    />
-                  ) : null}
-                  {(item.tool_calls ?? []).map((call) => (
-                    <ToolCallCard
-                      callID={`${item.analysisID}-${call.name}-${call.id ?? ""}`}
-                      expanded={expandedToolCalls[`${item.analysisID}-${call.name}-${call.id ?? ""}`] ?? false}
-                      key={`${call.name}-${call.id ?? ""}`}
-                      name={call.name}
-                      text={call.error || call.result || call.arguments || ""}
-                      onToggle={() => setExpandedToolCalls((current) => ({ ...current, [`${item.analysisID}-${call.name}-${call.id ?? ""}`]: !current[`${item.analysisID}-${call.name}-${call.id ?? ""}`] }))}
-                    />
-                  ))}
-                </article>
-              ))}
+                    {(item.tool_calls ?? []).map((call) => (
+                      <ToolCallCard
+                        callID={`${item.analysisID}-${call.name}-${call.id ?? ""}`}
+                        expanded={expandedToolCalls[`${item.analysisID}-${call.name}-${call.id ?? ""}`] ?? false}
+                        key={`${call.name}-${call.id ?? ""}`}
+                        name={call.name}
+                        text={call.error || call.result || call.arguments || ""}
+                        onToggle={() => setExpandedToolCalls((current) => ({ ...current, [`${item.analysisID}-${call.name}-${call.id ?? ""}`]: !current[`${item.analysisID}-${call.name}-${call.id ?? ""}`] }))}
+                      />
+                    ))}
+                  </article>
+                );
+              })}
               {visibleMessages.length === 0 ? <div className="empty-line"><Bot size={18} />No LLM history for the selected session.</div> : null}
             </div>
             <form className="chat-input" onSubmit={submit}>
@@ -131,7 +137,32 @@ export function LLMChat() {
   );
 }
 
-function MessageContent({ content, expanded, onToggle }: { content: string; expanded: boolean; onToggle: () => void }) {
+function MessageContent({
+  content,
+  expanded,
+  reasoningExpanded,
+  onReasoningToggle,
+  onToggle,
+}: {
+  content: string;
+  expanded: boolean;
+  reasoningExpanded: boolean;
+  onReasoningToggle: () => void;
+  onToggle: () => void;
+}) {
+  const reasoning = splitReasoningContent(content);
+  if (reasoning) {
+    return (
+      <>
+        <ReasoningDisclosure content={reasoning.reasoning} expanded={reasoningExpanded} onToggle={onReasoningToggle} />
+        {reasoning.answer ? <StandardMessageContent content={reasoning.answer} expanded={expanded} onToggle={onToggle} /> : null}
+      </>
+    );
+  }
+  return <StandardMessageContent content={content} expanded={expanded} onToggle={onToggle} />;
+}
+
+function StandardMessageContent({ content, expanded, onToggle }: { content: string; expanded: boolean; onToggle: () => void }) {
   const long = content.length > longMessageThreshold;
   const shown = long && !expanded ? content.slice(0, longMessageThreshold).trimEnd() + "..." : content;
   return (
@@ -144,6 +175,18 @@ function MessageContent({ content, expanded, onToggle }: { content: string; expa
         </button>
       ) : null}
     </>
+  );
+}
+
+function ReasoningDisclosure({ content, expanded, onToggle }: { content: string; expanded: boolean; onToggle: () => void }) {
+  return (
+    <div className={`reasoning-panel ${expanded ? "open" : ""}`}>
+      <button className="reasoning-toggle" type="button" onClick={onToggle}>
+        <span className="thinking-label">Thinking<span className="thinking-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span></span>
+        {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+      </button>
+      {expanded ? <div className="message-content reasoning-content">{renderMarkdown(content)}</div> : null}
+    </div>
   );
 }
 
@@ -217,6 +260,27 @@ export function markdownBlocks(content: string) {
   return blocks;
 }
 
+export function splitReasoningContent(content: string) {
+  const normalized = content.replace(/\r\n/g, "\n").trimStart();
+  const thinkMatch = normalized.match(/^<think>\s*([\s\S]*?)\s*<\/think>\s*([\s\S]*)$/i);
+  if (thinkMatch) {
+    return { reasoning: thinkMatch[1].trim(), answer: thinkMatch[2].trim() };
+  }
+  const label = normalized.match(/^(thinking process|reasoning|thought process)\s*:\s*/i);
+  if (!label) {
+    return null;
+  }
+  const body = normalized.slice(label[0].length).trim();
+  const finalMarker = body.match(/\n\s*(final answer|final output|answer|response|final)\s*:\s*/i);
+  if (!finalMarker || finalMarker.index === undefined) {
+    return { reasoning: body, answer: "" };
+  }
+  return {
+    reasoning: body.slice(0, finalMarker.index).trim(),
+    answer: body.slice(finalMarker.index + finalMarker[0].length).trim(),
+  };
+}
+
 function isInternalContextMessage(content: string) {
   return content.trimStart().startsWith("Session context JSON:");
 }
@@ -271,6 +335,5 @@ function renderInline(text: string) {
 }
 
 function isReasoningDerived(content: string) {
-  const trimmed = content.trimStart().toLowerCase();
-  return trimmed.startsWith("thinking process:") || trimmed.startsWith("reasoning:");
+  return splitReasoningContent(content) !== null;
 }
