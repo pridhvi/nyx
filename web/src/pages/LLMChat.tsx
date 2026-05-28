@@ -1,13 +1,20 @@
 import { type FormEvent, type ReactNode, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, Send, Sparkles } from "lucide-react";
-import { llmAnalyse, llmChat, llmHistory } from "../api/client";
+import { Bot, Check, ChevronDown, ChevronUp, Clipboard, Send, Sparkles } from "lucide-react";
+import { llmAnalyse, llmChat, llmHistory, type LLMAnalysis, type LLMMessage } from "../api/client";
 import { useSessionContext } from "../session";
+
+type ChatMessage = LLMMessage & { analysisID: string; model: string };
+
+const longMessageThreshold = 900;
 
 export function LLMChat() {
   const queryClient = useQueryClient();
   const { selectedSessionID: selected } = useSessionContext();
   const [message, setMessage] = useState("");
+  const [expandedMessages, setExpandedMessages] = useState<Record<string, boolean>>({});
+  const [expandedToolCalls, setExpandedToolCalls] = useState<Record<string, boolean>>({});
+  const [copiedMessage, setCopiedMessage] = useState("");
   const historyQuery = useQuery({ queryKey: ["llm-history", selected], queryFn: () => llmHistory(selected), enabled: selected !== "" });
   const chatMutation = useMutation({
     mutationFn: (prompt: string) => llmChat(selected, prompt),
@@ -31,9 +38,18 @@ export function LLMChat() {
     setMessage(prompt);
   }
 
+  async function copyMessage(id: string, content: string) {
+    if (!content.trim() || !navigator.clipboard) {
+      return;
+    }
+    await navigator.clipboard.writeText(content);
+    setCopiedMessage(id);
+    window.setTimeout(() => setCopiedMessage((current) => current === id ? "" : current), 1400);
+  }
+
   const analyses = historyQuery.data ?? [];
-  const messages = analyses.flatMap((analysis) => analysis.messages.map((item) => ({ ...item, analysisID: analysis.id, model: analysis.model_id })));
-  const visibleMessages = messages.filter((item) => item.role !== "system" && !isInternalContextMessage(item.content) && (item.content.trim() || item.tool_calls?.length));
+  const messages = chatMessages(analyses);
+  const visibleMessages = visibleChatMessages(messages);
 
   return (
     <section className="page">
@@ -52,13 +68,31 @@ export function LLMChat() {
             <div className="message-list">
               {visibleMessages.map((item, index) => (
                 <article key={`${item.analysisID}-${index}`} className={`message ${item.role}`}>
-                  <strong className="message-header">{messageLabel(item.role)}</strong>
-                  {item.content.trim() ? <div className="message-content">{renderMarkdown(item.content)}</div> : null}
+                  <div className="message-meta">
+                    <strong className="message-header">{messageLabel(item.role)}</strong>
+                    {item.role === "assistant" && isReasoningDerived(item.content) ? <span className="message-badge">Reasoning output</span> : null}
+                    {item.content.trim() ? (
+                      <button className="icon-button message-copy" type="button" onClick={() => void copyMessage(`${item.analysisID}-${index}`, item.content)} aria-label="Copy message">
+                        {copiedMessage === `${item.analysisID}-${index}` ? <Check size={15} /> : <Clipboard size={15} />}
+                      </button>
+                    ) : null}
+                  </div>
+                  {item.content.trim() ? (
+                    <MessageContent
+                      content={item.content}
+                      expanded={expandedMessages[`${item.analysisID}-${index}`] ?? false}
+                      onToggle={() => setExpandedMessages((current) => ({ ...current, [`${item.analysisID}-${index}`]: !current[`${item.analysisID}-${index}`] }))}
+                    />
+                  ) : null}
                   {(item.tool_calls ?? []).map((call) => (
-                    <div className="tool-call-card" key={`${call.name}-${call.id ?? ""}`}>
-                      <strong>{call.name}</strong>
-                      <code>{call.error || call.result || call.arguments}</code>
-                    </div>
+                    <ToolCallCard
+                      callID={`${item.analysisID}-${call.name}-${call.id ?? ""}`}
+                      expanded={expandedToolCalls[`${item.analysisID}-${call.name}-${call.id ?? ""}`] ?? false}
+                      key={`${call.name}-${call.id ?? ""}`}
+                      name={call.name}
+                      text={call.error || call.result || call.arguments || ""}
+                      onToggle={() => setExpandedToolCalls((current) => ({ ...current, [`${item.analysisID}-${call.name}-${call.id ?? ""}`]: !current[`${item.analysisID}-${call.name}-${call.id ?? ""}`] }))}
+                    />
                   ))}
                 </article>
               ))}
@@ -97,6 +131,92 @@ export function LLMChat() {
   );
 }
 
+function MessageContent({ content, expanded, onToggle }: { content: string; expanded: boolean; onToggle: () => void }) {
+  const long = content.length > longMessageThreshold;
+  const shown = long && !expanded ? content.slice(0, longMessageThreshold).trimEnd() + "..." : content;
+  return (
+    <>
+      <div className={`message-content ${long && !expanded ? "collapsed" : ""}`}>{renderMarkdown(shown)}</div>
+      {long ? (
+        <button className="message-toggle" type="button" onClick={onToggle}>
+          {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+          {expanded ? "Collapse" : "Expand"}
+        </button>
+      ) : null}
+    </>
+  );
+}
+
+function ToolCallCard({ callID, expanded, name, text, onToggle }: { callID: string; expanded: boolean; name: string; text: string; onToggle: () => void }) {
+  const long = text.length > 520;
+  const shown = long && !expanded ? text.slice(0, 520).trimEnd() + "..." : text;
+  return (
+    <div className="tool-call-card">
+      <div className="tool-call-header">
+        <strong>{name}</strong>
+        {long ? (
+          <button className="message-toggle compact" type="button" onClick={onToggle} aria-controls={callID}>
+            {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            {expanded ? "Collapse" : "Expand"}
+          </button>
+        ) : null}
+      </div>
+      <code id={callID}>{shown}</code>
+    </div>
+  );
+}
+
+export function chatMessages(analyses: LLMAnalysis[]): ChatMessage[] {
+  return analyses.flatMap((analysis) => analysis.messages.map((item) => ({ ...item, analysisID: analysis.id, model: analysis.model_id })));
+}
+
+export function visibleChatMessages(messages: ChatMessage[]) {
+  return messages.filter((item) => item.role !== "system" && !isInternalContextMessage(item.content) && (item.content.trim() || item.tool_calls?.length));
+}
+
+export function markdownBlocks(content: string) {
+  const lines = content.replace(/\r\n/g, "\n").split("\n");
+  const blocks: Array<{ type: "heading" | "paragraph" | "ul" | "ol"; items: string[] }> = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!line.trim()) {
+      i++;
+      continue;
+    }
+    const unordered = line.match(/^\s*[-*]\s+(.+)$/);
+    const ordered = line.match(/^\s*\d+\.\s+(.+)$/);
+    const heading = line.match(/^\s{0,3}#{1,3}\s+(.+)$/);
+    if (heading) {
+      blocks.push({ type: "heading", items: [heading[1]] });
+      i++;
+      continue;
+    }
+    if (unordered || ordered) {
+      const items: string[] = [];
+      const orderedList = Boolean(ordered);
+      while (i < lines.length) {
+        const match = orderedList ? lines[i].match(/^\s*\d+\.\s+(.+)$/) : lines[i].match(/^\s*[-*]\s+(.+)$/);
+        if (!match) {
+          break;
+        }
+        items.push(match[1]);
+        i++;
+      }
+      blocks.push({ type: orderedList ? "ol" : "ul", items });
+      continue;
+    }
+    const paragraph = [line.trim()];
+    i++;
+    while (i < lines.length && lines[i].trim() && !/^\s*([-*]|\d+\.)\s+/.test(lines[i]) && !/^\s{0,3}#{1,3}\s+/.test(lines[i])) {
+      paragraph.push(lines[i].trim());
+      i++;
+    }
+    blocks.push({ type: "paragraph", items: [paragraph.join(" ")] });
+  }
+  return blocks;
+}
+
 function isInternalContextMessage(content: string) {
   return content.trimStart().startsWith("Session context JSON:");
 }
@@ -115,47 +235,16 @@ function messageLabel(role: string) {
 }
 
 function renderMarkdown(content: string) {
-  const lines = content.replace(/\r\n/g, "\n").split("\n");
-  const blocks: ReactNode[] = [];
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i];
-    if (!line.trim()) {
-      i++;
-      continue;
+  return markdownBlocks(content).map((block, index) => {
+    if (block.type === "heading") {
+      return <h3 key={index}>{renderInline(block.items[0])}</h3>;
     }
-    const unordered = line.match(/^\s*[-*]\s+(.+)$/);
-    const ordered = line.match(/^\s*\d+\.\s+(.+)$/);
-    const heading = line.match(/^\s{0,3}#{1,3}\s+(.+)$/);
-    if (heading) {
-      blocks.push(<h3 key={i}>{renderInline(heading[1])}</h3>);
-      i++;
-      continue;
+    if (block.type === "ul" || block.type === "ol") {
+      const children = block.items.map((item, itemIndex) => <li key={`${index}-${itemIndex}`}>{renderInline(item)}</li>);
+      return block.type === "ol" ? <ol key={index}>{children}</ol> : <ul key={index}>{children}</ul>;
     }
-    if (unordered || ordered) {
-      const items: string[] = [];
-      const orderedList = Boolean(ordered);
-      while (i < lines.length) {
-        const match = orderedList ? lines[i].match(/^\s*\d+\.\s+(.+)$/) : lines[i].match(/^\s*[-*]\s+(.+)$/);
-        if (!match) {
-          break;
-        }
-        items.push(match[1]);
-        i++;
-      }
-      const children = items.map((item, itemIndex) => <li key={`${i}-${itemIndex}`}>{renderInline(item)}</li>);
-      blocks.push(orderedList ? <ol key={i}>{children}</ol> : <ul key={i}>{children}</ul>);
-      continue;
-    }
-    const paragraph = [line.trim()];
-    i++;
-    while (i < lines.length && lines[i].trim() && !/^\s*([-*]|\d+\.)\s+/.test(lines[i]) && !/^\s{0,3}#{1,3}\s+/.test(lines[i])) {
-      paragraph.push(lines[i].trim());
-      i++;
-    }
-    blocks.push(<p key={i}>{renderInline(paragraph.join(" "))}</p>);
-  }
-  return blocks;
+    return <p key={index}>{renderInline(block.items[0])}</p>;
+  });
 }
 
 function renderInline(text: string) {
@@ -179,4 +268,9 @@ function renderInline(text: string) {
     nodes.push(text.slice(lastIndex));
   }
   return nodes;
+}
+
+function isReasoningDerived(content: string) {
+  const trimmed = content.trimStart().toLowerCase();
+  return trimmed.startsWith("thinking process:") || trimmed.startsWith("reasoning:");
 }

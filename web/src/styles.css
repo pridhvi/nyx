@@ -2220,6 +2220,31 @@ html[data-theme="light"] .cy-graph {
   letter-spacing: 0;
 }
 
+.message-meta,
+.tool-call-header {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.message-badge {
+  background: rgba(105, 226, 174, 0.08);
+  border: 1px solid rgba(105, 226, 174, 0.2);
+  border-radius: 999px;
+  color: var(--low);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 7px;
+}
+
+.message-copy {
+  height: 28px;
+  margin-left: auto;
+  min-width: 28px;
+  width: 28px;
+}
+
 .message-content {
   color: var(--text-2);
   display: grid;
@@ -2227,6 +2252,30 @@ html[data-theme="light"] .cy-graph {
   gap: 10px;
   line-height: 1.55;
   overflow-wrap: anywhere;
+}
+
+.message-content.collapsed {
+  max-height: 280px;
+  overflow: hidden;
+  position: relative;
+}
+
+.message-toggle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--accent-2);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 5px;
+  justify-self: start;
+  padding: 0;
+}
+
+.message-toggle.compact {
+  margin-left: auto;
 }
 
 .message-content p,
@@ -2278,6 +2327,8 @@ html[data-theme="light"] .cy-graph {
 }
 
 .tool-call-card code {
+  max-height: 220px;
+  overflow: auto;
   overflow-wrap: anywhere;
 }
 
