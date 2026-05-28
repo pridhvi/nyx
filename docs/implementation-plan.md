@@ -80,6 +80,11 @@ first adapter consumers for built-in HTTP checks plus `ffuf`, `sqlmap`, and
 `dalfox`, and benchmark summary gates that fail the opt-in benchmark commands if
 DVWA drops below 14 covered items, Juice Shop drops below 15 covered items, or
 any benchmark tool run exits nonzero unless an explicit local override is set.
+The latest Linux VM acceptance pass, run on 2026-05-28 against commit
+`a41272c`, passed strict Linux tool smoke, `NYX_RUN_LINUX_FULL=1 make
+linux-full-smoke`, DVWA at 14/14 with 42 findings, Juice Shop at 15/15 with 28
+findings, and LM Studio-backed LLM CLI/UI smoke against real persisted DVWA
+session data.
 
 ## Current Baseline
 

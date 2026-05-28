@@ -410,14 +410,17 @@ Acceptance criteria:
 
 ## Initial Targets
 
-Latest Linux VM acceptance baseline from this track:
+Latest Linux VM acceptance baseline from this track, verified on 2026-05-28
+against commit `a41272c` in the Kali VM checkout at
+`~/nyx-acceptance/nyx-main-clean`:
 
 - DVWA: 14 of 14 modules covered, with brute-force/default credential,
   regular SQL injection, blind SQL injection, reflected XSS, stored XSS, file
   inclusion, DOM XSS, command injection, and weak session ID confirmed by
   built-in validators, plus CSP bypass and insecure CAPTCHA covered as
-  human-assist partials; current full-tool benchmark runs have no failed tool
-  runs.
+  human-assist partials; the full-tool benchmark run completed with no failed
+  tool runs. The accepted run produced 42 findings and wrote artifacts under
+  `artifacts/benchmarks/20260528-130832/dvwa`.
 - Juice Shop: 15 of 15 categories covered, with broken access control,
   anti-automation/CAPTCHA answer exposure, security misconfiguration,
   security-through-obscurity hidden JavaScript endpoint hints, sensitive data
@@ -429,7 +432,21 @@ Latest Linux VM acceptance baseline from this track:
   expansion on a seeded file-upload route, and observability failure covered as
   a human-assist partial through a seeded metrics surface, and insecure
   deserialization covered as a human-assist partial through a seeded upload
-  surface; current full-tool benchmark runs have no failed tool runs.
+  surface; the full-tool benchmark run completed with no failed tool runs. The
+  accepted run produced 28 findings and wrote artifacts under
+  `artifacts/benchmarks/20260528-131250/juice-shop`.
+- Linux full-tool smoke: strict tool-version smoke passed and
+  `NYX_RUN_LINUX_FULL=1 make linux-full-smoke` completed dynamic, lean, audit,
+  combined, report, SARIF, and sidecar-log assertions. The retained smoke
+  sessions were under `/tmp/tmp.3H6vzs2W5T`.
+- LLM acceptance: LM Studio at `http://10.0.0.100:1234/v1` listed
+  `huihui-qwen3.5-9b-abliterated`,
+  `huihui-qwen3.6-35b-a3b-claude-4.7-opus-abliterated`, and
+  `text-embedding-nomic-embed-text-v1.5`; both chat models persisted non-empty
+  assistant messages against the DVWA benchmark session. The operator-console
+  LLM page rendered real persisted history with assistant labels, copy buttons,
+  collapsed long reasoning output, the reasoning-output badge, formatted risk
+  bullets, and hidden internal session-context JSON.
 
 The opt-in benchmark harness now enforces this baseline locally: `make
 benchmark-dvwa` requires at least 14 covered expected items, `make

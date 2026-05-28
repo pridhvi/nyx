@@ -279,6 +279,11 @@ See
 [docs/benchmark-driven-scanner-depth.md](docs/benchmark-driven-scanner-depth.md)
 for the staged plan.
 
+Most recent acceptance snapshot: on 2026-05-28, commit `a41272c` passed strict
+Linux tool smoke, `NYX_RUN_LINUX_FULL=1 make linux-full-smoke`, DVWA at 14/14
+with 42 findings, Juice Shop at 15/15 with 28 findings, and LM Studio-backed
+LLM CLI/UI smoke against persisted DVWA session data.
+
 Docker smoke validation builds the image, starts the API, checks health/tools endpoints, runs `nyx version`, and verifies bundled scanner versions:
 
 ```sh
