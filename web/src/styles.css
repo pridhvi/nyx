@@ -2201,7 +2201,7 @@ html[data-theme="light"] .cy-graph {
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   display: grid;
-  gap: 8px;
+  gap: 10px;
   max-width: 82%;
   padding: 13px;
 }
@@ -2214,9 +2214,58 @@ html[data-theme="light"] .cy-graph {
   border-color: rgba(121, 104, 242, 0.24);
 }
 
-.message p {
+.message-header {
+  color: var(--text);
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+.message-content {
   color: var(--text-2);
-  white-space: pre-wrap;
+  display: grid;
+  font-size: 14px;
+  gap: 10px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.message-content p,
+.message-content ul,
+.message-content ol,
+.message-content h3 {
+  margin: 0;
+}
+
+.message-content h3 {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.message-content ul,
+.message-content ol {
+  display: grid;
+  gap: 7px;
+  padding-left: 20px;
+}
+
+.message-content li {
+  padding-left: 2px;
+}
+
+.message-content strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.message-content code {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.92em;
+  padding: 1px 5px;
 }
 
 .tool-call-card {
