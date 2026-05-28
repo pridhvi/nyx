@@ -10,6 +10,7 @@ export function Findings() {
   const [severity, setSeverity] = useState("");
   const [origin, setOrigin] = useState("");
   const [status, setStatus] = useState("");
+  const [evidenceKind, setEvidenceKind] = useState("");
   const [selectedFinding, setSelectedFinding] = useState<Finding | null>(null);
   const [selectedFindingIDs, setSelectedFindingIDs] = useState<Set<string>>(() => new Set());
   const [editSeverity, setEditSeverity] = useState("");
@@ -22,7 +23,8 @@ export function Findings() {
     queryFn: () => listFindings(selected, cleanFilters({ severity, origin, status })),
     enabled: selected !== "",
   });
-  const findings = findingsQuery.data ?? [];
+  const allFindings = findingsQuery.data ?? [];
+  const findings = evidenceKind === "human-assist" ? allFindings.filter(isHumanAssistFinding) : allFindings;
   type FindingSortKey = "severity" | "origin" | "type" | "tool" | "title" | "cves" | "evidence";
   const accessors = useMemo<Record<FindingSortKey, (finding: Finding) => string | number>>(() => ({
     severity: (finding: Finding) => severityRank(finding.severity),
@@ -142,6 +144,13 @@ export function Findings() {
             <option value="dismissed">Dismissed</option>
           </select>
         </label>
+        <label className="compact-control">
+          Evidence
+          <select value={evidenceKind} onChange={(event) => setEvidenceKind(event.target.value)}>
+            <option value="">All</option>
+            <option value="human-assist">Human Assist</option>
+          </select>
+        </label>
       </section>
       <section className="panel bulk-panel">
         <div>
@@ -188,13 +197,14 @@ export function Findings() {
                 />
                 <span className={`severity ${finding.severity}`}>{finding.severity}</span>
                 <span className={`origin-badge ${findingOrigin(finding)}`}>{originLabel(findingOrigin(finding))}</span>
+                {isHumanAssistFinding(finding) ? <span className="assist-badge">Human Assist</span> : null}
                 {finding.status ? <span className={`status ${finding.status}`}>{finding.status}</span> : null}
               </div>
               <button className="finding-card-main" type="button" onClick={() => openFinding(finding)}>
                 <strong>{finding.title}</strong>
                 <small>{finding.tool_id} · {finding.type}</small>
                 <small>{finding.url || "No URL"}</small>
-                <code>{finding.evidence_normalized || finding.evidence_raw || "No normalized evidence"}</code>
+                <code>{evidencePreview(finding)}</code>
               </button>
             </article>
           ))}
@@ -233,12 +243,16 @@ export function Findings() {
                     />
                   </td>
                   <td><span className={`severity ${finding.severity}`}>{finding.severity}</span></td>
-                  <td><span className={`origin-badge ${findingOrigin(finding)}`}>{originLabel(findingOrigin(finding))}</span>{finding.status ? <small>{finding.status}</small> : null}</td>
+                  <td>
+                    <span className={`origin-badge ${findingOrigin(finding)}`}>{originLabel(findingOrigin(finding))}</span>
+                    {isHumanAssistFinding(finding) ? <span className="assist-badge">Human Assist</span> : null}
+                    {finding.status ? <small>{finding.status}</small> : null}
+                  </td>
                   <td>{finding.type}</td>
                   <td>{finding.tool_id}</td>
                   <td>{finding.title}<small>{finding.url}</small></td>
                   <td>{(finding.cve_matches ?? []).map((cve) => cve.cve_id).join(", ") || "-"}</td>
-                  <td><code>{finding.evidence_normalized || finding.evidence_raw || "-"}</code></td>
+                  <td><code>{evidencePreview(finding)}</code></td>
                 </tr>
               ))}
               {findings.length === 0 ? <tr><td colSpan={8}>No findings for the selected filters.</td></tr> : null}
@@ -251,6 +265,7 @@ export function Findings() {
             <div className="detail-header">
               <div>
                 <span className={`severity ${selectedFinding.severity}`}>{selectedFinding.severity}</span>
+                {isHumanAssistFinding(selectedFinding) ? <span className="assist-badge">Human Assist</span> : null}
                 <h2>{selectedFinding.title}</h2>
                 <p>{selectedFinding.tool_id} · {selectedFinding.type} · {originLabel(findingOrigin(selectedFinding))} · {selectedFinding.url || "no URL"}</p>
               </div>
@@ -298,7 +313,26 @@ function EvidenceTab({ finding, tab }: { finding: Finding; tab: "normalized" | "
   if (tab === "http") return <div className="evidence-grid"><article><h3>Request</h3><pre>{finding.http_evidence?.request_raw || "-"}</pre></article><article><h3>Response</h3><pre>{finding.http_evidence?.response_raw || "-"}</pre></article></div>;
   if (tab === "cves") return <pre>{`CVSS: ${finding.cvss_score || "-"}\n${(finding.cve_matches ?? []).map((cve) => `${cve.cve_id} ${cve.cvss_v3_score}`).join("\n") || "-"}`}</pre>;
   if (tab === "code") return <pre>{finding.code_context || finding.flow_summary || finding.notes || "-"}</pre>;
-  return <pre>{finding.evidence_normalized || "-"}</pre>;
+  return <StructuredEvidence finding={finding} />;
+}
+
+function StructuredEvidence({ finding }: { finding: Finding }) {
+  const evidence = findingEvidenceObject(finding);
+  if (!evidence) return <pre>{finding.evidence_normalized || "-"}</pre>;
+  const entries = Object.entries(evidence);
+  return (
+    <div className="structured-evidence">
+      <dl>
+        {entries.map(([key, value]) => (
+          <div key={key}>
+            <dt>{humanizeEvidenceKey(key)}</dt>
+            <dd>{formatEvidenceValue(value)}</dd>
+          </div>
+        ))}
+      </dl>
+      <pre>{JSON.stringify(evidence, null, 2)}</pre>
+    </div>
+  );
 }
 
 function SortableHeader({ label, active, direction, onClick }: { label: string; active: boolean; direction: "asc" | "desc"; onClick: () => void }) {
@@ -319,6 +353,49 @@ export function findingOrigin(finding: Finding) {
 function originLabel(origin: string) {
   if (origin === "both") return "Static + Dynamic";
   return origin === "static" ? "Static" : "Dynamic";
+}
+
+type EvidenceObject = Record<string, unknown>;
+
+export function findingEvidenceObject(finding: Pick<Finding, "evidence_normalized">): EvidenceObject | null {
+  if (!finding.evidence_normalized?.trim()) return null;
+  try {
+    const parsed = JSON.parse(finding.evidence_normalized) as unknown;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as EvidenceObject;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+export function isHumanAssistFinding(finding: Pick<Finding, "evidence_normalized" | "tags" | "tool_id"> & { tags?: string[] }) {
+  const evidence = findingEvidenceObject(finding);
+  if (evidence?.human_assist === true) return true;
+  if (finding.tags?.includes("human-assist")) return true;
+  return finding.tool_id.endsWith("-assist");
+}
+
+function evidencePreview(finding: Finding) {
+  const evidence = findingEvidenceObject(finding);
+  if (!evidence) return finding.evidence_normalized || finding.evidence_raw || "-";
+  const indicators = Array.isArray(evidence.indicators) ? evidence.indicators.join(", ") : "";
+  const source = typeof evidence.source === "string" ? evidence.source : "";
+  const url = typeof evidence.url === "string" ? evidence.url : finding.url;
+  return [source, indicators, url].filter(Boolean).join(" · ") || JSON.stringify(evidence);
+}
+
+function humanizeEvidenceKey(key: string) {
+  return key.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatEvidenceValue(value: unknown) {
+  if (Array.isArray(value)) return value.join(", ") || "-";
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (value === null || value === undefined || value === "") return "-";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
 }
 
 function cleanFilters(filters: Record<string, string>) {

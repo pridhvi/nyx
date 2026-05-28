@@ -108,6 +108,7 @@ export type Finding = {
   flow_summary?: string;
   status?: string;
   notes?: string;
+  tags?: string[];
   created_at: string;
 };
 

@@ -898,6 +898,21 @@ tbody tr:hover,
   color: var(--low);
 }
 
+.assist-badge {
+  align-items: center;
+  background: var(--warning-bg);
+  border: 1px solid rgba(240, 192, 64, 0.26);
+  border-radius: 999px;
+  color: var(--warning);
+  display: inline-flex;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  gap: 5px;
+  line-height: 1;
+  margin-right: 6px;
+  padding: 4px 7px;
+}
+
 .empty-line,
 .finding-item small,
 .tool-check small,
@@ -1754,6 +1769,47 @@ html[data-theme="light"] .chart-panel {
   border-radius: var(--r-md);
   min-width: 0;
   padding: 14px;
+}
+
+.structured-evidence {
+  display: grid;
+  gap: 12px;
+}
+
+.structured-evidence dl {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  display: grid;
+  gap: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+.structured-evidence dl > div {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(120px, 0.28fr) minmax(0, 1fr);
+  padding: 9px 12px;
+}
+
+.structured-evidence dl > div + div {
+  border-top: 1px solid var(--border);
+}
+
+.structured-evidence dt {
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.structured-evidence dd {
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .bulk-panel {
