@@ -16,8 +16,9 @@ This repo has a buildable backend with module path `github.com/pridhvi/nyx`, abs
 - Default to local-only operation: no telemetry, no required cloud API keys.
 - Keep container runtime bases reproducible; Docker should stay on a pinned
   Debian stable/slim digest rather than a rolling distribution.
-- Keep subprocess arguments validated through the shared adapter allow-list, and
-  reject invalid persisted parameters before invoking external tools.
+- Keep subprocess arguments validated through the shared adapter allow-list,
+  reject invalid persisted parameters before invoking external tools, and keep
+  auth secrets out of persisted args and live process argv.
 
 ## Suggested Next Tasks
 

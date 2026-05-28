@@ -33,7 +33,14 @@ func (a SQLMap) Run(ctx context.Context, input AdapterInput) (AdapterOutput, err
 	level := boundedInt(toolParamInt(input, "level", 1), 1, 5)
 	risk := boundedInt(toolParamInt(input, "risk", 1), 1, 3)
 	args := []string{"-u", target, "--batch", "--level", strconv.Itoa(level), "--risk", strconv.Itoa(risk), "--technique", "BE", "--crawl", "0", "--timeout", "10", "--retries", "0", "--flush-session"}
-	args = append(args, authCommandArgs(input, a.ID())...)
+	authArgs, cleanupAuth, err := authFileCommandArgs(input, a.ID(), target)
+	if err != nil {
+		return AdapterOutput{ToolRun: failedToolRun(input, a.ID(), redactCommandArgs(args), "failed to prepare auth request file: "+err.Error(), 1)}, nil
+	}
+	defer cleanupAuth()
+	if len(authArgs) > 0 {
+		args = append(authArgs, "--batch", "--level", strconv.Itoa(level), "--risk", strconv.Itoa(risk), "--technique", "BE", "--crawl", "0", "--timeout", "10", "--retries", "0", "--flush-session")
+	}
 	args = append(args, toolParamStringList(input, "extra_args")...)
 	displayArgs := redactCommandArgs(args)
 	if ok, reason := input.Scope.IsInScope(input.Target.Host); !ok {

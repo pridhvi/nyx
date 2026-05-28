@@ -50,10 +50,18 @@ func (a FFUF) Run(ctx context.Context, input AdapterInput) (AdapterOutput, error
 	}
 	baseURL := strings.TrimRight(targetBaseURL(input.Target), "/") + "/FUZZ"
 	args := []string{"-u", baseURL, "-w", wordlist, "-of", "json", "-noninteractive", "-t", "5", "-rate", "25"}
+	authArgs, cleanupAuth, err := authFileCommandArgs(input, a.ID(), baseURL)
+	if err != nil {
+		return AdapterOutput{ToolRun: failedToolRun(input, a.ID(), redactCommandArgs(args), "failed to prepare auth request file: "+err.Error(), 1)}, nil
+	}
+	defer cleanupAuth()
+	if len(authArgs) > 0 {
+		args = []string{"-w", wordlist, "-of", "json", "-noninteractive", "-t", "5", "-rate", "25"}
+		args = append(args, authArgs...)
+	}
 	if matcher := toolParamString(input, "matcher"); matcher != "" {
 		args = append(args, "-mc", matcher)
 	}
-	args = append(args, authCommandArgs(input, a.ID())...)
 	args = append(args, toolParamStringList(input, "extra_args")...)
 	displayArgs := redactCommandArgs(args)
 	if ok, reason := input.Scope.IsInScope(input.Target.Host); !ok {

@@ -48,10 +48,12 @@ provided without hardcoding target behavior into adapters:
 Seed routes are scope-checked before use. Auth headers/cookies are applied to
 compatible built-in HTTP checks and subprocess adapters such as `ffuf`,
 `sqlmap`, and `dalfox`; API session JSON and persisted tool-run arguments
-redact those secret values. Secondary auth headers/cookies are only used by
-authorization checks such as `idor-check` to compare access as another identity.
-Saved scan profiles keep route seeds and scanner options but intentionally omit
-auth secrets.
+redact those secret values. For subprocess scanners that support it, Nyx passes
+auth material through temporary request/config files instead of live process
+arguments, then removes those files after the tool exits. Secondary auth
+headers/cookies are only used by authorization checks such as `idor-check` to
+compare access as another identity. Saved scan profiles keep route seeds and
+scanner options but intentionally omit auth secrets.
 
 `--auth-profile` accepts target-agnostic JSON for form or JSON login flows. Form
 profiles can extract an HTML CSRF token, submit username/password fields, run
@@ -121,7 +123,7 @@ All external tools are optional. Missing tools are recorded as tool runs and the
 
 Static audit tools are registered as `audit/<id>`. Built-in source analyzers always run; optional tools such as `semgrep`, `bandit`, `gosec`, `govulncheck`, `npm audit`, `retire.js`, `safety`, `brakeman`, `spotbugs`, `psalm`, `trufflehog`, `gitleaks`, and `grype` run when installed. Their native outputs are parsed into normalized findings or package CVEs where possible, with a generic JSON fallback for future adapter shapes.
 
-The Docker image uses a pinned Debian 13 slim runtime digest, enables Debian's non-free component for `nikto`, bundles a baseline scanner set (`curl`, `dig`, `ffuf`, `nikto`, `nmap`, `python3`, `sqlmap`, `whatweb`, and `whois`), and verifies those tools during Docker smoke tests. Other external scanners remain optional user-installed tools in single-binary mode and are reported by the tool-version smoke script when present. `scripts/install-linux-tools.sh` prints a dry-run Linux setup plan by default and can install the supported tool set with `--execute`; it prepends user-local Go, Python, Composer, and Ruby paths so broken system shims do not mask working user installs. ProjectDiscovery tools currently run as subprocess adapters with shared allow-list validation for extra subprocess arguments; native Go-library integrations are intentionally deferred until they prove worth the added dependency and in-process resource risk.
+The Docker image uses a pinned Debian 13 slim runtime digest, enables Debian's non-free component for `nikto`, bundles a baseline scanner set (`curl`, `dig`, `ffuf`, `nikto`, `nmap`, `python3`, `sqlmap`, `whatweb`, and `whois`), and verifies those tools during Docker smoke tests. Other external scanners remain optional user-installed tools in single-binary mode and are reported by the tool-version smoke script when present. `scripts/install-linux-tools.sh` prints a dry-run Linux setup plan by default and can install the supported tool set with `--execute`; it prepends user-local Go, Python, Composer, and Ruby paths so broken system shims do not mask working user installs. ProjectDiscovery tools currently run as subprocess adapters with shared allow-list validation for extra subprocess arguments, and authenticated subprocess adapters avoid putting auth secrets directly in command argv where the scanner supports request/config files; native Go-library integrations are intentionally deferred until they prove worth the added dependency and in-process resource risk.
 
 ## Configuration
 

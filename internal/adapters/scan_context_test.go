@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -41,13 +42,61 @@ func TestScanContextAppliesAuthAndSeedRoutes(t *testing.T) {
 	if len(paths) != 2 || paths[0] != "search?q=nyx" || paths[1] != "profile?id=1" {
 		t.Fatalf("expected only in-scope seed paths, got %#v", paths)
 	}
-	args := authCommandArgs(input, "ffuf")
-	if len(args) != 4 || args[0] != "-H" || args[1] != "Authorization: Bearer test-token" || args[2] != "-H" || args[3] != "Cookie: session=abc" {
-		t.Fatalf("expected ffuf auth headers, got %#v", args)
+	args, cleanup, err := authFileCommandArgs(input, "ffuf", "https://example.com/FUZZ")
+	if err != nil {
+		t.Fatal(err)
 	}
-	redacted := redactCommandArgs(args)
-	if redacted[1] != "********" || redacted[3] != "********" {
-		t.Fatalf("expected auth command args to redact persisted values, got %#v", redacted)
+	defer cleanup()
+	if strings.Contains(strings.Join(args, " "), "test-token") || strings.Contains(strings.Join(args, " "), "session=abc") {
+		t.Fatalf("auth file args must not expose secrets, got %#v", args)
+	}
+	if len(args) != 4 || args[0] != "-request" || args[2] != "-request-proto" || args[3] != "https" {
+		t.Fatalf("expected ffuf auth request file args, got %#v", args)
+	}
+	body, err := os.ReadFile(args[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "Authorization: Bearer test-token") || !strings.Contains(string(body), "Cookie: session=abc") {
+		t.Fatalf("expected auth request file to contain headers, got %s", string(body))
+	}
+
+	sqlmapArgs, sqlmapCleanup, err := authFileCommandArgs(input, "sqlmap", "https://example.com/search?q=nyx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlmapCleanup()
+	if strings.Contains(strings.Join(sqlmapArgs, " "), "test-token") || strings.Contains(strings.Join(sqlmapArgs, " "), "session=abc") {
+		t.Fatalf("sqlmap auth file args must not expose secrets, got %#v", sqlmapArgs)
+	}
+	if len(sqlmapArgs) != 3 || sqlmapArgs[0] != "-r" || sqlmapArgs[2] != "--force-ssl" {
+		t.Fatalf("expected sqlmap request file args, got %#v", sqlmapArgs)
+	}
+	sqlmapBody, err := os.ReadFile(sqlmapArgs[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(sqlmapBody), "GET /search?q=nyx HTTP/1.1") || !strings.Contains(string(sqlmapBody), "Authorization: Bearer test-token") {
+		t.Fatalf("expected sqlmap request file to contain request and headers, got %s", string(sqlmapBody))
+	}
+
+	dalfoxArgs, dalfoxCleanup, err := authFileCommandArgs(input, "dalfox", "https://example.com/search?q=nyx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dalfoxCleanup()
+	if strings.Contains(strings.Join(dalfoxArgs, " "), "test-token") || strings.Contains(strings.Join(dalfoxArgs, " "), "session=abc") {
+		t.Fatalf("dalfox config args must not expose secrets, got %#v", dalfoxArgs)
+	}
+	if len(dalfoxArgs) != 2 || dalfoxArgs[0] != "--config" {
+		t.Fatalf("expected dalfox config args, got %#v", dalfoxArgs)
+	}
+	dalfoxConfig, err := os.ReadFile(dalfoxArgs[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(dalfoxConfig), "Bearer test-token") || !strings.Contains(string(dalfoxConfig), "session=abc") {
+		t.Fatalf("expected dalfox config to contain auth material, got %s", string(dalfoxConfig))
 	}
 }
 

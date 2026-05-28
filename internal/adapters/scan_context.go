@@ -3,6 +3,7 @@ package adapters
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/url"
@@ -264,7 +265,12 @@ func applyRequestAuth(req *http.Request, headers, cookies map[string]string, coo
 	}
 }
 
-func authCommandArgs(input AdapterInput, toolID string) []string {
+type commandAuthMaterial struct {
+	HeaderLines  []string
+	CookieHeader string
+}
+
+func commandAuthMaterialFor(input AdapterInput) commandAuthMaterial {
 	scanCtx := inputScanContext(input)
 	cookieHeader := scanCtx.CookieHeader
 	if cookieHeader == "" && len(scanCtx.AuthCookies) > 0 {
@@ -284,34 +290,125 @@ func authCommandArgs(input AdapterInput, toolID string) []string {
 			headerLines = append(headerLines, strings.TrimSpace(name)+": "+value)
 		}
 	}
-	if cookieHeader != "" {
-		headerLines = append(headerLines, "Cookie: "+cookieHeader)
+	return commandAuthMaterial{HeaderLines: headerLines, CookieHeader: cookieHeader}
+}
+
+func authFileCommandArgs(input AdapterInput, toolID, rawURL string) ([]string, func(), error) {
+	material := commandAuthMaterialFor(input)
+	if len(material.HeaderLines) == 0 && material.CookieHeader == "" {
+		return nil, func() {}, nil
 	}
 	switch toolID {
 	case "ffuf":
-		var args []string
-		for _, line := range headerLines {
-			args = append(args, "-H", line)
+		path, cleanup, err := writeAuthRawRequestFile(rawURL, material)
+		if err != nil {
+			return nil, cleanup, err
 		}
-		return args
+		scheme := "http"
+		if parsed, err := url.Parse(rawURL); err == nil && parsed.Scheme != "" {
+			scheme = parsed.Scheme
+		}
+		return []string{"-request", path, "-request-proto", scheme}, cleanup, nil
 	case "sqlmap":
-		var args []string
-		if len(headerLines) > 0 {
-			args = append(args, "--headers", strings.Join(headerLines, "\n"))
+		path, cleanup, err := writeAuthRawRequestFile(rawURL, material)
+		if err != nil {
+			return nil, cleanup, err
 		}
-		if cookieHeader != "" {
-			args = append(args, "--cookie", cookieHeader)
+		args := []string{"-r", path}
+		if parsed, err := url.Parse(rawURL); err == nil && parsed.Scheme == "https" {
+			args = append(args, "--force-ssl")
 		}
-		return args
+		return args, cleanup, nil
 	case "dalfox":
-		var args []string
-		for _, line := range headerLines {
-			args = append(args, "-H", line)
+		path, cleanup, err := writeDalfoxAuthConfig(material)
+		if err != nil {
+			return nil, cleanup, err
 		}
-		return args
+		return []string{"--config", path}, cleanup, nil
 	default:
-		return nil
+		return nil, func() {}, nil
 	}
+}
+
+func writeAuthRawRequestFile(rawURL string, material commandAuthMaterial) (string, func(), error) {
+	cleanup := func() {}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return "", cleanup, err
+	}
+	path := parsed.EscapedPath()
+	if path == "" {
+		path = "/"
+	}
+	if parsed.RawQuery != "" {
+		path += "?" + parsed.RawQuery
+	}
+	file, err := os.CreateTemp("", "nyx-auth-request-*.txt")
+	if err != nil {
+		return "", cleanup, err
+	}
+	cleanup = func() { _ = os.Remove(file.Name()) }
+	lines := []string{"GET " + path + " HTTP/1.1", "Host: " + parsed.Host}
+	for _, line := range material.HeaderLines {
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(line)), "host:") {
+			continue
+		}
+		lines = append(lines, line)
+	}
+	if material.CookieHeader != "" {
+		lines = append(lines, "Cookie: "+material.CookieHeader)
+	}
+	lines = append(lines, "Connection: close", "", "")
+	if _, err := file.WriteString(strings.Join(lines, "\r\n")); err != nil {
+		_ = file.Close()
+		cleanup()
+		return "", func() {}, err
+	}
+	if err := file.Close(); err != nil {
+		cleanup()
+		return "", func() {}, err
+	}
+	return file.Name(), cleanup, nil
+}
+
+func writeDalfoxAuthConfig(material commandAuthMaterial) (string, func(), error) {
+	cleanup := func() {}
+	file, err := os.CreateTemp("", "nyx-dalfox-auth-*.json")
+	if err != nil {
+		return "", cleanup, err
+	}
+	cleanup = func() { _ = os.Remove(file.Name()) }
+	config := map[string]any{}
+	if len(material.HeaderLines) > 0 {
+		var headers []string
+		for _, line := range material.HeaderLines {
+			if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(line)), "cookie:") {
+				headers = append(headers, line)
+			}
+		}
+		if len(headers) > 0 {
+			config["header"] = headers
+		}
+	}
+	if material.CookieHeader != "" {
+		config["cookie"] = material.CookieHeader
+	}
+	body, err := json.Marshal(config)
+	if err != nil {
+		_ = file.Close()
+		cleanup()
+		return "", func() {}, err
+	}
+	if _, err := file.Write(body); err != nil {
+		_ = file.Close()
+		cleanup()
+		return "", func() {}, err
+	}
+	if err := file.Close(); err != nil {
+		cleanup()
+		return "", func() {}, err
+	}
+	return file.Name(), cleanup, nil
 }
 
 func sortedMapKeys(values map[string]string) []string {

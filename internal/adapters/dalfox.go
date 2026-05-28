@@ -36,7 +36,12 @@ func (a Dalfox) Run(ctx context.Context, input AdapterInput) (AdapterOutput, err
 	if toolParamBool(input, "skip_grepping") {
 		args = append(args, "--skip-grepping")
 	}
-	args = append(args, authCommandArgs(input, a.ID())...)
+	authArgs, cleanupAuth, err := authFileCommandArgs(input, a.ID(), target)
+	if err != nil {
+		return AdapterOutput{ToolRun: failedToolRun(input, a.ID(), redactCommandArgs(args), "failed to prepare auth config file: "+err.Error(), 1)}, nil
+	}
+	defer cleanupAuth()
+	args = append(args, authArgs...)
 	args = append(args, toolParamStringList(input, "extra_args")...)
 	displayArgs := redactCommandArgs(args)
 	if ok, reason := input.Scope.IsInScope(input.Target.Host); !ok {

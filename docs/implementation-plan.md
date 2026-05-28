@@ -22,6 +22,9 @@ specific implementation is proven incompatible with the spec.
 - External tools are optional. Missing binaries, unavailable wordlists,
   subprocess timeouts, and non-zero exits are recorded as `tool_runs`; they
   should not prevent the rest of a scan from continuing.
+- Authenticated subprocess scanners must not expose auth secrets in persisted
+  tool-run args or live process argv when the scanner supports request/config
+  files for auth material.
 - LLM output can annotate, summarize, and suggest, but deterministic rules decide
   correctness-critical attack vector logic.
 - Default operation remains local-first: no telemetry, no required cloud API

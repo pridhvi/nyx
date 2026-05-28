@@ -830,6 +830,11 @@ For tools written outside Go (Python, Ruby, etc.), the subprocess JSON-RPC contr
 
 Any process that speaks this JSON contract over stdin/stdout is a valid Nyx plugin. The `internal/adapters/subprocess.go` file implements the generic subprocess runner.
 
+Direct CLI adapters must keep operator-provided auth headers and cookies out of
+persisted tool-run arguments and live process argv. When a scanner supports raw
+request or config files, Nyx writes auth material to a temporary file, passes
+only that path to the subprocess, and removes the file after execution.
+
 ---
 
 ## 8. Tool Pipeline — All Phases

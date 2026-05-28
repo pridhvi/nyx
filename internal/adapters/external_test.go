@@ -134,6 +134,54 @@ func TestParseDalfoxTextFindings(t *testing.T) {
 	}
 }
 
+func TestDalfoxAuthUsesConfigFileNotCommandArgs(t *testing.T) {
+	binDir := t.TempDir()
+	argsPath := filepath.Join(t.TempDir(), "args.txt")
+	toolPath := filepath.Join(binDir, "dalfox")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$NYX_ARGS_FILE\"\nprintf '[]\\n'\n"
+	if err := os.WriteFile(toolPath, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir)
+	t.Setenv("NYX_ARGS_FILE", argsPath)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer server.Close()
+
+	input := testHTTPAdapterInput(t, server.URL, "/search?q=nyx")
+	input.Scope = fakeScope{allowed: map[string]bool{input.Target.Host: true}}
+	input.Session.ToolParameters[models.SessionScanOptionsKey]["auth_headers"] = map[string]any{
+		"Authorization": "Bearer process-secret",
+	}
+	input.Session.ToolParameters[models.SessionScanOptionsKey]["auth_cookie_header"] = "session=process-cookie"
+
+	out, err := NewDalfox().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.ToolRun.ExitCode != 0 {
+		t.Fatalf("expected successful fake dalfox run, got exit=%d stderr=%q", out.ToolRun.ExitCode, out.ToolRun.RawStderr)
+	}
+
+	argsBytes, err := os.ReadFile(argsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	processArgs := string(argsBytes)
+	if strings.Contains(processArgs, "process-secret") || strings.Contains(processArgs, "process-cookie") {
+		t.Fatalf("auth secret leaked into process args: %s", processArgs)
+	}
+	if !strings.Contains(processArgs, "--config") {
+		t.Fatalf("expected dalfox auth config argument, got %s", processArgs)
+	}
+	persistedArgs := strings.Join(out.ToolRun.Args, " ")
+	if strings.Contains(persistedArgs, "process-secret") || strings.Contains(persistedArgs, "process-cookie") {
+		t.Fatalf("auth secret leaked into persisted args: %s", persistedArgs)
+	}
+}
+
 func TestParseHostLines(t *testing.T) {
 	raw := "Example.com\nhttps://api.example.com/login\n*.WWW.example.com\n"
 	targets := parseHostLines(testExternalInput(), "subfinder", raw, "https", 443)
