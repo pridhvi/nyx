@@ -2,6 +2,8 @@ package llm
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -115,6 +117,73 @@ func TestAnalystPersistsConversationAndToolAuditTrail(t *testing.T) {
 	}
 	if len(vectors) != 1 || !vectors[0].LLMReviewed || !strings.Contains(vectors[0].LLMNotes, "persisted evidence") {
 		t.Fatalf("expected LLM-reviewed vector annotation, got %#v", vectors)
+	}
+}
+
+func TestOpenAIClientUsesReasoningContentFallback(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/chat/completions" {
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"id": "chatcmpl-test",
+			"object": "chat.completion",
+			"model": "lmstudio-reasoner",
+			"choices": [{
+				"index": 0,
+				"message": {
+					"role": "assistant",
+					"content": "",
+					"reasoning_content": "Reasoning-derived answer from LM Studio."
+				},
+				"finish_reason": "length"
+			}],
+			"usage": {"prompt_tokens": 4, "completion_tokens": 8, "total_tokens": 12}
+		}`))
+	}))
+	defer server.Close()
+
+	client := NewOpenAIClient(Config{Provider: "openai-compatible", BaseURL: server.URL + "/v1", Model: "lmstudio-reasoner"})
+	completion, err := client.Complete(context.Background(), ChatRequest{
+		Model:     "lmstudio-reasoner",
+		Messages:  []openai.ChatCompletionMessage{{Role: openai.ChatMessageRoleUser, Content: "summarize"}},
+		MaxTokens: 64,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if completion.Message.Content != "Reasoning-derived answer from LM Studio." {
+		t.Fatalf("expected reasoning_content fallback, got %#v", completion.Message)
+	}
+	if completion.TotalTokens != 12 {
+		t.Fatalf("expected token accounting, got %d", completion.TotalTokens)
+	}
+}
+
+func TestOpenAIClientStreamUsesReasoningContentFallback(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/chat/completions" {
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {\"id\":\"1\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"reasoning_content\":\"Reasoning\"},\"finish_reason\":null}]}\n\n"))
+		_, _ = w.Write([]byte("data: {\"id\":\"2\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"reasoning_content\":\" stream answer\"},\"finish_reason\":\"stop\"}],\"usage\":{\"total_tokens\":9}}\n\n"))
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	defer server.Close()
+
+	client := NewOpenAIClient(Config{Provider: "openai-compatible", BaseURL: server.URL + "/v1", Model: "lmstudio-reasoner"})
+	completion, err := client.CompleteStream(context.Background(), ChatRequest{
+		Model:     "lmstudio-reasoner",
+		Messages:  []openai.ChatCompletionMessage{{Role: openai.ChatMessageRoleUser, Content: "summarize"}},
+		MaxTokens: 64,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if completion.Message.Content != "Reasoning stream answer" {
+		t.Fatalf("expected streamed reasoning_content fallback, got %#v", completion.Message)
 	}
 }
 
