@@ -418,7 +418,7 @@ Latest Linux VM acceptance baseline from this track:
   built-in validators, plus CSP bypass and insecure CAPTCHA covered as
   human-assist partials; current full-tool benchmark runs have no failed tool
   runs.
-- Juice Shop: 14 of 15 categories covered, with broken access control,
+- Juice Shop: 15 of 15 categories covered, with broken access control,
   anti-automation/CAPTCHA answer exposure, security misconfiguration,
   security-through-obscurity hidden JavaScript endpoint hints, sensitive data
   exposure, open redirect, vulnerable component, injection, improper input
@@ -427,8 +427,9 @@ Latest Linux VM acceptance baseline from this track:
   XSS confirmed through browser-backed DOM marker execution on a seeded
   hash/search route and XXE confirmed through multipart upload marker
   expansion on a seeded file-upload route, and observability failure covered as
-  a human-assist partial through a seeded metrics surface; current full-tool
-  benchmark runs have no failed tool runs.
+  a human-assist partial through a seeded metrics surface, and insecure
+  deserialization covered as a human-assist partial through a seeded upload
+  surface; current full-tool benchmark runs have no failed tool runs.
 
 Short-term:
 
@@ -438,12 +439,12 @@ Short-term:
   reflected XSS, stored XSS, DOM XSS, file inclusion, command injection, and
   weak session ID coverage in benchmark-safe mode plus CSP bypass partial
   coverage and insecure CAPTCHA partial coverage as human-assist output.
-- Juice Shop: raise category coverage above 14 of 15 by targeting generic
-  deserialization signals.
+- Juice Shop: maintain 15 of 15 category coverage while improving the evidence
+  quality and confidence of human-assist categories.
 - Juice Shop: maintain mapped OpenAPI/CORS/header, CAPTCHA answer exposure,
   seeded external redirect, XXE multipart upload marker validation, and
-  observability-assist metrics review, plus selected API-access signals where
-  safe.
+  observability-assist metrics review, deserialization-assist upload review,
+  plus selected API-access signals where safe.
 
 Strong target:
 

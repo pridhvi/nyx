@@ -87,6 +87,7 @@ func DefaultSafeAdapters() []adapters.Adapter {
 		adapters.NewIDORCheck(),
 		adapters.NewWorkflowAssistCheck(),
 		adapters.NewObservabilityAssistCheck(),
+		adapters.NewDeserializationAssistCheck(),
 		adapters.NewCSPReviewCheck(),
 		adapters.NewCSRFCheck(),
 		adapters.NewWeakSessionIDCheck(),

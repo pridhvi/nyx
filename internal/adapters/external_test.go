@@ -1605,6 +1605,65 @@ func TestObservabilityAssistReportsVerboseErrorSurface(t *testing.T) {
 	}
 }
 
+func TestDeserializationAssistCandidatesUseSeededUploadRoutes(t *testing.T) {
+	input := testHTTPAdapterInput(t, "http://example.test",
+		"/rest/user/login",
+		"/file-upload",
+		"/api/import-state",
+	)
+	candidates := deserializationCandidateURLs(input, 10)
+	if len(candidates) != 2 || candidates[0] != "http://example.test/file-upload" || candidates[1] != "http://example.test/api/import-state" {
+		t.Fatalf("expected seeded upload/import candidates, got %#v", candidates)
+	}
+}
+
+func TestDeserializationAssistReportsUploadImportSurface(t *testing.T) {
+	var postSeen bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			postSeen = true
+		}
+		if r.URL.Path != "/import" {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte(`<form method="post" action="/restore"><input name="backup_yaml"><input name="state_file"><button>Import YAML backup</button></form>`))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/import")
+	adapter := NewDeserializationAssistCheck()
+	if !adapter.ShouldRun(input) {
+		t.Fatal("expected deserialization assist to run with seeded import route")
+	}
+	out, err := adapter.Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if postSeen {
+		t.Fatal("deserialization assist must not submit import forms")
+	}
+	if len(out.Findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
+	}
+	finding := out.Findings[0]
+	if finding.ToolID != "deserialization-assist" || finding.Status != "suspected" || finding.Severity != models.SeverityLow {
+		t.Fatalf("unexpected finding: %#v", finding)
+	}
+	if !strings.Contains(strings.ToLower(finding.Title), "deserialization") || !strings.Contains(finding.EvidenceNormalized, "yaml-data") {
+		t.Fatalf("expected deserialization YAML evidence, got %q %s", finding.Title, finding.EvidenceNormalized)
+	}
+}
+
+func TestDeserializationAssistIgnoresGenericRoute(t *testing.T) {
+	input := testHTTPAdapterInput(t, "http://example.test",
+		"/rest/user/login",
+		"/rest/products/search?q=apple",
+	)
+	if NewDeserializationAssistCheck().ShouldRun(input) {
+		t.Fatal("expected deserialization assist to ignore generic login/search seeds")
+	}
+}
+
 func TestCSPReviewCandidatesUseSeededRoutes(t *testing.T) {
 	input := testHTTPAdapterInput(t, "http://example.test",
 		"/vulnerabilities/csp/",

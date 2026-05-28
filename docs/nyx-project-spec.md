@@ -906,6 +906,7 @@ Any process that speaks this JSON contract over stdin/stdout is a valid Nyx plug
 | IDOR check | Go stdlib HTTP | Adjacent-object identifier checks and optional secondary-identity replay |
 | Workflow assist | Go stdlib HTTP | Human-assist review hints for seeded high-value forms, business-control parameters, CAPTCHA-protected sensitive workflows, and exposed CAPTCHA answers |
 | Observability assist | Go stdlib HTTP | Human-assist review hints for seeded metrics, logging, debug, health, monitoring, and verbose-error surfaces |
+| Deserialization assist | Go stdlib HTTP | Human-assist review hints for seeded upload, import, restore, serialized-object, YAML, pickle, and archive surfaces |
 | CSP review | Go stdlib HTTP | Human-assist CSP bypass review candidates for seeded CSP-related routes |
 | CSRF check | Go stdlib HTTP | Missing token analysis for seeded state-changing forms without submission |
 | Weak session check | Go stdlib HTTP | Bounded sampling for predictable session cookies and body tokens |

@@ -70,6 +70,7 @@ scheduling with registered adapter order preserved inside a phase and slow
 external vulnerability scanners ordered after benchmark-safe built-in
 validators, XXE marker validation for raw XML and multipart upload-like routes,
 observability-assist review for seeded metrics/debug/health/monitoring surfaces,
+deserialization-assist review for seeded upload/import/restore/object-state surfaces,
 and first adapter consumers for built-in HTTP checks plus `ffuf`, `sqlmap`, and
 `dalfox`.
 
@@ -686,6 +687,9 @@ work and must be carried forward:
   answer exposure can be confirmed from response content.
 - Built-in observability-assist check reviews seeded metrics, logging, debug,
   health, monitoring, and verbose-error surfaces without asserting exploitation.
+- Built-in deserialization-assist check reviews seeded upload, import, restore,
+  serialized-object, YAML, pickle, and archive surfaces without submitting
+  exploit payloads.
 - Built-in CSRF check inspects seeded state-changing forms for missing token
   fields without submitting them.
 - Built-in weak-session check samples seeded session-related routes for
