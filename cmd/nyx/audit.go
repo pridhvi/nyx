@@ -59,6 +59,11 @@ func auditRunCommand(args []string) error {
 		return err
 	}
 	selectedLLMURL, selectedLLMModel, llmDisabled := selectLLMSettings(*noLLM, cfg.LLM.Enabled, *llmURL, *llmModel, cfg.LLM.BaseURL, cfg.LLM.Model)
+	if strings.TrimSpace(selectedLLMURL) != "" {
+		if err := llmintel.ValidateBaseURL(selectedLLMURL, llmintel.AllowedHostsFromEnv()); err != nil {
+			return err
+		}
+	}
 	session, err := engine.NewPendingSourceSession(engine.NewSessionInput{
 		SourcePath:    sourcePath,
 		Name:          *name,
@@ -86,10 +91,11 @@ func auditRunCommand(args []string) error {
 		NoLLM:     llmDisabled,
 		Offline:   *offline,
 		LLMConfig: llmintel.Config{
-			Provider: "openai-compatible",
-			BaseURL:  selectedLLMURL,
-			APIKey:   cfg.LLM.APIKey,
-			Model:    selectedLLMModel,
+			Provider:     "openai-compatible",
+			BaseURL:      selectedLLMURL,
+			APIKey:       cfg.LLM.APIKey,
+			Model:        selectedLLMModel,
+			AllowedHosts: llmintel.AllowedHostsFromEnv(),
 		},
 	})
 	runErr := runner.Run(context.Background(), record.Session, sourcePath)
@@ -174,7 +180,7 @@ func writeAuditBytes(output string, body []byte) error {
 		_, err := os.Stdout.Write(body)
 		return err
 	}
-	if err := os.WriteFile(output, body, 0o644); err != nil {
+	if err := os.WriteFile(output, body, 0o600); err != nil {
 		return err
 	}
 	fmt.Fprintf(os.Stderr, "wrote %s\n", output)

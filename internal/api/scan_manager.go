@@ -15,24 +15,26 @@ import (
 )
 
 type ScanManager struct {
-	sessionDir string
-	httpClient adapters.HTTPDoer
-	events     *scanEventBroker
-	mu         sync.Mutex
-	running    map[string]context.CancelFunc
-	paused     map[string]bool
-	resumeCh   map[string]chan struct{}
-	plugins    func() []models.PluginRecord
+	sessionDir      string
+	httpClient      adapters.HTTPDoer
+	llmAllowedHosts []string
+	events          *scanEventBroker
+	mu              sync.Mutex
+	running         map[string]context.CancelFunc
+	paused          map[string]bool
+	resumeCh        map[string]chan struct{}
+	plugins         func() []models.PluginRecord
 }
 
-func NewScanManager(sessionDir string, httpClient adapters.HTTPDoer) *ScanManager {
+func NewScanManager(sessionDir string, httpClient adapters.HTTPDoer, llmAllowedHosts []string) *ScanManager {
 	return &ScanManager{
-		sessionDir: sessionDir,
-		httpClient: httpClient,
-		events:     newScanEventBroker(),
-		running:    make(map[string]context.CancelFunc),
-		paused:     make(map[string]bool),
-		resumeCh:   make(map[string]chan struct{}),
+		sessionDir:      sessionDir,
+		httpClient:      httpClient,
+		llmAllowedHosts: append([]string(nil), llmAllowedHosts...),
+		events:          newScanEventBroker(),
+		running:         make(map[string]context.CancelFunc),
+		paused:          make(map[string]bool),
+		resumeCh:        make(map[string]chan struct{}),
 	}
 }
 
@@ -83,17 +85,21 @@ func (m *ScanManager) Start(session models.Session) {
 func (m *ScanManager) runSession(ctx context.Context, store *db.Store, session models.Session) error {
 	switch session.WorkloadMode {
 	case models.WorkloadModeStatic:
+		llmConfig := llmintel.ConfigFromSession(session)
+		llmConfig.AllowedHosts = m.llmAllowedHosts
 		audit := engine.NewAuditRunner(store, engine.AuditOptions{
 			Tools:     session.EnabledTools,
-			LLMConfig: llmintel.ConfigFromSession(session),
+			LLMConfig: llmConfig,
 		})
 		audit.OnEvent(m.Publish)
 		return audit.Run(ctx, session, session.SourcePath)
 	case models.WorkloadModeCombined:
+		llmConfig := llmintel.ConfigFromSession(session)
+		llmConfig.AllowedHosts = m.llmAllowedHosts
 		audit := engine.NewAuditRunner(store, engine.AuditOptions{
 			Tools:           auditTools(session.EnabledTools),
 			KeepSessionOpen: true,
-			LLMConfig:       llmintel.ConfigFromSession(session),
+			LLMConfig:       llmConfig,
 		})
 		audit.OnEvent(m.Publish)
 		if err := audit.Run(ctx, session, session.SourcePath); err != nil {
@@ -110,7 +116,9 @@ func (m *ScanManager) runSession(ctx context.Context, store *db.Store, session m
 
 func (m *ScanManager) runDynamic(ctx context.Context, store *db.Store, session models.Session) error {
 	session.EnabledTools = dynamicTools(session.EnabledTools)
-	runner := engine.NewRunnerWithOptions(store, engine.DefaultSafeAdapters(), m.httpClient, runnerOptionsFromSession(session))
+	options := runnerOptionsFromSession(session)
+	options.LLMAllowedHosts = m.llmAllowedHosts
+	runner := engine.NewRunnerWithOptions(store, engine.DefaultSafeAdapters(), m.httpClient, options)
 	runner.SetPauseController(m.pauseController(session.ID))
 	for _, plugin := range m.enabledPlugins() {
 		runner.AddAdapters(adapters.NewConfiguredPlugin(plugin))

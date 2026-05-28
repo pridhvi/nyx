@@ -2,6 +2,7 @@ package source
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -73,15 +74,20 @@ func (e genericExtractor) Framework() string { return e.framework }
 
 func (e genericExtractor) Extract(repoPath, sessionID string) ([]models.SourceFinding, error) {
 	var findings []models.SourceFinding
-	err := filepath.WalkDir(repoPath, func(path string, entry os.DirEntry, err error) error {
-		if err != nil || entry.IsDir() || isExcludedPath(path) || !e.matchesExt(path) {
-			return nil
-		}
-		body, err := os.ReadFile(path)
-		if err != nil {
+	root, err := os.OpenRoot(repoPath)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	err = filepath.WalkDir(repoPath, func(path string, entry os.DirEntry, err error) error {
+		if err != nil || entry.IsDir() || entry.Type()&os.ModeSymlink != 0 || isExcludedPath(path) || !e.matchesExt(path) {
 			return nil
 		}
 		rel := relativePath(repoPath, path)
+		body, err := readSourceFileInRoot(root, rel)
+		if err != nil {
+			return nil
+		}
 		lines := strings.Split(string(body), "\n")
 		for idx, line := range lines {
 			lineNo := idx + 1
@@ -90,6 +96,26 @@ func (e genericExtractor) Extract(repoPath, sessionID string) ([]models.SourceFi
 		return nil
 	})
 	return findings, err
+}
+
+func readSourceFileInRoot(root *os.Root, rel string) ([]byte, error) {
+	rel = filepath.Clean(rel)
+	if rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return nil, fmt.Errorf("source path escapes root: %s", rel)
+	}
+	file, err := root.Open(rel)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("source path is not a regular file: %s", rel)
+	}
+	return io.ReadAll(file)
 }
 
 func (e genericExtractor) matchesExt(path string) bool {

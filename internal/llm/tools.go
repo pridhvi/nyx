@@ -204,7 +204,10 @@ func hostMatchesScope(host, scope string) bool {
 	if scopeHost == "" {
 		return false
 	}
-	return host == scopeHost || strings.HasSuffix(host, "."+scopeHost)
+	if strings.HasPrefix(scopeHost, "*.") {
+		return strings.HasSuffix(host, strings.TrimPrefix(scopeHost, "*"))
+	}
+	return host == scopeHost
 }
 
 func hostForScopeMatch(value string) string {

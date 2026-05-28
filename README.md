@@ -197,7 +197,7 @@ and UI surfaces. Active validation, credential checks, Burp REST actions, and AD
 request records are opt-in; API-triggered active actions require configured
 API-key authentication.
 
-For stricter local deployments, set `NYX_SOURCE_ROOTS` to a comma-separated list of allowed repository roots for API-triggered source scans, and `NYX_LLM_ALLOWED_HOSTS` to allowed LLM probe hosts such as `127.0.0.1,localhost,ollama`.
+For stricter local deployments, set `NYX_SOURCE_ROOTS` to a comma-separated list of allowed repository roots for API-triggered source scans, and `NYX_LLM_ALLOWED_HOSTS` to allowed LLM endpoint hosts such as `127.0.0.1,localhost,ollama,10.0.0.100`. LLM endpoints that resolve to private, loopback, link-local, multicast, unspecified, or metadata-service addresses require an explicit allowlist entry. The LLM allowlist is enforced for model probing, chat, and automatic scan analysis. Set `NYX_SECURE_COOKIES=true` or `server.secure_cookies: true` when serving through HTTPS behind a reverse proxy so the browser session cookie is always emitted with the `Secure` flag.
 
 Structured logs use Go `slog`. Set `NYX_LOG_LEVEL=debug|info|warn|error` and `NYX_LOG_FORMAT=text|json` for CLI/server internals without changing human-readable command output.
 

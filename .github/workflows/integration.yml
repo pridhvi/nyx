@@ -13,7 +13,7 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.26.x"
+          go-version: "1.26.3"
 
       - name: Install integration dependencies
         run: sudo apt-get update && sudo apt-get install -y sqlite3 curl

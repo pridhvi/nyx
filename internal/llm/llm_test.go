@@ -30,6 +30,27 @@ func TestConfigFromSessionRequiresBaseURL(t *testing.T) {
 	}
 }
 
+func TestValidateBaseURLHonorsAllowedHosts(t *testing.T) {
+	if err := ValidateBaseURL("http://127.0.0.1:1234/v1", []string{"localhost"}); err == nil {
+		t.Fatal("expected disallowed host to be rejected")
+	}
+	if err := ValidateBaseURL("http://metadata.google.internal./v1", nil); err == nil {
+		t.Fatal("expected metadata endpoint to be rejected")
+	}
+	if err := ValidateBaseURL("http://127.0.0.1:1234/v1", nil); err == nil {
+		t.Fatal("expected loopback endpoint without allowlist to be rejected")
+	}
+	if err := ValidateBaseURL("http://10.0.0.100:1234/v1", nil); err == nil {
+		t.Fatal("expected private endpoint without allowlist to be rejected")
+	}
+	if err := ValidateBaseURL("http://127.0.0.1:1234/v1", []string{"127.0.0.1"}); err != nil {
+		t.Fatalf("expected explicitly allowed loopback LLM host, got %v", err)
+	}
+	if err := ValidateBaseURL("http://localhost:1234/v1", []string{"localhost"}); err != nil {
+		t.Fatalf("expected allowed LLM host, got %v", err)
+	}
+}
+
 func TestBuildContextTruncatesEvidenceAndIncludesStructuredData(t *testing.T) {
 	ctx := context.Background()
 	session, store := testLLMStore(t, ctx)
@@ -144,7 +165,7 @@ func TestOpenAIClientPreservesReasoningContent(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewOpenAIClient(Config{Provider: "openai-compatible", BaseURL: server.URL + "/v1", Model: "lmstudio-reasoner"})
+	client := NewOpenAIClient(Config{Provider: "openai-compatible", BaseURL: server.URL + "/v1", Model: "lmstudio-reasoner", AllowedHosts: []string{"127.0.0.1"}})
 	completion, err := client.Complete(context.Background(), ChatRequest{
 		Model:     "lmstudio-reasoner",
 		Messages:  []openai.ChatCompletionMessage{{Role: openai.ChatMessageRoleUser, Content: "summarize"}},
@@ -173,7 +194,7 @@ func TestOpenAIClientStreamPreservesReasoningContent(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewOpenAIClient(Config{Provider: "openai-compatible", BaseURL: server.URL + "/v1", Model: "lmstudio-reasoner"})
+	client := NewOpenAIClient(Config{Provider: "openai-compatible", BaseURL: server.URL + "/v1", Model: "lmstudio-reasoner", AllowedHosts: []string{"127.0.0.1"}})
 	completion, err := client.CompleteStream(context.Background(), ChatRequest{
 		Model:     "lmstudio-reasoner",
 		Messages:  []openai.ChatCompletionMessage{{Role: openai.ChatMessageRoleUser, Content: "summarize"}},
@@ -269,6 +290,25 @@ func TestToolRunnerConstrainsScanRequestsToSessionScope(t *testing.T) {
 	}
 	if !strings.Contains(result, `"in_scope":false`) {
 		t.Fatalf("expected lookalike domain denial, got %s", result)
+	}
+	result, err = runner.Execute(ctx, session.ID, openai.ToolCall{
+		Type: openai.ToolTypeFunction,
+		Function: openai.FunctionCall{
+			Name:      "request_scan",
+			Arguments: `{"target":"https://api.example.com","tool":"http-probe","reason":"check it"}`,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(result, `"in_scope":false`) {
+		t.Fatalf("expected exact host scope to reject subdomain, got %s", result)
+	}
+	wildcard := session
+	wildcard.TargetInput = "*.example.com"
+	wildcard.InScope = []string{"*.example.com"}
+	if !targetAllowed("https://api.example.com", wildcard) {
+		t.Fatal("expected wildcard scope to allow subdomain")
 	}
 }
 

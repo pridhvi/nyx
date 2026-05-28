@@ -112,6 +112,7 @@ func TestEnvOverridesConfig(t *testing.T) {
 	t.Setenv("NYX_SESSION_DIR", "/tmp/nyx-sessions")
 	t.Setenv("NYX_LOG_LEVEL", "debug")
 	t.Setenv("NYX_LOG_FORMAT", "json")
+	t.Setenv("NYX_SECURE_COOKIES", "true")
 	t.Setenv("NYX_POWER_PROVIDERS_GITHUB_TOKEN", "ghp_secret")
 	t.Setenv("NYX_POWER_BURP_API_KEY", "burp_secret")
 	t.Setenv("NYX_POWER_ACTIVE_VALIDATION_ENABLED", "true")
@@ -127,6 +128,9 @@ func TestEnvOverridesConfig(t *testing.T) {
 	}
 	if cfg.Logging.Level != "debug" || cfg.Logging.Format != "json" {
 		t.Fatalf("expected env logging override, got %#v", cfg.Logging)
+	}
+	if !cfg.Server.SecureCookies {
+		t.Fatalf("expected secure cookie env override, got %#v", cfg.Server)
 	}
 	if cfg.Power.Providers.GitHubToken != "ghp_secret" || cfg.Power.Burp.APIKey != "burp_secret" || !cfg.Power.ActiveValidation.Enabled {
 		t.Fatalf("expected power env overrides, got %#v", cfg.Power)

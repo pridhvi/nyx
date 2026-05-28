@@ -16,22 +16,24 @@ const (
 )
 
 type Config struct {
-	Provider    string
-	BaseURL     string
-	APIKey      string
-	Model       string
-	MaxTokens   int
-	Temperature float64
+	Provider     string
+	BaseURL      string
+	APIKey       string
+	Model        string
+	MaxTokens    int
+	Temperature  float64
+	AllowedHosts []string
 }
 
 func ConfigFromSession(session models.Session) Config {
 	config := Config{
-		Provider:    firstNonEmpty(os.Getenv("NYX_LLM_PROVIDER"), defaultProvider),
-		BaseURL:     firstNonEmpty(session.LLMBaseURL, os.Getenv("NYX_LLM_BASE_URL")),
-		APIKey:      os.Getenv("NYX_LLM_API_KEY"),
-		Model:       firstNonEmpty(session.LLMModel, os.Getenv("NYX_LLM_MODEL")),
-		MaxTokens:   envInt("NYX_LLM_MAX_TOKENS", defaultMaxTokens),
-		Temperature: envFloat("NYX_LLM_TEMPERATURE", defaultTemperature),
+		Provider:     firstNonEmpty(os.Getenv("NYX_LLM_PROVIDER"), defaultProvider),
+		BaseURL:      firstNonEmpty(session.LLMBaseURL, os.Getenv("NYX_LLM_BASE_URL")),
+		APIKey:       os.Getenv("NYX_LLM_API_KEY"),
+		Model:        firstNonEmpty(session.LLMModel, os.Getenv("NYX_LLM_MODEL")),
+		MaxTokens:    envInt("NYX_LLM_MAX_TOKENS", defaultMaxTokens),
+		Temperature:  envFloat("NYX_LLM_TEMPERATURE", defaultTemperature),
+		AllowedHosts: AllowedHostsFromEnv(),
 	}
 	if config.Model == "" && config.BaseURL != "" {
 		config.Model = "llama3:8b"
@@ -41,12 +43,13 @@ func ConfigFromSession(session models.Session) Config {
 
 func ConfigFromApp(cfg appconfig.Config) Config {
 	config := Config{
-		Provider:    firstNonEmpty(os.Getenv("NYX_LLM_PROVIDER"), cfg.LLM.Provider, defaultProvider),
-		BaseURL:     firstNonEmpty(os.Getenv("NYX_LLM_BASE_URL"), cfg.LLM.BaseURL),
-		APIKey:      firstNonEmpty(os.Getenv("NYX_LLM_API_KEY"), cfg.LLM.APIKey),
-		Model:       firstNonEmpty(os.Getenv("NYX_LLM_MODEL"), cfg.LLM.Model),
-		MaxTokens:   firstPositive(envInt("NYX_LLM_MAX_TOKENS", 0), cfg.LLM.MaxTokens, defaultMaxTokens),
-		Temperature: firstFloat(os.Getenv("NYX_LLM_TEMPERATURE"), cfg.LLM.Temperature, defaultTemperature),
+		Provider:     firstNonEmpty(os.Getenv("NYX_LLM_PROVIDER"), cfg.LLM.Provider, defaultProvider),
+		BaseURL:      firstNonEmpty(os.Getenv("NYX_LLM_BASE_URL"), cfg.LLM.BaseURL),
+		APIKey:       firstNonEmpty(os.Getenv("NYX_LLM_API_KEY"), cfg.LLM.APIKey),
+		Model:        firstNonEmpty(os.Getenv("NYX_LLM_MODEL"), cfg.LLM.Model),
+		MaxTokens:    firstPositive(envInt("NYX_LLM_MAX_TOKENS", 0), cfg.LLM.MaxTokens, defaultMaxTokens),
+		Temperature:  firstFloat(os.Getenv("NYX_LLM_TEMPERATURE"), cfg.LLM.Temperature, defaultTemperature),
+		AllowedHosts: AllowedHostsFromEnv(),
 	}
 	if config.Model == "" && config.BaseURL != "" {
 		config.Model = "llama3:8b"

@@ -47,7 +47,7 @@ func runReport(args []string) error {
 		_, err = os.Stdout.Write(artifact.Content)
 		return err
 	}
-	if err := os.WriteFile(*output, artifact.Content, 0o644); err != nil {
+	if err := os.WriteFile(*output, artifact.Content, 0o600); err != nil {
 		return err
 	}
 	fmt.Printf("wrote %s\n", *output)

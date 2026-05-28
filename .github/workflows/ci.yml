@@ -13,7 +13,7 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.26.x"
+          go-version: "1.26.3"
 
       - uses: actions/setup-node@v6
         with:
@@ -27,6 +27,9 @@ jobs:
 
       - name: Run Go tests
         run: make test
+
+      - name: Run Go vulnerability check
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
       - name: Lint and typecheck frontend
         run: make lint
@@ -58,7 +61,7 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.26.x"
+          go-version: "1.26.3"
 
       - uses: actions/setup-node@v6
         with:

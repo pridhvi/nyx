@@ -94,3 +94,45 @@ func TestAnalyseExtractsSupportedLanguagesWithoutExecutingCode(t *testing.T) {
 		})
 	}
 }
+
+func TestAnalyseSkipsSymlinkedFiles(t *testing.T) {
+	dir := t.TempDir()
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte("func main() { http.HandleFunc(\"/ok\", handler) }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(outside, "secret.go"), []byte("var api_key = \"outside\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(outside, "secret.go"), filepath.Join(dir, "linked_secret.go")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	result, err := Analyse(dir, "session-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, finding := range result.Findings {
+		if filepath.ToSlash(finding.FilePath) == "linked_secret.go" || finding.Value == "var api_key = \"outside\"" {
+			t.Fatalf("expected symlinked file to be skipped, got %#v", finding)
+		}
+	}
+}
+
+func TestReadSourceFileInRootRejectsSymlinkEscape(t *testing.T) {
+	dir := t.TempDir()
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "secret.go"), []byte("var api_key = \"outside\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(outside, "secret.go"), filepath.Join(dir, "linked_secret.go")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	if body, err := readSourceFileInRoot(root, "linked_secret.go"); err == nil {
+		t.Fatalf("expected root-confined read to reject symlink escape, got %q", string(body))
+	}
+}

@@ -140,14 +140,14 @@ func writeGlobalCLIPlugins(cfgPath string, plugins []models.PluginRecord) error 
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
 	body, err := json.MarshalIndent(plugins, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, body, 0o644)
+	return os.WriteFile(path, body, 0o600)
 }
 
 func globalCLIPluginsPath(cfgPath string) (string, error) {

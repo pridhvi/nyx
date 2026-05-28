@@ -63,7 +63,7 @@ func DefaultSessionsDir() string {
 }
 
 func EnsureSessionsDir(dir string) error {
-	return os.MkdirAll(dir, 0o755)
+	return os.MkdirAll(dir, 0o700)
 }
 
 func SessionDBPath(dir, sessionID string) (string, error) {
@@ -106,7 +106,7 @@ func CreateSessionDBWithTargets(ctx context.Context, dir string, session models.
 }
 
 func Open(ctx context.Context, path string) (*Store, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, err
 	}
 	database, err := sql.Open("sqlite", path)

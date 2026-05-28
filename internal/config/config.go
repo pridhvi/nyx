@@ -37,9 +37,10 @@ type DatabaseConfig struct {
 }
 
 type ServerConfig struct {
-	Host   string `json:"host"`
-	Port   int    `json:"port"`
-	APIKey string `json:"api_key"`
+	Host          string `json:"host"`
+	Port          int    `json:"port"`
+	APIKey        string `json:"api_key"`
+	SecureCookies bool   `json:"secure_cookies"`
 }
 
 type LoggingConfig struct {
@@ -182,6 +183,7 @@ func Load(path string) (Config, error) {
 	cfg.Server.Host = v.GetString("server.host")
 	cfg.Server.Port = v.GetInt("server.port")
 	cfg.Server.APIKey = v.GetString("server.api_key")
+	cfg.Server.SecureCookies = v.GetBool("server.secure_cookies")
 	cfg.Logging.Level = v.GetString("logging.level")
 	cfg.Logging.Format = v.GetString("logging.format")
 	cfg.Scan.Mode = v.GetString("scan.mode")
@@ -214,10 +216,10 @@ func WriteDefault(path string) error {
 	if strings.TrimSpace(path) == "" {
 		path = DefaultPath()
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	return os.WriteFile(path, []byte(Default().YAML()), 0o644)
+	return os.WriteFile(path, []byte(Default().YAML()), 0o600)
 }
 
 func ApplyEnv(cfg Config) Config {
@@ -227,6 +229,9 @@ func ApplyEnv(cfg Config) Config {
 	cfg.LLM.Model = first(os.Getenv("NYX_LLM_MODEL"), cfg.LLM.Model)
 	cfg.Database.SessionDir = absolutePath(first(os.Getenv("NYX_SESSION_DIR"), cfg.Database.SessionDir))
 	cfg.Server.APIKey = first(os.Getenv("NYX_API_KEY"), cfg.Server.APIKey)
+	if value := os.Getenv("NYX_SECURE_COOKIES"); strings.TrimSpace(value) != "" {
+		cfg.Server.SecureCookies = parseBool(value)
+	}
 	cfg.Logging.Level = first(os.Getenv("NYX_LOG_LEVEL"), cfg.Logging.Level)
 	cfg.Logging.Format = first(os.Getenv("NYX_LOG_FORMAT"), cfg.Logging.Format)
 	cfg.CVE.OfflinePath = first(os.Getenv("NYX_CVE_OFFLINE_PATH"), cfg.CVE.OfflinePath)
@@ -326,6 +331,7 @@ server:
   host: %s
   port: %d
   api_key: %s
+  secure_cookies: %t
 logging:
   level: %s
   format: %s
@@ -361,7 +367,7 @@ power:
 tools: {}
 plugins: []
 `, c.LLM.Enabled, c.LLM.Provider, c.LLM.BaseURL, c.LLM.APIKey, c.LLM.Model, c.LLM.MaxTokens, c.LLM.Temperature,
-		c.Database.SessionDir, c.Server.Host, c.Server.Port, c.Server.APIKey, c.Logging.Level, c.Logging.Format, c.Scan.Mode, strings.Join(c.Scan.Phases, ","), strings.Join(c.Scan.Tools, ","), c.Scan.Concurrency, c.Scan.RateLimit,
+		c.Database.SessionDir, c.Server.Host, c.Server.Port, c.Server.APIKey, c.Server.SecureCookies, c.Logging.Level, c.Logging.Format, c.Scan.Mode, strings.Join(c.Scan.Phases, ","), strings.Join(c.Scan.Tools, ","), c.Scan.Concurrency, c.Scan.RateLimit,
 		c.CVE.OfflinePath, c.CVE.EnableRemote, c.CVE.CacheTTL, c.CVE.ExploitDBPath, strings.Join(c.CVE.Sources, ","),
 		c.Power.Providers.GitHubToken, c.Power.Providers.ShodanAPIKey, c.Power.Providers.SecurityTrailsAPIKey,
 		c.Power.Burp.BaseURL, c.Power.Burp.APIKey, c.Power.Callbacks.Provider, c.Power.Callbacks.InteractshURL,
@@ -388,6 +394,7 @@ func setDefaults(v *viper.Viper, cfg Config) {
 	v.SetDefault("server.host", cfg.Server.Host)
 	v.SetDefault("server.port", cfg.Server.Port)
 	v.SetDefault("server.api_key", cfg.Server.APIKey)
+	v.SetDefault("server.secure_cookies", cfg.Server.SecureCookies)
 	v.SetDefault("logging.level", cfg.Logging.Level)
 	v.SetDefault("logging.format", cfg.Logging.Format)
 	v.SetDefault("scan.mode", cfg.Scan.Mode)
@@ -418,7 +425,7 @@ func setDefaults(v *viper.Viper, cfg Config) {
 func bindEnv(v *viper.Viper) {
 	keys := []string{
 		"llm.enabled", "llm.provider", "llm.base_url", "llm.api_key", "llm.model", "llm.max_tokens", "llm.temperature",
-		"database.session_dir", "server.host", "server.port", "server.api_key",
+		"database.session_dir", "server.host", "server.port", "server.api_key", "server.secure_cookies",
 		"logging.level", "logging.format",
 		"scan.mode", "scan.phases", "scan.tools", "scan.concurrency", "scan.rate_limit",
 		"cve.offline_path", "cve.enable_remote", "cve.cache_ttl", "cve.exploitdb_path", "cve.sources",

@@ -287,10 +287,10 @@ func (r *AuditRunner) writeRunLogs(sessionID, runID, stdout, stderr string) (str
 	}
 	stdoutPath := filepath.Join(dir, runID+".stdout.log")
 	stderrPath := filepath.Join(dir, runID+".stderr.log")
-	if err := os.WriteFile(stdoutPath, []byte(stdout), 0o640); err != nil {
+	if err := os.WriteFile(stdoutPath, []byte(stdout), 0o600); err != nil {
 		stdoutPath = ""
 	}
-	if err := os.WriteFile(stderrPath, []byte(stderr), 0o640); err != nil {
+	if err := os.WriteFile(stderrPath, []byte(stderr), 0o600); err != nil {
 		stderrPath = ""
 	}
 	return stdoutPath, stderrPath

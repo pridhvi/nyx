@@ -59,12 +59,20 @@ llm:
   model: llama3:8b
 ```
 
-For tighter host deployments, constrain source scans and LLM model probing:
+For tighter host deployments, constrain source scans and every LLM endpoint
+that can initiate outbound model traffic:
 
 ```sh
 export NYX_SOURCE_ROOTS=/srv/audits,/work/repos
-export NYX_LLM_ALLOWED_HOSTS=127.0.0.1,localhost,ollama
+export NYX_LLM_ALLOWED_HOSTS=127.0.0.1,localhost,ollama,10.0.0.100
+export NYX_SECURE_COOKIES=true
 ```
+
+Private, loopback, link-local, multicast, unspecified, and metadata-service LLM
+endpoints are blocked unless their host is explicitly included in
+`NYX_LLM_ALLOWED_HOSTS`. Use `NYX_SECURE_COOKIES=true` or
+`server.secure_cookies: true` for HTTPS reverse-proxy deployments so the
+browser login cookie always carries the `Secure` flag.
 
 Single-binary local mode remains supported. Optional external tools degrade
 gracefully when they are not installed.

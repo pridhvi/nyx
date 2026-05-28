@@ -99,13 +99,16 @@ func (s *Scheduler) reload(ctx context.Context, catchUpOverdue bool) error {
 	}
 	for _, configID := range overdue {
 		configID := configID
-		go s.runScheduled(configID)
+		go s.runScheduledWithContext(ctx, configID)
 	}
 	return nil
 }
 
 func (s *Scheduler) runScheduled(configID string) {
-	ctx := context.Background()
+	s.runScheduledWithContext(context.Background(), configID)
+}
+
+func (s *Scheduler) runScheduledWithContext(ctx context.Context, configID string) {
 	run, changes, err := s.runNow(ctx, configID)
 	if err != nil {
 		slog.Warn("scheduled monitor run failed", "config_id", configID, "run_id", run.ID, "error", err)

@@ -1352,7 +1352,7 @@ greenfield assumptions:
 | 1. Project Overview | Phase 0 | Implemented | Local-first CLI and web UI, scoped sessions, normalized persistence, LLM, reporting, packaging, and CI exist. |
 | 2. Design Principles | Phases 0, 3, 4, 5, 11, 12 | Implemented | Scope/evidence/normalization, DAG scheduling, deterministic vectors, constrained LLM analysis, auth, reports, and UI routes exist. |
 | 3. Tech Stack | Phases 0, 2, 12, 15, 16, 17 | Implemented | Go, SQLite, React/Vite, WebSocket, OpenAI-compatible LLM client, reports, Docker, Compose, Makefile, and GoReleaser exist. |
-| 3.1 Backend Go | Phases 0, 5 | Implemented | Current Go target is 1.26; scheduler exists. Native ProjectDiscovery migration is intentionally deferred. |
+| 3.1 Backend Go | Phases 0, 5 | Implemented | Current Go target is 1.26.3 or newer within the 1.26 line; scheduler exists. Native ProjectDiscovery migration is intentionally deferred. |
 | 3.2 Dependencies | Phases 0, 10, 12, 15, 17, 18 | Implemented | SQLite, stdlib `net/http`, WebSocket, Viper, go-pdf/fpdf, x/sync, slog, testify, Cytoscape, and Recharts are present; chi/sqlc/PostgreSQL are deferred architecture tracks. |
 | 3.3 Frontend | Phase 16 | Implemented | Dashboard, findings, Cytoscape graph, Recharts severity chart, LLM, and reports routes use real API data. |
 | 3.4 Database | Phase 2 | Implemented | Per-session SQLite, ordered migrations, and store methods cover Phase 2 persistence; optional Postgres remains later. |

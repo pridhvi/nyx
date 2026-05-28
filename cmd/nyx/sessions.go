@@ -227,22 +227,27 @@ func exportSession(args []string) error {
 	if err := store.Close(); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(*output), 0o755); err != nil && filepath.Dir(*output) != "." {
+	if err := os.MkdirAll(filepath.Dir(*output), 0o700); err != nil && filepath.Dir(*output) != "." {
 		return err
 	}
-	file, err := os.Create(*output)
+	file, err := os.OpenFile(*output, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 	archive := zip.NewWriter(file)
 	defer archive.Close()
+	rootHandle, err := os.OpenRoot(root)
+	if err != nil {
+		return err
+	}
+	defer rootHandle.Close()
 	runsCount := 0
 	err = filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
-		if entry.IsDir() {
+		if entry.IsDir() || entry.Type()&os.ModeSymlink != 0 {
 			return nil
 		}
 		rel, err := filepath.Rel(root, path)
@@ -256,13 +261,19 @@ func exportSession(args []string) error {
 		if err != nil {
 			return err
 		}
-		input, err := os.Open(path)
+		input, err := rootHandle.Open(rel)
 		if err != nil {
 			return err
 		}
-		defer input.Close()
-		_, err = io.Copy(writer, input)
-		return err
+		_, copyErr := io.Copy(writer, input)
+		closeErr := input.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+		return nil
 	})
 	if err != nil {
 		return err

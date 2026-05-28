@@ -47,6 +47,9 @@ func (c *OpenAIClient) Complete(ctx context.Context, request ChatRequest) (ChatC
 	if !c.config.Configured() {
 		return ChatCompletion{}, ErrNotConfigured
 	}
+	if err := ValidateBaseURL(c.config.BaseURL, c.config.AllowedHosts); err != nil {
+		return ChatCompletion{}, err
+	}
 	resp, err := c.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 		Model:       request.Model,
 		Messages:    request.Messages,
@@ -66,6 +69,9 @@ func (c *OpenAIClient) Complete(ctx context.Context, request ChatRequest) (ChatC
 func (c *OpenAIClient) CompleteStream(ctx context.Context, request ChatRequest) (ChatCompletion, error) {
 	if !c.config.Configured() {
 		return ChatCompletion{}, ErrNotConfigured
+	}
+	if err := ValidateBaseURL(c.config.BaseURL, c.config.AllowedHosts); err != nil {
+		return ChatCompletion{}, err
 	}
 	stream, err := c.client.CreateChatCompletionStream(ctx, openai.ChatCompletionRequest{
 		Model:       request.Model,

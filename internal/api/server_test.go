@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -27,7 +28,7 @@ func TestSessionAPI(t *testing.T) {
 	}))
 	defer targetServer.Close()
 
-	server := NewServer(Config{SessionDir: t.TempDir(), HTTPClient: targetServer.Client()})
+	server := NewServer(Config{SessionDir: t.TempDir(), HTTPClient: targetServer.Client(), LLMAllowedHosts: []string{"127.0.0.1"}})
 	handler := server.Handler()
 
 	health := httptest.NewRecorder()
@@ -247,6 +248,19 @@ func TestAPIKeyAuth(t *testing.T) {
 	}
 }
 
+func TestAuthCookieSecureConfig(t *testing.T) {
+	handler := NewServer(Config{SessionDir: t.TempDir(), APIKey: "secret", SecureCookies: true}).Handler()
+	login := httptest.NewRecorder()
+	handler.ServeHTTP(login, httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(`{"api_key":"secret"}`)))
+	if login.Code != http.StatusOK {
+		t.Fatalf("expected login success, got %d body=%s", login.Code, login.Body.String())
+	}
+	cookies := login.Result().Cookies()
+	if len(cookies) != 1 || !cookies[0].Secure {
+		t.Fatalf("expected secure auth cookie, got %#v", cookies)
+	}
+}
+
 func TestStartScanRejectsUnsafeExtraArgs(t *testing.T) {
 	handler := NewServer(Config{SessionDir: t.TempDir()}).Handler()
 	body := bytes.NewBufferString(`{"target":"http://127.0.0.1:1","tools":["sqlmap"],"tool_parameters":{"sqlmap":{"extra_args":["--os-shell"]}}}`)
@@ -304,7 +318,7 @@ func TestLLMModelsDoesNotReflectUpstreamErrorBody(t *testing.T) {
 		http.Error(w, "internal-secret-token", http.StatusInternalServerError)
 	}))
 	defer targetServer.Close()
-	handler := NewServer(Config{SessionDir: t.TempDir(), APIKey: "secret", HTTPClient: targetServer.Client()}).Handler()
+	handler := NewServer(Config{SessionDir: t.TempDir(), APIKey: "secret", HTTPClient: targetServer.Client(), LLMAllowedHosts: []string{"127.0.0.1"}}).Handler()
 
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, apiKeyRequest(http.MethodPost, "/api/llm/models", bytes.NewBufferString(`{"base_url":"`+targetServer.URL+`"}`)))
@@ -332,6 +346,47 @@ func TestLLMModelsHonorsHostAllowlist(t *testing.T) {
 	handler.ServeHTTP(rec, apiKeyRequest(http.MethodPost, "/api/llm/models", bytes.NewBufferString(`{"base_url":"`+targetServer.URL+`"}`)))
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected allowlist rejection, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	start := httptest.NewRecorder()
+	handler.ServeHTTP(start, apiKeyRequest(http.MethodPost, "/api/scan/start", bytes.NewBufferString(`{"target":"http://127.0.0.1:1","llm_base_url":"`+targetServer.URL+`/v1","llm_model":"llama"}`)))
+	if start.Code != http.StatusBadRequest {
+		t.Fatalf("expected scan LLM URL allowlist rejection, got %d body=%s", start.Code, start.Body.String())
+	}
+}
+
+func TestLLMChatHonorsHostAllowlistForPersistedSessions(t *testing.T) {
+	ctx := t.Context()
+	sessionDir := t.TempDir()
+	session := models.Session{
+		ID:          models.NewID(),
+		Name:        "LLM",
+		Status:      models.SessionStatusCompleted,
+		Mode:        models.ScanModeActive,
+		TargetInput: "http://127.0.0.1:1",
+		InScope:     []string{"http://127.0.0.1:1"},
+		LLMBaseURL:  "http://127.0.0.1:1234/v1",
+		LLMModel:    "local",
+		CreatedAt:   time.Now().UTC(),
+	}
+	if _, err := db.CreateSessionDBWithTargets(ctx, sessionDir, session, nil); err != nil {
+		t.Fatal(err)
+	}
+	handler := NewServer(Config{SessionDir: sessionDir, APIKey: "secret", LLMAllowedHosts: []string{"llm.internal.example"}}).Handler()
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, apiKeyRequest(http.MethodPost, "/api/sessions/"+session.ID+"/llm/chat", bytes.NewBufferString(`{"message":"summarize"}`)))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected persisted LLM URL allowlist rejection, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestReadLimitedBodyRejectsOversizedRequests(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("abcdef"))
+	if _, ok := readLimitedBody(rec, req, 3); ok {
+		t.Fatal("expected oversized request to be rejected")
+	}
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected 413, got %d body=%s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -553,7 +608,7 @@ func TestOperatorConsoleAPI(t *testing.T) {
 		_, _ = w.Write([]byte("ok"))
 	}))
 	defer targetServer.Close()
-	server := NewServer(Config{SessionDir: t.TempDir(), HTTPClient: targetServer.Client()})
+	server := NewServer(Config{SessionDir: t.TempDir(), HTTPClient: targetServer.Client(), LLMAllowedHosts: []string{"127.0.0.1"}})
 	handler := server.Handler()
 
 	tools := httptest.NewRecorder()
@@ -697,6 +752,49 @@ func TestOperatorConsoleAPI(t *testing.T) {
 	handler.ServeHTTP(models, apiKeyRequest(http.MethodPost, "/api/llm/models", bytes.NewBufferString(`{"base_url":"`+targetServer.URL+`"}`)))
 	if models.Code != http.StatusOK || !strings.Contains(models.Body.String(), "llama3:8b") {
 		t.Fatalf("models status = %d body=%s", models.Code, models.Body.String())
+	}
+}
+
+func TestPluginUploadUsesPrivateExecutablePermissions(t *testing.T) {
+	handler := NewServer(Config{SessionDir: t.TempDir(), APIKey: "secret"}).Handler()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("binary", "plugin.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := part.Write([]byte("#!/bin/sh\necho ok\n")); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	req := apiKeyRequest(http.MethodPost, "/api/plugins/upload", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("upload status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var payload struct {
+		Binary string `json:"binary"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(payload.Binary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o700 {
+		t.Fatalf("expected private executable upload mode 0700, got %03o", got)
+	}
+	dirInfo, err := os.Stat(filepath.Dir(payload.Binary))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := dirInfo.Mode().Perm(); got != 0o700 {
+		t.Fatalf("expected private plugin bin dir mode 0700, got %03o", got)
 	}
 }
 

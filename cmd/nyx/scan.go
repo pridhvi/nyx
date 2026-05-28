@@ -56,6 +56,11 @@ func runScan(args []string) error {
 	}
 	selectedMode := firstNonEmpty(*mode, cfg.Scan.Mode, string(models.ScanModeActive))
 	selectedLLMURL, selectedLLMModel, _ := selectLLMSettings(*noLLM, cfg.LLM.Enabled, *llmURL, *llmModel, cfg.LLM.BaseURL, cfg.LLM.Model)
+	if strings.TrimSpace(selectedLLMURL) != "" {
+		if err := llmintel.ValidateBaseURL(selectedLLMURL, llmintel.AllowedHostsFromEnv()); err != nil {
+			return err
+		}
+	}
 	selectedPhases := splitCSV(firstNonEmpty(*phases, strings.Join(cfg.Scan.Phases, ",")))
 	selectedTools := splitCSV(firstNonEmpty(*tools, strings.Join(cfg.Scan.Tools, ",")))
 	selectedRateLimit := firstNonEmpty(*rateLimit, cfg.Scan.RateLimit)
@@ -115,10 +120,11 @@ func runScan(args []string) error {
 	}
 	defer store.Close()
 	scanErr := runScanWorkload(context.Background(), store, record.Session, engine.RunnerOptions{GlobalConcurrency: *concurrency, PerToolConcurrency: 1, Lean: *lean}, llmintel.Config{
-		Provider: "openai-compatible",
-		BaseURL:  selectedLLMURL,
-		APIKey:   cfg.LLM.APIKey,
-		Model:    selectedLLMModel,
+		Provider:     "openai-compatible",
+		BaseURL:      selectedLLMURL,
+		APIKey:       cfg.LLM.APIKey,
+		Model:        selectedLLMModel,
+		AllowedHosts: llmintel.AllowedHostsFromEnv(),
 	})
 
 	fmt.Printf("created session %s for %s (%s mode)\n", record.Session.ID, record.Session.TargetInput, record.Session.Mode)

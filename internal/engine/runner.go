@@ -36,6 +36,7 @@ type RunnerOptions struct {
 	ToolDelay          time.Duration
 	ToolTimeout        time.Duration
 	Lean               bool
+	LLMAllowedHosts    []string
 }
 
 func NewRunner(store *db.Store) *Runner {
@@ -417,6 +418,9 @@ func (r *Runner) refreshAuthIfNeeded(ctx context.Context, session models.Session
 
 func (r *Runner) runLLMAnalysis(ctx context.Context, session models.Session) error {
 	config := llmintel.ConfigFromSession(session)
+	if len(r.options.LLMAllowedHosts) > 0 {
+		config.AllowedHosts = r.options.LLMAllowedHosts
+	}
 	if !config.Configured() {
 		return nil
 	}
@@ -587,11 +591,11 @@ func (r *Runner) writeRunLogs(sessionID, runID, stdout, stderr string) (string, 
 	}
 	stdoutPath := filepath.Join(dir, runID+".stdout.log")
 	stderrPath := filepath.Join(dir, runID+".stderr.log")
-	if err := os.WriteFile(stdoutPath, []byte(stdout), 0o640); err != nil {
+	if err := os.WriteFile(stdoutPath, []byte(stdout), 0o600); err != nil {
 		slog.Error("write tool stdout log", "session_id", sessionID, "run_id", runID, "error", err)
 		stdoutPath = ""
 	}
-	if err := os.WriteFile(stderrPath, []byte(stderr), 0o640); err != nil {
+	if err := os.WriteFile(stderrPath, []byte(stderr), 0o600); err != nil {
 		slog.Error("write tool stderr log", "session_id", sessionID, "run_id", runID, "error", err)
 		stderrPath = ""
 	}

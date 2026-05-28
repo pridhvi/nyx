@@ -43,6 +43,7 @@ type Config struct {
 	Port            int
 	SessionDir      string
 	APIKey          string
+	SecureCookies   bool
 	HTTPClient      adapters.HTTPDoer
 	ToolPaths       map[string]string
 	AppConfig       appconfig.Config
@@ -60,6 +61,12 @@ type Server struct {
 	authSessions map[string]time.Time
 }
 
+const (
+	maxBloodHoundImportBytes = 32 << 20
+	maxBurpImportBytes       = 32 << 20
+	maxPluginUploadBytes     = 64 << 20
+)
+
 func NewServer(cfg Config) *Server {
 	if cfg.AppConfig.Database.SessionDir == "" {
 		cfg.AppConfig = appconfig.Default()
@@ -72,12 +79,14 @@ func NewServer(cfg Config) *Server {
 	if cfg.APIKey == "" {
 		cfg.APIKey = os.Getenv("NYX_API_KEY")
 	}
+	cfg.SecureCookies = cfg.SecureCookies || cfg.AppConfig.Server.SecureCookies || envBool("NYX_SECURE_COOKIES")
 	cfg.AppConfig.Server.APIKey = cfg.APIKey
+	cfg.AppConfig.Server.SecureCookies = cfg.SecureCookies
 	cfg.SourceRoots = append(cfg.SourceRoots, splitEnvList(os.Getenv("NYX_SOURCE_ROOTS"))...)
 	cfg.LLMAllowedHosts = append(cfg.LLMAllowedHosts, splitEnvList(os.Getenv("NYX_LLM_ALLOWED_HOSTS"))...)
 	server := &Server{
 		cfg:          cfg,
-		scanManager:  NewScanManager(cfg.SessionDir, cfg.HTTPClient),
+		scanManager:  NewScanManager(cfg.SessionDir, cfg.HTTPClient, cfg.LLMAllowedHosts),
 		authFailures: make(map[string][]time.Time),
 		authSessions: make(map[string]time.Time),
 	}
@@ -288,9 +297,10 @@ func (s *Server) effectiveConfig(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{
 		"database": map[string]any{"session_dir": firstNonEmpty(cfg.Database.SessionDir, s.cfg.SessionDir)},
 		"server": map[string]any{
-			"host":         cfg.Server.Host,
-			"port":         cfg.Server.Port,
-			"auth_enabled": firstNonEmpty(cfg.Server.APIKey, s.cfg.APIKey) != "",
+			"host":           cfg.Server.Host,
+			"port":           cfg.Server.Port,
+			"auth_enabled":   firstNonEmpty(cfg.Server.APIKey, s.cfg.APIKey) != "",
+			"secure_cookies": cfg.Server.SecureCookies,
 		},
 		"llm": map[string]any{
 			"enabled":     cfg.LLM.Enabled,
@@ -350,7 +360,7 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token, expires := s.createAuthSession()
-	http.SetCookie(w, authSessionCookie(token, expires, r.TLS != nil))
+	http.SetCookie(w, authSessionCookie(token, expires, s.secureCookie(r)))
 	writeJSON(w, map[string]any{"authenticated": true, "auth_enabled": true, "expires_at": expires.UTC().Format(time.RFC3339)})
 }
 
@@ -358,8 +368,12 @@ func (s *Server) authLogout(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie(authSessionCookieName); err == nil {
 		s.deleteAuthSession(cookie.Value)
 	}
-	http.SetCookie(w, expiredAuthSessionCookie(r.TLS != nil))
+	http.SetCookie(w, expiredAuthSessionCookie(s.secureCookie(r)))
 	writeJSON(w, map[string]any{"authenticated": false})
+}
+
+func (s *Server) secureCookie(r *http.Request) bool {
+	return s.cfg.SecureCookies || r.TLS != nil
 }
 
 type toolParameter struct {
@@ -484,6 +498,23 @@ func splitEnvList(value string) []string {
 		}
 	}
 	return out
+}
+
+func envBool(name string) bool {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return false
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err == nil {
+		return parsed
+	}
+	switch strings.ToLower(value) {
+	case "yes", "on", "enabled":
+		return true
+	default:
+		return false
+	}
 }
 
 func parseBoolQuery(value string) bool {
@@ -1135,9 +1166,8 @@ func (s *Server) importBloodHound(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer store.Close()
-	raw, err := io.ReadAll(r.Body)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
+	raw, ok := readLimitedBody(w, r, maxBloodHoundImportBytes)
+	if !ok {
 		return
 	}
 	if err := activedirectory.ImportBloodHound(r.Context(), store, r.PathValue("id"), raw); err != nil {
@@ -1287,9 +1317,8 @@ func (s *Server) importBurpXML(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer store.Close()
-	raw, err := io.ReadAll(r.Body)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
+	raw, ok := readLimitedBody(w, r, maxBurpImportBytes)
+	if !ok {
 		return
 	}
 	result, err := burp.ImportXML(r.Context(), store, session, raw)
@@ -1576,7 +1605,7 @@ func (s *Server) readScanProfiles() ([]scanProfileRecord, error) {
 }
 
 func (s *Server) writeScanProfiles(profiles []scanProfileRecord) error {
-	if err := os.MkdirAll(s.stateDir(), 0o755); err != nil {
+	if err := os.MkdirAll(s.stateDir(), 0o700); err != nil {
 		return err
 	}
 	body, err := json.MarshalIndent(profiles, "", "  ")
@@ -1888,8 +1917,9 @@ func (s *Server) uploadPluginBinary(w http.ResponseWriter, r *http.Request) {
 	if !s.requireConfiguredAPIKey(w, "plugin upload requires API key authentication") {
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxPluginUploadBytes)
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		writeRequestBodyError(w, err)
 		return
 	}
 	file, header, err := r.FormFile("binary")
@@ -1898,7 +1928,7 @@ func (s *Server) uploadPluginBinary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
-	if err := os.MkdirAll(s.pluginBinDir(), 0o755); err != nil {
+	if err := os.MkdirAll(s.pluginBinDir(), 0o700); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -1910,14 +1940,14 @@ func (s *Server) uploadPluginBinary(w http.ResponseWriter, r *http.Request) {
 	if _, err := os.Stat(path); err == nil {
 		path = filepath.Join(s.pluginBinDir(), models.NewID()+"-"+name)
 	}
-	out, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o755)
+	out, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o700)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 	defer out.Close()
 	if _, err := io.Copy(out, file); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
+		writeRequestBodyError(w, err)
 		return
 	}
 	writeJSON(w, map[string]string{"binary": path})
@@ -1953,7 +1983,7 @@ func (s *Server) readGlobalPlugins() ([]models.PluginRecord, error) {
 }
 
 func (s *Server) writeGlobalPlugins(plugins []models.PluginRecord) error {
-	if err := os.MkdirAll(s.stateDir(), 0o755); err != nil {
+	if err := os.MkdirAll(s.stateDir(), 0o700); err != nil {
 		return err
 	}
 	body, err := json.MarshalIndent(plugins, "", "  ")
@@ -2321,7 +2351,7 @@ func (s *Server) llmModels(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, fmt.Errorf("base_url is required"))
 		return
 	}
-	if err := s.validateLLMProbeURL(baseURL); err != nil {
+	if err := llmintel.ValidateBaseURL(baseURL, s.cfg.LLMAllowedHosts); err != nil {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
@@ -2410,26 +2440,7 @@ func llmModelsURL(baseURL string) string {
 }
 
 func (s *Server) validateLLMProbeURL(baseURL string) error {
-	parsed, err := url.Parse(strings.TrimSpace(baseURL))
-	if err != nil || parsed.Scheme == "" || parsed.Hostname() == "" {
-		return fmt.Errorf("base_url must be an absolute http or https URL")
-	}
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return fmt.Errorf("base_url must use http or https")
-	}
-	host := strings.ToLower(parsed.Hostname())
-	if host == "metadata.google.internal" {
-		return fmt.Errorf("metadata service endpoints are not allowed")
-	}
-	if len(s.cfg.LLMAllowedHosts) > 0 && !hostAllowed(host, s.cfg.LLMAllowedHosts) {
-		return fmt.Errorf("base_url host is not in the configured allowlist")
-	}
-	if ip := net.ParseIP(host); ip != nil {
-		if ip.IsUnspecified() || ip.IsMulticast() || ip.IsLinkLocalMulticast() || ip.IsLinkLocalUnicast() {
-			return fmt.Errorf("link-local, multicast, and unspecified LLM endpoints are not allowed")
-		}
-	}
-	return nil
+	return llmintel.ValidateBaseURL(baseURL, s.cfg.LLMAllowedHosts)
 }
 
 func (s *Server) llmChat(w http.ResponseWriter, r *http.Request) {
@@ -2470,8 +2481,13 @@ func (s *Server) runLLM(w http.ResponseWriter, r *http.Request, prompt string) {
 	}
 	defer store.Close()
 	config := llmintel.ConfigFromSession(session)
+	config.AllowedHosts = s.cfg.LLMAllowedHosts
 	if !config.Configured() {
 		writeError(w, http.StatusServiceUnavailable, llmintel.ErrNotConfigured)
+		return
+	}
+	if err := llmintel.ValidateBaseURL(config.BaseURL, config.AllowedHosts); err != nil {
+		writeError(w, http.StatusBadRequest, err)
 		return
 	}
 	analysis, err := llmintel.NewAnalyst(store, nil, config).AnalyzeSession(r.Context(), session.ID, prompt)
@@ -2545,6 +2561,12 @@ func (s *Server) startScan(w http.ResponseWriter, r *http.Request) {
 	if err := adapters.ValidateToolParameters(req.ToolParameters); err != nil {
 		writeError(w, http.StatusBadRequest, err)
 		return
+	}
+	if strings.TrimSpace(req.LLMBaseURL) != "" {
+		if err := llmintel.ValidateBaseURL(req.LLMBaseURL, s.cfg.LLMAllowedHosts); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
 	}
 	runnerOptions, _, err := evasion.Normalize(models.ScanRunnerOptions{
 		Concurrency:        req.Concurrency,
@@ -3360,6 +3382,24 @@ func writeDBError(w http.ResponseWriter, err error) {
 		return
 	}
 	writeError(w, http.StatusInternalServerError, err)
+}
+
+func readLimitedBody(w http.ResponseWriter, r *http.Request, maxBytes int64) ([]byte, bool) {
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBytes))
+	if err != nil {
+		writeRequestBodyError(w, err)
+		return nil, false
+	}
+	return body, true
+}
+
+func writeRequestBodyError(w http.ResponseWriter, err error) {
+	var maxErr *http.MaxBytesError
+	if errors.As(err, &maxErr) {
+		writeError(w, http.StatusRequestEntityTooLarge, fmt.Errorf("request body exceeds %d bytes", maxErr.Limit))
+		return
+	}
+	writeError(w, http.StatusBadRequest, err)
 }
 
 func writeError(w http.ResponseWriter, status int, err error) {

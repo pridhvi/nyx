@@ -65,7 +65,7 @@ Go is the primary language for all backend components. Rationale:
 - `//go:embed` lets the compiled frontend assets be bundled into the binary — one file deployment.
 - CGO-free builds with `modernc.org/sqlite` enable true cross-compilation (`GOOS=windows go build` just works).
 
-**Current Go target:** 1.26
+**Current Go target:** 1.26.3 or newer within the 1.26 line
 
 ### 3.2 Complete Dependency List
 
@@ -142,7 +142,7 @@ ProjectDiscovery tools (`nuclei`, `httpx`, `subfinder`, `naabu`, `dnsx`) are sub
 
 ### 3.6 Packaging
 
-- **Docker:** Multi-stage build. Stage 1 builds the frontend (`node:20-alpine`). Stage 2 builds the Go binary (`golang:1.26-alpine`). Stage 3 runs on a pinned Debian 13 slim runtime digest with baseline external tools installed and a tool-version smoke script for bundled scanner checks.
+- **Docker:** Multi-stage build. Stage 1 builds the frontend (`node:20-alpine`). Stage 2 builds the Go binary (`golang:1.26.3-alpine`). Stage 3 runs on a pinned Debian 13 slim runtime digest with baseline external tools installed and a tool-version smoke script for bundled scanner checks.
 - **Single binary option:** `goreleaser` for cross-platform binary releases. The binary embeds the frontend. External tools (nmap etc.) must be installed separately in this mode.
 
 ### 3.7 Current V1 Architecture Notes
@@ -1333,7 +1333,7 @@ var DefaultRules = []Rule{
 
 ## 13. REST API Surface
 
-The stdlib `net/http` router exposes these endpoints. All responses are JSON. Authentication is a local API key stored in the Nyx config file. Nyx refuses non-loopback serving without an API key, and host-privileged API operations such as plugin management, API source scans, and LLM endpoint probing require API-key authentication. Header authentication uses `X-Nyx-API-Key` or `Authorization: Bearer`; query-string API keys are rejected. The browser console obtains an opaque HttpOnly same-origin session cookie through the login endpoint.
+The stdlib `net/http` router exposes these endpoints. All responses are JSON. Authentication is a local API key stored in the Nyx config file. Nyx refuses non-loopback serving without an API key, and host-privileged API operations such as plugin management, API source scans, and LLM endpoint probing require API-key authentication. Header authentication uses `X-Nyx-API-Key` or `Authorization: Bearer`; query-string API keys are rejected. The browser console obtains an opaque HttpOnly same-origin session cookie through the login endpoint. Direct TLS requests automatically receive `Secure` cookies, and HTTPS reverse-proxy deployments can force secure cookies with `NYX_SECURE_COOKIES=true` or `server.secure_cookies: true`.
 
 ```
 POST   /api/auth/login              Exchange API key for HttpOnly browser session cookie
@@ -1626,6 +1626,7 @@ server:
   host: 127.0.0.1
   port: 6767
   api_key: ""               # Empty = no auth for loopback-only local use. Required for network access and privileged API operations. Never accepted from query strings.
+  secure_cookies: false     # Set true when HTTPS is terminated before Nyx.
 
 # Logging settings
 logging:
@@ -1745,7 +1746,7 @@ RUN npm ci
 COPY web/ ./
 RUN npm run build
 
-FROM golang:1.26-alpine AS backend
+FROM golang:1.26.3-alpine AS backend
 RUN apk add --no-cache git
 WORKDIR /src
 COPY go.mod go.sum ./
