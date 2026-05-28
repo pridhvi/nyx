@@ -31,6 +31,9 @@ jobs:
       - name: Run Go vulnerability check
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
+      - name: Run production security scan
+        run: make security-scan
+
       - name: Lint and typecheck frontend
         run: make lint
 

@@ -290,6 +290,17 @@ Docker smoke validation builds the image, starts the API, checks health/tools en
 make docker-smoke
 ```
 
+Production security scanning uses `gosec` through a repo-local policy:
+
+```sh
+make security-scan
+```
+
+The policy excludes `scripts/vulnerable-fixture`, which is intentionally
+insecure test material, and excludes `G104` cleanup-error noise from the
+blocking scan. Remaining intentional production findings use narrow `#nosec`
+comments with reasons at the relevant code site.
+
 See [docs/](docs/) for the project spec, implementation roadmap, future
 power-feature modules, and detailed power-feature implementation plans.
 

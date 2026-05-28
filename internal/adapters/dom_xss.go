@@ -417,7 +417,7 @@ func domXSSBrowserPath(input AdapterInput) (string, error) {
 	for _, envName := range []string{"NYX_BROWSER_PATH", "CHROME_PATH", "CHROMIUM_PATH"} {
 		if configured := strings.TrimSpace(os.Getenv(envName)); configured != "" {
 			if filepath.IsAbs(configured) {
-				if stat, err := os.Stat(configured); err == nil && !stat.IsDir() {
+				if stat, err := os.Stat(configured); err == nil && !stat.IsDir() { // #nosec G703 -- absolute browser binary path is operator-configured and never derived from scan targets.
 					return configured, nil
 				}
 			}

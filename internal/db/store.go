@@ -746,6 +746,7 @@ func (s *Store) ListCVEMatchesBySession(ctx context.Context, sessionID string) (
 }
 
 func (s *Store) listCVEMatches(ctx context.Context, where string, args ...any) ([]models.CVEMatch, error) {
+	// #nosec G202 -- where is built by internal callers from fixed clauses; values are bound through placeholders.
 	query := `
 SELECT id, session_id, COALESCE(finding_id, ''), COALESCE(technology_id, ''), cve_id,
        cvss_v3_score, cvss_v3_vector, description, package_name, package_version, affected_version,

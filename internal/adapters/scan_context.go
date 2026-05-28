@@ -116,7 +116,7 @@ func anyStringMap(value any) map[string]string {
 }
 
 func readRouteSeedFile(path string) []string {
-	file, err := os.Open(path)
+	file, err := os.Open(path) // #nosec G304 -- route seed path is an explicit operator-selected local input file.
 	if err != nil {
 		return nil
 	}

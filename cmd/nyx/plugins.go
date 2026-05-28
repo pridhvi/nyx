@@ -121,7 +121,7 @@ func readGlobalCLIPlugins(cfgPath string) ([]models.PluginRecord, error) {
 	if err != nil {
 		return nil, err
 	}
-	body, err := os.ReadFile(path)
+	body, err := os.ReadFile(path) // #nosec G304 -- plugin registry path is resolved under the local Nyx config directory.
 	if os.IsNotExist(err) {
 		return []models.PluginRecord{}, nil
 	}

@@ -164,7 +164,7 @@ func deterministicPayloads(finding models.Finding) []models.Payload {
 		}
 	case strings.Contains(text, "sql") || strings.Contains(text, "sqli"):
 		return []models.Payload{
-			{PayloadType: "sqli", Payload: `' OR '1'='1' --`, Context: "Boolean SQL injection probe; use only with explicit authorization.", BypassTechnique: "boolean-tautology", Confidence: 0.58},
+			{PayloadType: "sqli", Payload: `' OR '1'='1' --`, Context: "Boolean SQL injection probe; use only with explicit authorization.", BypassTechnique: "boolean-tautology", Confidence: 0.58}, // #nosec G101 -- this is a generated SQLi marker payload, not a credential.
 			{PayloadType: "sqli", Payload: `' AND 1=2 UNION SELECT NULL --`, Context: "Union-shape probe for manual testing.", BypassTechnique: "union-probe", Confidence: 0.42},
 		}
 	case strings.Contains(text, "ssrf"):
@@ -176,7 +176,7 @@ func deterministicPayloads(finding models.Finding) []models.Payload {
 	case strings.Contains(text, "redirect"):
 		return []models.Payload{{PayloadType: "open_redirect", Payload: `https://example.com/nyx-redirect-marker`, Context: "Benign external redirect marker.", BypassTechnique: "absolute-url", Confidence: 0.5}}
 	case strings.Contains(text, "command") || strings.Contains(text, "rce"):
-		return []models.Payload{{PayloadType: "cmd_injection", Payload: `; echo nyx-marker`, Context: "Harmless echo marker; not automatically verifiable.", BypassTechnique: "shell-separator", Confidence: 0.28}}
+		return []models.Payload{{PayloadType: "cmd_injection", Payload: `; echo nyx-marker`, Context: "Harmless echo marker; not automatically verifiable.", BypassTechnique: "shell-separator", Confidence: 0.28}} // #nosec G101 -- this is a generated command-injection marker payload, not a credential.
 	default:
 		return nil
 	}

@@ -265,7 +265,7 @@ func readAuthProfileFile(path string) (map[string]any, error) {
 	if path == "" {
 		return nil, nil
 	}
-	body, err := os.ReadFile(path)
+	body, err := os.ReadFile(path) // #nosec G304 -- auth profile path is an explicit operator-selected local input file.
 	if err != nil {
 		return nil, err
 	}

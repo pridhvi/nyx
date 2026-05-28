@@ -357,7 +357,7 @@ func runBurpExport(args []string) error {
 		fmt.Println(string(raw))
 		return nil
 	}
-	return os.WriteFile(*output, raw, 0o600)
+	return os.WriteFile(*output, raw, 0o600) // #nosec G703 -- output path is an explicit operator-selected export destination.
 }
 
 func openPowerSession(configPath, sessionID string) (config.Config, *db.Store, error) {

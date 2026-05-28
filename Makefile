@@ -1,4 +1,4 @@
-.PHONY: build ci dev test benchmark-summary-test test-integration power-integration browser-smoke tool-version-smoke linux-full-smoke benchmark-targets-up benchmark-targets-down benchmark-targets-status benchmark-dvwa benchmark-juice benchmark-all lint web web-build run sqlc migrate-up docker-smoke compose-config clean release-snapshot
+.PHONY: build ci dev test security-scan benchmark-summary-test test-integration power-integration browser-smoke tool-version-smoke linux-full-smoke benchmark-targets-up benchmark-targets-down benchmark-targets-status benchmark-dvwa benchmark-juice benchmark-all lint web web-build run sqlc migrate-up docker-smoke compose-config clean release-snapshot
 
 build:
 	cd web && npm run build
@@ -13,6 +13,9 @@ dev:
 test:
 	go test ./...
 	./scripts/benchmark-summary-test.py
+
+security-scan:
+	./scripts/security-scan.sh
 
 benchmark-summary-test:
 	./scripts/benchmark-summary-test.py

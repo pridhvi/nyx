@@ -15,7 +15,7 @@ const (
 	PhaseFingerprint Phase = "fingerprint"
 	PhaseEnumerate   Phase = "enumerate"
 	PhaseVulnScan    Phase = "vuln_scan"
-	PhaseCredential  Phase = "credential_test"
+	PhaseCredential  Phase = "credential_test" // #nosec G101 -- phase label names a credential-testing adapter category, not a secret.
 	PhaseADDiscovery Phase = "ad_discovery"
 	PhaseADEnum      Phase = "ad_enum"
 	PhaseADPaths     Phase = "ad_attack_paths"

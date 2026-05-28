@@ -213,6 +213,7 @@ WHERE session_id = ? AND id = ?`, sessionID, payloadID)
 }
 
 func (s *Store) listPayloads(ctx context.Context, where string, args ...any) ([]models.Payload, error) {
+	// #nosec G202 -- where is built by internal callers from fixed clauses; values are bound through placeholders.
 	rows, err := s.db.QueryContext(ctx, `
 SELECT id, finding_id, session_id, payload_type, payload, context, target_waf,
        target_db, bypass_technique, confidence, validated, validated_response,

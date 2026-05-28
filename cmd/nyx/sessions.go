@@ -237,13 +237,13 @@ func exportSession(args []string) error {
 	defer file.Close()
 	archive := zip.NewWriter(file)
 	defer archive.Close()
-	rootHandle, err := os.OpenRoot(root)
+	rootHandle, err := os.OpenRoot(root) // #nosec G703 -- root is the validated session directory resolved by db.OpenSession.
 	if err != nil {
 		return err
 	}
 	defer rootHandle.Close()
 	runsCount := 0
-	err = filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+	err = filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error { // #nosec G703 -- root is a validated Nyx session directory and file reads use os.Root below.
 		if walkErr != nil {
 			return walkErr
 		}

@@ -78,7 +78,7 @@ func RunCommand(ctx context.Context, timeout time.Duration, binary string, args 
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
-	cmd := exec.CommandContext(ctx, path, args...)
+	cmd := exec.CommandContext(ctx, path, args...) // #nosec G204 -- adapter binaries are registry/config resolved and args are built as discrete validated argv values.
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

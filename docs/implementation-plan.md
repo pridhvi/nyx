@@ -243,6 +243,9 @@ work and must be carried forward:
 
 - README and CLI visibly warn that Nyx is for authorized testing only.
 - `make build`, `make test`, and `make web` work.
+- `make security-scan` runs the production `gosec` policy with intentionally
+  vulnerable fixtures excluded and intentional production findings justified
+  inline.
 - CI validates that the Docker image builds.
 - CI validates Docker Compose configuration for Nyx and Ollama services.
 - Local Docker smoke validation can start Nyx and Ollama and report API health
@@ -1273,8 +1276,9 @@ work and must be carried forward:
 - Go unit/API tests exist.
 - Adapter parser tests exist for MVP external adapters.
 - Frontend builds locally and in CI with `npm run build`.
-- CI runs Go tests, frontend build/typecheck, binary build, Docker image build,
-  Compose validation, Docker smoke, and GoReleaser snapshot.
+- CI runs Go tests, govulncheck, production `gosec`, frontend
+  build/typecheck, binary build, Docker image build, Compose validation, Docker
+  smoke, and GoReleaser snapshot.
 
 ### Implemented Work
 
@@ -1373,9 +1377,9 @@ greenfield assumptions:
 | 16. Configuration File | Phase 14 | Implemented | Viper-backed `~/.nyx/config.yaml` defaults, YAML/TOML/JSON parsing, config init/show, env overrides, logging settings, tool path maps, plugin directories, CVE settings, power provider/callback/credential/validation settings with redaction, and CLI override paths exist. |
 | 17. Scope Validation | Phase 3 | Implemented | Checker, adapter boundary tests, cancellation, lifecycle status coverage, and privileged API source/LLM allowlist controls exist. |
 | 18. Error Handling & Logging | Phases 3, 4, 5 | Implemented | Tool failures persist without failing scans; structured slog configuration supports `NYX_LOG_LEVEL` and `NYX_LOG_FORMAT`, and non-fatal adapter failures are logged. |
-| 19. Testing Strategy | Phase 18 | Implemented | Go/API/adapter/config/report/LLM/power tests, frontend CI build, Docker smoke, scheduled/manual fixture-backed integration smoke, opt-in power integration smoke, opt-in browser smoke with screenshot capture and console-error checks, and opt-in Linux full-tool fixture validation scripts exist. |
+| 19. Testing Strategy | Phase 18 | Implemented | Go/API/adapter/config/report/LLM/power tests, govulncheck, production gosec policy, frontend CI build, Docker smoke, scheduled/manual fixture-backed integration smoke, opt-in power integration smoke, opt-in browser smoke with screenshot capture and console-error checks, and opt-in Linux full-tool fixture validation scripts exist. |
 | 20. Docker Setup | Phase 17 | Implemented | Dockerfile, healthcheck, compose, deployment docs, bundled scanner version smoke, and Docker smoke exist. |
-| 21. Makefile | Phase 17 | Implemented | Build, CI, test, integration smoke, power integration smoke, browser smoke, tool-version smoke, Linux full smoke, lint, web, compose, Docker smoke, migration, cleanup, and release snapshot targets exist. |
+| 21. Makefile | Phase 17 | Implemented | Build, CI, test, security-scan, integration smoke, power integration smoke, browser smoke, tool-version smoke, Linux full smoke, lint, web, compose, Docker smoke, migration, cleanup, and release snapshot targets exist. |
 | 22. Build Order Recommendation | This plan | Implemented | This roadmap follows the spec build order while preserving current work. |
 | 23. Security & Legal Notes | Phase 0 | Implemented | README and CLI help include prominent authorized-use warnings; scope remains a hard implementation boundary. |
 

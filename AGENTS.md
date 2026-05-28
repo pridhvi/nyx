@@ -43,3 +43,7 @@ The phase roadmap in `docs/implementation-plan.md` is complete from the reposito
 Toolchain security note: build and CI runners should use Go 1.26.3 or newer
 within the 1.26 line, and CI runs `govulncheck ./...` to catch reachable
 standard-library or module advisories before release artifacts are produced.
+Run `make security-scan` for the production `gosec` policy; it excludes the
+intentionally vulnerable fixture and `G104` cleanup-error noise, while
+intentional production findings should carry narrow `#nosec` comments with
+reasons.

@@ -1,6 +1,7 @@
 package suppress
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,11 +12,16 @@ import (
 type Rule = adapters.SuppressionRule
 
 func Parse(repoRoot string) ([]Rule, error) {
-	body, err := os.ReadFile(filepath.Join(repoRoot, ".nyx-audit-ignore"))
+	file, err := os.OpenInRoot(repoRoot, ".nyx-audit-ignore")
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
+		return nil, err
+	}
+	defer file.Close()
+	body, err := io.ReadAll(file)
+	if err != nil {
 		return nil, err
 	}
 	var rules []Rule
