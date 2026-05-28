@@ -125,8 +125,8 @@ func (a Analyst) annotateAttackVectors(ctx context.Context, sessionID string, ve
 
 func assistantReviewNote(messages []openai.ChatCompletionMessage) string {
 	for i := len(messages) - 1; i >= 0; i-- {
-		if messages[i].Role == openai.ChatMessageRoleAssistant && strings.TrimSpace(messages[i].Content) != "" {
-			return truncate(strings.TrimSpace(messages[i].Content), 1200)
+		if messages[i].Role == openai.ChatMessageRoleAssistant && strings.TrimSpace(assistantVisibleContent(messages[i])) != "" {
+			return truncate(strings.TrimSpace(assistantVisibleContent(messages[i])), 1200)
 		}
 	}
 	return ""
@@ -146,29 +146,6 @@ func executeToolCalls(ctx context.Context, store Store, sessionID string, calls 
 		results = append(results, result)
 	}
 	return results
-}
-
-func modelMessages(messages []openai.ChatCompletionMessage) []models.LLMMessage {
-	out := make([]models.LLMMessage, 0, len(messages))
-	for _, message := range messages {
-		modelMessage := models.LLMMessage{Role: message.Role, Content: message.Content}
-		for _, call := range message.ToolCalls {
-			modelMessage.ToolCalls = append(modelMessage.ToolCalls, models.LLMToolCall{
-				ID:        call.ID,
-				Name:      call.Function.Name,
-				Arguments: call.Function.Arguments,
-			})
-		}
-		if message.Role == openai.ChatMessageRoleTool {
-			modelMessage.ToolCalls = append(modelMessage.ToolCalls, models.LLMToolCall{
-				ID:     message.ToolCallID,
-				Name:   "tool_result",
-				Result: message.Content,
-			})
-		}
-		out = append(out, modelMessage)
-	}
-	return out
 }
 
 func gracefulLLMError(err error) bool {

@@ -184,6 +184,8 @@ export type LLMToolCall = {
 export type LLMMessage = {
   role: string;
   content: string;
+  reasoning_content?: string;
+  raw_content?: string;
   tool_calls?: LLMToolCall[];
 };
 

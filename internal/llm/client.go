@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 
 	openai "github.com/sashabaranov/go-openai"
 )
@@ -61,8 +60,7 @@ func (c *OpenAIClient) Complete(ctx context.Context, request ChatRequest) (ChatC
 	if len(resp.Choices) == 0 {
 		return ChatCompletion{}, fmt.Errorf("llm response contained no choices")
 	}
-	message := normalizeAssistantMessage(resp.Choices[0].Message)
-	return ChatCompletion{Message: message, TotalTokens: resp.Usage.TotalTokens}, nil
+	return ChatCompletion{Message: resp.Choices[0].Message, TotalTokens: resp.Usage.TotalTokens}, nil
 }
 
 func (c *OpenAIClient) CompleteStream(ctx context.Context, request ChatRequest) (ChatCompletion, error) {
@@ -133,12 +131,5 @@ func (c *OpenAIClient) CompleteStream(ctx context.Context, request ChatRequest) 
 			}
 		}
 	}
-	return ChatCompletion{Message: normalizeAssistantMessage(message), TotalTokens: totalTokens}, nil
-}
-
-func normalizeAssistantMessage(message openai.ChatCompletionMessage) openai.ChatCompletionMessage {
-	if strings.TrimSpace(message.Content) == "" && strings.TrimSpace(message.ReasoningContent) != "" {
-		message.Content = strings.TrimSpace(message.ReasoningContent)
-	}
-	return message
+	return ChatCompletion{Message: message, TotalTokens: totalTokens}, nil
 }

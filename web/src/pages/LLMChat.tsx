@@ -7,6 +7,7 @@ import { useSessionContext } from "../session";
 type ChatMessage = LLMMessage & { analysisID: string; model: string };
 
 const longMessageThreshold = 900;
+const reasoningOnlyPlaceholder = "The model returned reasoning only and no final answer.";
 
 export function LLMChat() {
   const queryClient = useQueryClient();
@@ -73,7 +74,7 @@ export function LLMChat() {
                   <article key={messageID} className={`message ${item.role}`}>
                     <div className="message-meta">
                       <strong className="message-header">{messageLabel(item.role)}</strong>
-                      {item.role === "assistant" && isReasoningDerived(item.content) ? <span className="message-badge">Reasoning output</span> : null}
+                      {item.role === "assistant" && hasReasoningOutput(item) ? <span className="message-badge">Reasoning output</span> : null}
                       {item.content.trim() ? (
                         <button className="icon-button message-copy" type="button" onClick={() => void copyMessage(messageID, item.content)} aria-label="Copy message">
                           {copiedMessage === messageID ? <Check size={15} /> : <Clipboard size={15} />}
@@ -84,6 +85,7 @@ export function LLMChat() {
                       <MessageContent
                         content={item.content}
                         expanded={expandedMessages[messageID] ?? false}
+                        reasoningContent={item.reasoning_content ?? ""}
                         reasoningExpanded={expandedReasoning[messageID] ?? false}
                         onReasoningToggle={() => setExpandedReasoning((current) => ({ ...current, [messageID]: !current[messageID] }))}
                         onToggle={() => setExpandedMessages((current) => ({ ...current, [messageID]: !current[messageID] }))}
@@ -140,22 +142,33 @@ export function LLMChat() {
 function MessageContent({
   content,
   expanded,
+  reasoningContent,
   reasoningExpanded,
   onReasoningToggle,
   onToggle,
 }: {
   content: string;
   expanded: boolean;
+  reasoningContent: string;
   reasoningExpanded: boolean;
   onReasoningToggle: () => void;
   onToggle: () => void;
 }) {
+  const normalizedReasoning = reasoningContent.trim();
+  if (normalizedReasoning) {
+    return (
+      <>
+        <ReasoningDisclosure content={normalizedReasoning} expanded={reasoningExpanded} onToggle={onReasoningToggle} />
+        {content.trim() ? <StandardMessageContent content={content} expanded={expanded} onToggle={onToggle} /> : null}
+      </>
+    );
+  }
   const reasoning = splitReasoningContent(content);
   if (reasoning) {
     return (
       <>
         <ReasoningDisclosure content={reasoning.reasoning} expanded={reasoningExpanded} onToggle={onReasoningToggle} />
-        {reasoning.answer ? <StandardMessageContent content={reasoning.answer} expanded={expanded} onToggle={onToggle} /> : null}
+        <StandardMessageContent content={reasoning.answer || reasoningOnlyPlaceholder} expanded={expanded} onToggle={onToggle} />
       </>
     );
   }
@@ -332,6 +345,10 @@ function renderInline(text: string) {
     nodes.push(text.slice(lastIndex));
   }
   return nodes;
+}
+
+function hasReasoningOutput(message: ChatMessage) {
+  return Boolean(message.reasoning_content?.trim()) || isReasoningDerived(message.content);
 }
 
 function isReasoningDerived(content: string) {

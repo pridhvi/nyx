@@ -120,7 +120,7 @@ func TestAnalystPersistsConversationAndToolAuditTrail(t *testing.T) {
 	}
 }
 
-func TestOpenAIClientUsesReasoningContentFallback(t *testing.T) {
+func TestOpenAIClientPreservesReasoningContent(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/chat/completions" {
 			t.Fatalf("unexpected path %s", r.URL.Path)
@@ -153,15 +153,15 @@ func TestOpenAIClientUsesReasoningContentFallback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if completion.Message.Content != "Reasoning-derived answer from LM Studio." {
-		t.Fatalf("expected reasoning_content fallback, got %#v", completion.Message)
+	if completion.Message.Content != "" || completion.Message.ReasoningContent != "Reasoning-derived answer from LM Studio." {
+		t.Fatalf("expected reasoning_content preservation, got %#v", completion.Message)
 	}
 	if completion.TotalTokens != 12 {
 		t.Fatalf("expected token accounting, got %d", completion.TotalTokens)
 	}
 }
 
-func TestOpenAIClientStreamUsesReasoningContentFallback(t *testing.T) {
+func TestOpenAIClientStreamPreservesReasoningContent(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/chat/completions" {
 			t.Fatalf("unexpected path %s", r.URL.Path)
@@ -182,8 +182,43 @@ func TestOpenAIClientStreamUsesReasoningContentFallback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if completion.Message.Content != "Reasoning stream answer" {
-		t.Fatalf("expected streamed reasoning_content fallback, got %#v", completion.Message)
+	if completion.Message.Content != "" || completion.Message.ReasoningContent != "Reasoning stream answer" {
+		t.Fatalf("expected streamed reasoning_content preservation, got %#v", completion.Message)
+	}
+}
+
+func TestModelMessageSplitsReasoningPrefixedOutput(t *testing.T) {
+	message := modelMessage(openai.ChatCompletionMessage{
+		Role: openai.ChatMessageRoleAssistant,
+		Content: strings.Join([]string{
+			"Thinking Process:",
+			"Review the scan context.",
+			"",
+			"Final Answer:",
+			"- **Risk:** confirmed SQL injection",
+		}, "\n"),
+	})
+	if message.Content != "- **Risk:** confirmed SQL injection" {
+		t.Fatalf("expected final answer content, got %#v", message)
+	}
+	if message.ReasoningContent != "Review the scan context." {
+		t.Fatalf("expected reasoning content, got %#v", message)
+	}
+	if !strings.Contains(message.RawContent, "Thinking Process:") {
+		t.Fatalf("expected raw content to be preserved, got %#v", message)
+	}
+}
+
+func TestModelMessageUsesPlaceholderForReasoningOnlyOutput(t *testing.T) {
+	message := modelMessage(openai.ChatCompletionMessage{
+		Role:             openai.ChatMessageRoleAssistant,
+		ReasoningContent: "Inspect findings before answering.",
+	})
+	if message.Content != reasoningOnlyPlaceholder {
+		t.Fatalf("expected reasoning-only placeholder, got %#v", message)
+	}
+	if message.ReasoningContent != "Inspect findings before answering." {
+		t.Fatalf("expected reasoning content, got %#v", message)
 	}
 }
 

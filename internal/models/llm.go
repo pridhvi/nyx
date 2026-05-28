@@ -13,9 +13,11 @@ type LLMAnalysis struct {
 }
 
 type LLMMessage struct {
-	Role      string        `json:"role"`
-	Content   string        `json:"content"`
-	ToolCalls []LLMToolCall `json:"tool_calls,omitempty"`
+	Role             string        `json:"role"`
+	Content          string        `json:"content"`
+	ReasoningContent string        `json:"reasoning_content,omitempty"`
+	RawContent       string        `json:"raw_content,omitempty"`
+	ToolCalls        []LLMToolCall `json:"tool_calls,omitempty"`
 }
 
 type LLMToolCall struct {
