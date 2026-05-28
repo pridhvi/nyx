@@ -86,6 +86,7 @@ func DefaultSafeAdapters() []adapters.Adapter {
 		adapters.NewUploadCheck(),
 		adapters.NewIDORCheck(),
 		adapters.NewWorkflowAssistCheck(),
+		adapters.NewObservabilityAssistCheck(),
 		adapters.NewCSPReviewCheck(),
 		adapters.NewCSRFCheck(),
 		adapters.NewWeakSessionIDCheck(),

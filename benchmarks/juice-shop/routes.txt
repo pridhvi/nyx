@@ -11,6 +11,7 @@
 /rest/basket/1
 /api/BasketItems/1
 /rest/admin/application-version
+/metrics
 /ftp/
 /file-upload
 /redirect?to=/score-board

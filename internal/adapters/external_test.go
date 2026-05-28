@@ -1541,6 +1541,70 @@ func TestWorkflowAssistSkipsOutOfScopeCaptchaSeed(t *testing.T) {
 	}
 }
 
+func TestObservabilityAssistCandidatesUseSeededMetricsRoutes(t *testing.T) {
+	input := testHTTPAdapterInput(t, "http://example.test",
+		"/rest/user/login",
+		"/metrics",
+	)
+	candidates := observabilityCandidateURLs(input, 10)
+	if len(candidates) != 1 || candidates[0] != "http://example.test/metrics" {
+		t.Fatalf("expected only seeded metrics route candidate, got %#v", candidates)
+	}
+}
+
+func TestObservabilityAssistReportsMetricsSurface(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/metrics" {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte("# HELP process_cpu_seconds_total Total user and system CPU time\n# TYPE process_cpu_seconds_total counter\n"))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/metrics")
+	adapter := NewObservabilityAssistCheck()
+	if !adapter.ShouldRun(input) {
+		t.Fatal("expected observability assist to run with seeded metrics route")
+	}
+	out, err := adapter.Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
+	}
+	finding := out.Findings[0]
+	if finding.ToolID != "observability-assist" || finding.Status != "suspected" || finding.Severity != models.SeverityLow {
+		t.Fatalf("unexpected finding: %#v", finding)
+	}
+	if !strings.Contains(strings.ToLower(finding.Title), "observability") || !strings.Contains(finding.EvidenceNormalized, "prometheus-metrics") {
+		t.Fatalf("expected observability metrics evidence, got %q %s", finding.Title, finding.EvidenceNormalized)
+	}
+}
+
+func TestObservabilityAssistReportsVerboseErrorSurface(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/debug/status" {
+			http.NotFound(w, r)
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("Stack Trace: TypeError: cannot read property\n    at handler (/app/routes/debug.js:10:3)"))
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL, "/debug/status")
+	out, err := NewObservabilityAssistCheck().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
+	}
+	if !strings.Contains(out.Findings[0].EvidenceNormalized, "verbose-error") || !strings.Contains(out.Findings[0].EvidenceNormalized, "server-error-status") {
+		t.Fatalf("expected verbose error observability evidence, got %s", out.Findings[0].EvidenceNormalized)
+	}
+}
+
 func TestCSPReviewCandidatesUseSeededRoutes(t *testing.T) {
 	input := testHTTPAdapterInput(t, "http://example.test",
 		"/vulnerabilities/csp/",

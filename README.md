@@ -117,7 +117,7 @@ All external tools are optional. Missing tools are recorded as tool runs and the
 | Recon | `http-probe`, `security-headers`, `subfinder`, `dnsx`, `naabu`, `httpx`, `whois`, `waybackurls`, `nmap`, `crt.sh` |
 | Fingerprinting | `whatweb`, `nuclei-tech`, `testssl.sh`, GraphQL introspection, OpenAPI/Swagger discovery, `wpscan`, `droopescan` |
 | Enumeration | `ffuf`, `arjun`, `linkfinder` hidden JavaScript endpoint discovery, `gitleaks`, JavaScript secret scanning, CORS checks, scoped cloud bucket checks |
-| Vulnerability | `nuclei-vuln`, `sqlmap`, `dalfox`, SSRFmap, JWT claim review with optional `jwt_tool` supplement, OAuth checks, strict credential validation for explicitly safe benchmark targets, reflected XSS validation for browser-facing routes, browser-backed DOM XSS validation with dialog-marker observation for seeded hash/search routes on explicitly safe benchmark targets, stored XSS read-back validation for explicitly safe benchmark targets, SQL injection validation with SQLite error indicators, open redirect validation including operator-seeded external redirect URLs, file inclusion validation, command injection validation for explicitly safe benchmark targets, upload validation, IDOR route checks, workflow-assist review hints, CSRF form analysis, weak session ID sampling, SSTI checks, XXE fuzzing, `nikto` |
+| Vulnerability | `nuclei-vuln`, `sqlmap`, `dalfox`, SSRFmap, JWT claim review with optional `jwt_tool` supplement, OAuth checks, strict credential validation for explicitly safe benchmark targets, reflected XSS validation for browser-facing routes, browser-backed DOM XSS validation with dialog-marker observation for seeded hash/search routes on explicitly safe benchmark targets, stored XSS read-back validation for explicitly safe benchmark targets, SQL injection validation with SQLite error indicators, open redirect validation including operator-seeded external redirect URLs, file inclusion validation, command injection validation for explicitly safe benchmark targets, upload validation, IDOR route checks, workflow-assist review hints, observability-assist review hints, CSRF form analysis, weak session ID sampling, SSTI checks, XXE fuzzing, `nikto` |
 
 Static audit tools are registered as `audit/<id>`. Built-in source analyzers always run; optional tools such as `semgrep`, `bandit`, `gosec`, `govulncheck`, `npm audit`, `retire.js`, `safety`, `brakeman`, `spotbugs`, `psalm`, `trufflehog`, `gitleaks`, and `grype` run when installed. Their native outputs are parsed into normalized findings or package CVEs where possible, with a generic JSON fallback for future adapter shapes.
 
@@ -238,8 +238,10 @@ the target intentionally vulnerable and non-production, harmless file uploads,
 IDOR adjacent-object checks with optional secondary-identity replay,
 workflow-assist review hints for seeded high-value forms and business-control
 parameters including CAPTCHA-protected sensitive workflows and CAPTCHA challenge
-responses that expose answers, CSP bypass review candidates from seeded
-CSP-related routes, CSRF form-token analysis, weak session identifier sampling,
+responses that expose answers, observability-assist review hints for seeded
+metrics, logging, debug, health, and monitoring surfaces, CSP bypass review
+candidates from seeded CSP-related routes, CSRF form-token analysis, weak
+session identifier sampling,
 non-exfiltrating XML entity markers for raw XML and upload-like multipart
 routes, and open redirects on seeded query routes or operator-seeded external
 redirect URLs; they do not follow external
