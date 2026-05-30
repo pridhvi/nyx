@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -112,6 +113,19 @@ func (s *Server) toolRecord(adapter adapters.Adapter) toolRecord {
 		InstallHint:    installHintForTool(id, binary),
 		Parameters:     parameters,
 	}
+}
+
+func (s *Server) detectToolBinary(toolID, binary string) (string, bool) {
+	for _, candidate := range []string{s.cfg.ToolPaths[toolID], s.cfg.ToolPaths[binary]} {
+		if strings.TrimSpace(candidate) == "" {
+			continue
+		}
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate, true
+		}
+	}
+	path, err := exec.LookPath(binary)
+	return path, err == nil
 }
 
 func validateTools(toolIDs []string) error {
