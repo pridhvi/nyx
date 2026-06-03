@@ -311,3 +311,7 @@ func runnerOptionsFromSession(session models.Session) engine.RunnerOptions {
 func (m *ScanManager) Subscribe(sessionID string) (<-chan engine.ScanEvent, func()) {
 	return m.events.subscribe(sessionID)
 }
+
+func (m *ScanManager) EventHistory(sessionID string) []engine.ScanEvent {
+	return m.events.snapshot(sessionID)
+}

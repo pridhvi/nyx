@@ -74,6 +74,12 @@ func (b *scanEventBroker) subscribe(sessionID string) (<-chan engine.ScanEvent, 
 	return ch, cancel
 }
 
+func (b *scanEventBroker) snapshot(sessionID string) []engine.ScanEvent {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return append([]engine.ScanEvent(nil), b.history[sessionID]...)
+}
+
 var scanEventUpgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }

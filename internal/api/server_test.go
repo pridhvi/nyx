@@ -90,6 +90,41 @@ func TestSessionAPI(t *testing.T) {
 	if status.Code != http.StatusOK {
 		t.Fatalf("scan status = %d", status.Code)
 	}
+	var decodedStatus struct {
+		ID           string `json:"id"`
+		Status       string `json:"status"`
+		CurrentPhase string `json:"current_phase"`
+		Phases       []struct {
+			Phase          string `json:"phase"`
+			Status         string `json:"status"`
+			CompletedTools int    `json:"completed_tools"`
+			FindingCount   int    `json:"finding_count"`
+		} `json:"phases"`
+		Tools []struct {
+			ToolID       string `json:"tool_id"`
+			Phase        string `json:"phase"`
+			Status       string `json:"status"`
+			FindingCount int    `json:"finding_count"`
+		} `json:"tools"`
+	}
+	if err := json.NewDecoder(status.Body).Decode(&decodedStatus); err != nil {
+		t.Fatal(err)
+	}
+	if decodedStatus.ID != created.Session.ID || decodedStatus.Status == "" {
+		t.Fatalf("unexpected scan status response: %#v", decodedStatus)
+	}
+	if len(decodedStatus.Phases) == 0 || len(decodedStatus.Tools) == 0 {
+		t.Fatalf("expected phase and tool progress in scan status: %#v", decodedStatus)
+	}
+	statusTools := map[string]string{}
+	for _, tool := range decodedStatus.Tools {
+		statusTools[tool.ToolID] = tool.Status
+	}
+	for _, toolID := range []string{"http-probe", "security-headers", "ffuf"} {
+		if statusTools[toolID] == "" {
+			t.Fatalf("expected scan status tool progress for %s in %#v", toolID, statusTools)
+		}
+	}
 
 	findings := httptest.NewRecorder()
 	handler.ServeHTTP(findings, httptest.NewRequest(http.MethodGet, "/api/sessions/"+created.Session.ID+"/findings", nil))

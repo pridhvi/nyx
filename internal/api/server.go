@@ -1473,14 +1473,12 @@ func (s *Server) scanStatus(w http.ResponseWriter, r *http.Request) {
 		writeDBError(w, err)
 		return
 	}
-	writeJSON(w, map[string]any{
-		"id":            session.ID,
-		"status":        session.Status,
-		"target_count":  session.TargetCount,
-		"finding_count": session.FindingCount,
-		"started_at":    session.StartedAt,
-		"completed_at":  session.CompletedAt,
-	})
+	status, err := s.buildScanStatus(r.Context(), store, session)
+	if err != nil {
+		writeDBError(w, err)
+		return
+	}
+	writeJSON(w, status)
 }
 
 func (s *Server) stopScan(w http.ResponseWriter, r *http.Request) {

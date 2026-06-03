@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type CSSProperties, type MouseEvent } fro
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity, AlertTriangle, CheckCircle2, Clock, Loader2, Pause, Play, Radar, RefreshCw, Square, TerminalSquare, Trash2, XCircle } from "lucide-react";
 import { Link } from "react-router-dom";
-import { deleteSession, getSessionStats, listFindings, listTargets, listToolRuns, listTools, pauseScan, resumeScan, scanEventsURL, stopScan, type ScanEvent, type ToolRun } from "../api/client";
+import { deleteSession, getScanStatus, getSessionStats, listFindings, listTargets, listToolRuns, listTools, pauseScan, resumeScan, scanEventsURL, stopScan, type ScanEvent, type ToolRun } from "../api/client";
 import { useSessionContext } from "../session";
 
 const severityOrder = ["critical", "high", "medium", "low", "info"] as const;
@@ -36,6 +36,12 @@ export function Dashboard() {
   const statsQuery = useQuery({
     queryKey: ["session-stats", selected],
     queryFn: () => getSessionStats(selected),
+    enabled: selected !== "",
+    refetchInterval: 2500,
+  });
+  const scanStatusQuery = useQuery({
+    queryKey: ["scan-status", selected],
+    queryFn: () => getScanStatus(selected),
     enabled: selected !== "",
     refetchInterval: 2500,
   });
@@ -97,8 +103,8 @@ export function Dashboard() {
     const rank: Record<string, number> = { critical: 5, high: 4, medium: 3, low: 2, info: 1 };
     return [...(findingsQuery.data ?? [])].sort((a, b) => (rank[b.severity] ?? 0) - (rank[a.severity] ?? 0)).slice(0, 8);
   }, [findingsQuery.data]);
-  const status = selectedRecord?.status ?? "";
-  const activeFindingCount = findingsQuery.data?.length ?? selectedRecord?.finding_count ?? 0;
+  const status = scanStatusQuery.data?.status ?? selectedRecord?.status ?? "";
+  const activeFindingCount = findingsQuery.data?.length ?? scanStatusQuery.data?.finding_count ?? selectedRecord?.finding_count ?? 0;
   const nextActions = useMemo(() => {
     if (!selectedRecord) return ["Start a scoped scan", "Review tool readiness", "Configure local LLM if desired"];
     if (selectedRecord.status === "running" || selectedRecord.status === "pending") return ["Watch active tool nodes", "Pause if scope needs adjustment", "Triage new high-risk findings"];
@@ -128,27 +134,43 @@ export function Dashboard() {
         queryClient.invalidateQueries({ queryKey: ["session-stats", selected] });
         queryClient.invalidateQueries({ queryKey: ["findings", selected] });
         queryClient.invalidateQueries({ queryKey: ["tool-runs", selected] });
+        queryClient.invalidateQueries({ queryKey: ["scan-status", selected] });
       }
     };
     return () => socket.close();
   }, [queryClient, selected]);
 
-  const highLevelEvents = useMemo(() => scanEvents.filter((event) => {
+  const progressEvents = useMemo(() => mergeScanEvents(scanEvents, scanStatusQuery.data?.recent_events ?? []), [scanEvents, scanStatusQuery.data?.recent_events]);
+  const highLevelEvents = useMemo(() => progressEvents.filter((event) => {
     return ["phase_started", "phase_completed", "tool_completed", "tool_error", "completed", "failed", "cancelled"].includes(event.type) || event.status === "paused" || event.type === "finding_found";
-  }).slice(0, 10), [scanEvents]);
+  }).slice(0, 10), [progressEvents]);
   const terminalLines = useMemo(() => {
-    const lines = scanEvents.map((event) => event.message ?? event.finding_title ?? `${event.type}${event.tool_id ? ` ${event.tool_id}` : ""}`);
+    const lines = progressEvents.map((event) => event.message ?? event.finding_title ?? `${event.type}${event.tool_id ? ` ${event.tool_id}` : ""}`);
     for (const run of (toolRunsQuery.data ?? []).slice(0, 8)) {
       lines.push(`${run.tool_id}: exit=${run.exit_code} findings=${run.finding_count}`);
     }
     return lines.slice(0, 18);
-  }, [scanEvents, toolRunsQuery.data]);
+  }, [progressEvents, toolRunsQuery.data]);
   const pipeline = useMemo(() => {
+    if ((scanStatusQuery.data?.tools ?? []).length > 0) {
+      const grouped = new Map<string, { id: string; name: string; state: string; count: number; duration?: number }[]>();
+      for (const tool of scanStatusQuery.data?.tools ?? []) {
+        const latestEvent = progressEvents.find((event) => event.tool_id === tool.tool_id);
+        let state = normalizeToolProgressState(tool.status);
+        if (latestEvent?.type === "tool_started") state = "running";
+        if (latestEvent?.type === "tool_error") state = "error";
+        if (latestEvent?.type === "tool_completed") state = latestEvent.status === "failed" ? "error" : "done";
+        const phaseTools = grouped.get(tool.phase) ?? [];
+        phaseTools.push({ id: tool.tool_id, name: tool.name ?? tool.tool_id, state, count: latestEvent?.finding_count ?? tool.finding_count, duration: latestEvent?.duration_ms ?? tool.duration_ms });
+        grouped.set(tool.phase, phaseTools);
+      }
+      return [...grouped.entries()];
+    }
     const selectedTools = new Set(selectedRecord?.enabled_tools ?? []);
     const records = (toolsQuery.data ?? []).filter((tool) => selectedTools.size === 0 || selectedTools.has(tool.id));
     const grouped = new Map<string, { id: string; name: string; state: string; count: number; duration?: number }[]>();
     for (const tool of records) {
-      const events = scanEvents.filter((event) => event.tool_id === tool.id);
+      const events = progressEvents.filter((event) => event.tool_id === tool.id);
       const latestRun = latestRunForTool(toolRunsQuery.data ?? [], tool.id);
       const latestEvent = events[0];
       let state = "pending";
@@ -163,16 +185,24 @@ export function Dashboard() {
       grouped.set(tool.phase, tools);
     }
     return [...grouped.entries()];
-  }, [scanEvents, selectedRecord?.enabled_tools, toolRunsQuery.data, toolsQuery.data]);
+  }, [progressEvents, scanStatusQuery.data?.tools, selectedRecord?.enabled_tools, toolRunsQuery.data, toolsQuery.data]);
   const progressTracks = useMemo(() => {
+    if ((scanStatusQuery.data?.phases ?? []).length > 0) {
+      return (scanStatusQuery.data?.phases ?? []).map((item) => {
+        const completed = progressEvents.some((event) => event.phase === item.phase && event.type === "phase_completed");
+        const started = progressEvents.some((event) => event.phase === item.phase && event.type === "phase_started");
+        const failed = progressEvents.some((event) => event.phase === item.phase && event.status === "failed");
+        return { phase: item.phase, state: failed ? "failed" : completed ? "completed" : started ? "running" : normalizePhaseProgressState(item.status) };
+      });
+    }
     const phases = selectedRecord?.workload_mode === "dynamic" ? ["recon", "fingerprint", "enumerate", "vuln_scan", "correlation"] : ["source_analysis", "audit", "dynamic", "correlation"];
     return phases.map((phase) => {
-      const event = scanEvents.find((item) => item.phase === phase);
-      const completed = scanEvents.some((item) => item.phase === phase && item.type === "phase_completed");
-      const started = scanEvents.some((item) => item.phase === phase && item.type === "phase_started");
+      const event = progressEvents.find((item) => item.phase === phase);
+      const completed = progressEvents.some((item) => item.phase === phase && item.type === "phase_completed");
+      const started = progressEvents.some((item) => item.phase === phase && item.type === "phase_started");
       return { phase, state: completed ? "completed" : started ? "running" : event ? "pending" : "pending" };
     });
-  }, [scanEvents]);
+  }, [progressEvents, scanStatusQuery.data?.phases, selectedRecord?.workload_mode]);
 
   return (
     <section className="page">
@@ -437,6 +467,32 @@ export function riskMixLabel(data: RiskMixDatum[]) {
 
 function latestRunForTool(runs: ToolRun[], toolID: string) {
   return runs.filter((run) => run.tool_id === toolID).sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())[0];
+}
+
+function mergeScanEvents(primary: ScanEvent[], fallback: ScanEvent[]) {
+  const seen = new Set<string>();
+  return [...primary, ...fallback].filter((event) => {
+    const key = `${event.type}:${event.at}:${event.tool_id ?? ""}:${event.finding_id ?? ""}:${event.phase ?? ""}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  }).sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+}
+
+function normalizeToolProgressState(status: string) {
+  if (status === "completed") return "done";
+  if (status === "failed") return "error";
+  if (status === "running") return "running";
+  return "pending";
+}
+
+function normalizePhaseProgressState(status: string) {
+  if (status === "failed") return "failed";
+  if (status === "completed") return "completed";
+  if (status === "running") return "running";
+  return "pending";
 }
 
 function SeverityBar({ counts, total }: { counts?: Record<string, number>; total: number }) {

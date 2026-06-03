@@ -211,6 +211,44 @@ export type SessionStats = {
   severity_counts: Record<string, number>;
 };
 
+export type ScanPhaseProgress = {
+  phase: string;
+  status: "pending" | "running" | "completed" | "failed";
+  started_at?: string;
+  completed_at?: string;
+  tool_count: number;
+  running_tools: number;
+  completed_tools: number;
+  failed_tools: number;
+  finding_count: number;
+  duration_ms?: number;
+};
+
+export type ScanToolProgress = {
+  tool_id: string;
+  name?: string;
+  phase: string;
+  status: "pending" | "running" | "completed" | "failed";
+  finding_count: number;
+  duration_ms?: number;
+  started_at?: string;
+  completed_at?: string;
+};
+
+export type ScanStatus = {
+  id: string;
+  status: SessionStatus;
+  target_count: number;
+  finding_count: number;
+  started_at?: string;
+  completed_at?: string;
+  current_phase?: string;
+  active_tools?: string[];
+  phases: ScanPhaseProgress[];
+  tools: ScanToolProgress[];
+  recent_events?: ScanEvent[];
+};
+
 export type StartScanRequest = {
   target: string;
   targets?: string[];
@@ -588,6 +626,10 @@ export function listSessions() {
 
 export function getSessionStats(sessionID: string) {
   return api<SessionStats>(`/api/sessions/${sessionID}/stats`);
+}
+
+export function getScanStatus(sessionID: string) {
+  return api<ScanStatus>(`/api/scan/${sessionID}/status`);
 }
 
 export function listTargets(sessionID: string) {
