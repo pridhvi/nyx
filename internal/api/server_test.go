@@ -465,6 +465,42 @@ func TestServerRejectsUnauthenticatedNetworkBind(t *testing.T) {
 	}
 }
 
+func TestHTTPServerSetsConnectionTimeouts(t *testing.T) {
+	server := NewServer(Config{Host: "127.0.0.1", Port: 6767, SessionDir: t.TempDir()}).httpServer()
+	if server.ReadHeaderTimeout != serverReadHeaderTimeout {
+		t.Fatalf("expected read header timeout %s, got %s", serverReadHeaderTimeout, server.ReadHeaderTimeout)
+	}
+	if server.ReadTimeout != serverReadTimeout {
+		t.Fatalf("expected read timeout %s, got %s", serverReadTimeout, server.ReadTimeout)
+	}
+	if server.IdleTimeout != serverIdleTimeout {
+		t.Fatalf("expected idle timeout %s, got %s", serverIdleTimeout, server.IdleTimeout)
+	}
+	if server.WriteTimeout != 0 {
+		t.Fatalf("expected write timeout to remain unset for WebSocket support, got %s", server.WriteTimeout)
+	}
+}
+
+func TestStreamingRouteBypassesNonStreamingTimeout(t *testing.T) {
+	cases := []struct {
+		path string
+		want bool
+	}{
+		{path: "/api/scan/session-1/events", want: true},
+		{path: "/ws/scan/session-1", want: true},
+		{path: "/api/scan/session-1/status", want: false},
+		{path: "/api/sessions/session-1/report", want: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			if got := streamingRoute(req); got != tc.want {
+				t.Fatalf("streamingRoute(%q) = %v, want %v", tc.path, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestSourcePathHonorsAllowlist(t *testing.T) {
 	repo := t.TempDir()
 	other := t.TempDir()

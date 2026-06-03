@@ -313,6 +313,8 @@ LLM base URLs are validated both when accepted from API/CLI input and again imme
 
 State-changing JSON API requests (`POST`, `PATCH`, and `PUT`) must use `Content-Type: application/json`. Nyx rejects simple form posts and missing content types before they reach handlers; plugin binary upload and Burp XML import are explicit non-JSON exceptions.
 
+The HTTP server uses finite read/header/idle timeouts and applies a request timeout to non-streaming routes. Scan event WebSockets remain exempt so live progress streams can stay open while scans run.
+
 ## Configuration
 
 Create `~/.nyx/config.yaml` for local defaults:

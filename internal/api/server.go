@@ -63,6 +63,11 @@ const (
 	maxBloodHoundImportBytes = 32 << 20
 	maxBurpImportBytes       = 32 << 20
 	maxPluginUploadBytes     = 64 << 20
+
+	serverReadHeaderTimeout    = 5 * time.Second
+	serverReadTimeout          = 30 * time.Second
+	serverIdleTimeout          = 2 * time.Minute
+	nonStreamingHandlerTimeout = 2 * time.Minute
 )
 
 func NewServer(cfg Config) *Server {
@@ -118,11 +123,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 		s.monitorSched = nil
 		s.monitorMu.Unlock()
 	}()
-	server := &http.Server{
-		Addr:              fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port),
-		Handler:           s.Handler(),
-		ReadHeaderTimeout: 5 * time.Second,
-	}
+	server := s.httpServer()
 	errCh := make(chan error, 1)
 	go func() {
 		slog.Info("nyx api listening", "address", server.Addr)
@@ -249,7 +250,36 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/burp/collaborator/setup", s.setupBurpCollaborator)
 	mux.HandleFunc("GET /api/burp/collaborator/callbacks", s.listBurpCallbacks)
 	mux.Handle("/", spaHandler())
-	return s.withAuth(mux)
+	return timeoutNonStreaming(s.withAuth(mux))
+}
+
+func (s *Server) httpServer() *http.Server {
+	return &http.Server{
+		Addr:              fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port),
+		Handler:           s.Handler(),
+		ReadHeaderTimeout: serverReadHeaderTimeout,
+		ReadTimeout:       serverReadTimeout,
+		IdleTimeout:       serverIdleTimeout,
+	}
+}
+
+func timeoutNonStreaming(next http.Handler) http.Handler {
+	timeout := http.TimeoutHandler(next, nonStreamingHandlerTimeout, `{"error":"request timed out"}`+"\n")
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if streamingRoute(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		timeout.ServeHTTP(w, r)
+	})
+}
+
+func streamingRoute(r *http.Request) bool {
+	path := strings.TrimSpace(r.URL.Path)
+	if strings.HasPrefix(path, "/ws/scan/") {
+		return true
+	}
+	return strings.HasPrefix(path, "/api/scan/") && strings.HasSuffix(path, "/events")
 }
 
 func spaHandler() http.Handler {
