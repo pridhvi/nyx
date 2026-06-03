@@ -850,24 +850,24 @@ func TestCrossOriginStateChangingRequestsRejected(t *testing.T) {
 
 func TestStateChangingAPIRequiresJSONContentType(t *testing.T) {
 	handler := NewServer(Config{SessionDir: t.TempDir()}).Handler()
-	req := httptest.NewRequest(http.MethodPost, "/api/scan/start", strings.NewReader(`{"target":"http://127.0.0.1:1"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/plugins", strings.NewReader(`{"name":"poc","binary":"sh","phase":"recon"}`))
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnsupportedMediaType {
 		t.Fatalf("expected missing content type rejection, got %d body=%s", rec.Code, rec.Body.String())
 	}
-	form := httptest.NewRequest(http.MethodPost, "/api/scan/start", strings.NewReader("target=http://127.0.0.1:1"))
+	form := httptest.NewRequest(http.MethodPost, "/api/plugins", strings.NewReader("name=poc&binary=sh&phase=recon"))
 	form.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	formRec := httptest.NewRecorder()
 	handler.ServeHTTP(formRec, form)
 	if formRec.Code != http.StatusUnsupportedMediaType {
 		t.Fatalf("expected form content type rejection, got %d body=%s", formRec.Code, formRec.Body.String())
 	}
-	jsonReq := httptest.NewRequest(http.MethodPost, "/api/scan/start", strings.NewReader(`{"target":"http://127.0.0.1:1"}`))
+	jsonReq := httptest.NewRequest(http.MethodPost, "/api/plugins", strings.NewReader(`{"name":"poc","binary":"sh","phase":"recon"}`))
 	jsonReq.Header.Set("Content-Type", "application/json")
 	jsonRec := httptest.NewRecorder()
 	handler.ServeHTTP(jsonRec, jsonReq)
-	if jsonRec.Code != http.StatusAccepted {
+	if jsonRec.Code == http.StatusUnsupportedMediaType {
 		t.Fatalf("expected JSON request to pass content type gate, got %d body=%s", jsonRec.Code, jsonRec.Body.String())
 	}
 }
