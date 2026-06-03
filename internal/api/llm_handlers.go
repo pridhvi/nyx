@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,6 +27,11 @@ type llmModelsRequest struct {
 type llmModelsResponse struct {
 	Models []string `json:"models"`
 }
+
+const (
+	defaultLLMHistoryLimit = 100
+	maxLLMHistoryLimit     = 200
+)
 
 func (s *Server) llmModels(w http.ResponseWriter, r *http.Request) {
 	if !s.requireConfiguredAPIKey(w, "LLM model probing requires API key authentication") {
@@ -152,12 +158,40 @@ func (s *Server) llmHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer store.Close()
-	history, err := store.ListLLMAnalyses(r.Context(), session.ID)
+	limit, offset, err := llmHistoryPagination(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	history, err := store.ListLLMAnalysesPage(r.Context(), session.ID, limit, offset)
 	if err != nil {
 		writeDBError(w, err)
 		return
 	}
 	writeJSON(w, history)
+}
+
+func llmHistoryPagination(r *http.Request) (int, int, error) {
+	limit := defaultLLMHistoryLimit
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 {
+			return 0, 0, fmt.Errorf("limit must be a positive integer")
+		}
+		limit = parsed
+	}
+	if limit > maxLLMHistoryLimit {
+		limit = maxLLMHistoryLimit
+	}
+	offset := 0
+	if raw := strings.TrimSpace(r.URL.Query().Get("offset")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 0 {
+			return 0, 0, fmt.Errorf("offset must be a non-negative integer")
+		}
+		offset = parsed
+	}
+	return limit, offset, nil
 }
 
 func (s *Server) runLLM(w http.ResponseWriter, r *http.Request, prompt string) {

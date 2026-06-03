@@ -328,6 +328,72 @@ func TestSessionAPI(t *testing.T) {
 	}
 }
 
+func TestLLMHistoryIsCappedAndPageable(t *testing.T) {
+	ctx := context.Background()
+	sessionDir := t.TempDir()
+	session := models.Session{
+		ID:          models.NewID(),
+		Status:      models.SessionStatusCompleted,
+		Mode:        models.ScanModeActive,
+		TargetInput: "https://example.test",
+		InScope:     []string{"https://example.test"},
+		CreatedAt:   time.Now().UTC(),
+	}
+	target := models.Target{ID: models.NewID(), SessionID: session.ID, Host: "example.test", Port: 443, Protocol: "https", IsAlive: true, CreatedAt: time.Now().UTC()}
+	if _, err := db.CreateSessionDB(ctx, sessionDir, session, target); err != nil {
+		t.Fatal(err)
+	}
+	store, err := db.OpenSession(ctx, sessionDir, session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := time.Date(2026, 6, 3, 12, 0, 0, 0, time.UTC)
+	for i := 0; i < 205; i++ {
+		analysis := models.LLMAnalysis{
+			ID:            models.NewID(),
+			SessionID:     session.ID,
+			ModelID:       "fixture-model",
+			PromptSummary: "analysis-" + strconv.Itoa(i),
+			Messages:      []models.LLMMessage{{Role: "assistant", Content: "result"}},
+			CreatedAt:     base.Add(time.Duration(i) * time.Second),
+		}
+		if err := store.InsertLLMAnalysis(ctx, analysis); err != nil {
+			t.Fatal(err)
+		}
+	}
+	store.Close()
+	handler := NewServer(Config{SessionDir: sessionDir}).Handler()
+
+	defaultPage := requestLLMHistory(t, handler, session.ID, "")
+	if len(defaultPage) != defaultLLMHistoryLimit {
+		t.Fatalf("default history length = %d, want %d", len(defaultPage), defaultLLMHistoryLimit)
+	}
+	if defaultPage[0].PromptSummary != "analysis-105" || defaultPage[len(defaultPage)-1].PromptSummary != "analysis-204" {
+		t.Fatalf("unexpected default page bounds: %s ... %s", defaultPage[0].PromptSummary, defaultPage[len(defaultPage)-1].PromptSummary)
+	}
+
+	cappedPage := requestLLMHistory(t, handler, session.ID, "?limit=500")
+	if len(cappedPage) != maxLLMHistoryLimit {
+		t.Fatalf("capped history length = %d, want %d", len(cappedPage), maxLLMHistoryLimit)
+	}
+	if cappedPage[0].PromptSummary != "analysis-5" || cappedPage[len(cappedPage)-1].PromptSummary != "analysis-204" {
+		t.Fatalf("unexpected capped page bounds: %s ... %s", cappedPage[0].PromptSummary, cappedPage[len(cappedPage)-1].PromptSummary)
+	}
+
+	offsetPage := requestLLMHistory(t, handler, session.ID, "?limit=3&offset=2")
+	if got := llmAnalysisSummaries(offsetPage); strings.Join(got, ",") != "analysis-200,analysis-201,analysis-202" {
+		t.Fatalf("unexpected offset page: %#v", got)
+	}
+
+	for _, query := range []string{"?limit=0", "?limit=abc", "?offset=-1"} {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/sessions/"+session.ID+"/llm/history"+query, nil))
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("query %s status = %d body=%s", query, rec.Code, rec.Body.String())
+		}
+	}
+}
+
 func TestAPIKeyAuth(t *testing.T) {
 	handler := NewServer(Config{SessionDir: t.TempDir(), APIKey: "secret"}).Handler()
 	blocked := httptest.NewRecorder()
@@ -1442,4 +1508,26 @@ func TestScanManagerShutdownDrainsRunningScans(t *testing.T) {
 	if got.Status != models.SessionStatusCancelled {
 		t.Fatalf("expected cancelled scan after manager shutdown, got %s", got.Status)
 	}
+}
+
+func requestLLMHistory(t *testing.T, handler http.Handler, sessionID, query string) []models.LLMAnalysis {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/sessions/"+sessionID+"/llm/history"+query, nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("llm history status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var analyses []models.LLMAnalysis
+	if err := json.NewDecoder(rec.Body).Decode(&analyses); err != nil {
+		t.Fatal(err)
+	}
+	return analyses
+}
+
+func llmAnalysisSummaries(analyses []models.LLMAnalysis) []string {
+	summaries := make([]string, 0, len(analyses))
+	for _, analysis := range analyses {
+		summaries = append(summaries, analysis.PromptSummary)
+	}
+	return summaries
 }

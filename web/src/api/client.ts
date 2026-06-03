@@ -844,8 +844,12 @@ export function listCVEs(sessionID: string) {
   return api<CVEMatch[]>(`/api/sessions/${sessionID}/cves`);
 }
 
-export function llmHistory(sessionID: string) {
-  return api<LLMAnalysis[]>(`/api/sessions/${sessionID}/llm/history`);
+export function llmHistory(sessionID: string, options: { limit?: number; offset?: number } = {}) {
+  const params = new URLSearchParams();
+  if (options.limit != null) params.set("limit", String(options.limit));
+  if (options.offset != null) params.set("offset", String(options.offset));
+  const query = params.toString();
+  return api<LLMAnalysis[]>(`/api/sessions/${sessionID}/llm/history${query ? `?${query}` : ""}`);
 }
 
 export function llmAnalyse(sessionID: string) {

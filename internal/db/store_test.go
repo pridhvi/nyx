@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -171,6 +172,49 @@ func TestCreateListShowDeleteSessionLifecycle(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Dir(record.DBPath)); !os.IsNotExist(err) {
 		t.Fatalf("expected deleted session directory, got err %v", err)
+	}
+}
+
+func TestListLLMAnalysesPageReturnsLatestRowsChronologically(t *testing.T) {
+	ctx := context.Background()
+	session, _, store := createTestStore(t, ctx)
+	base := time.Date(2026, 6, 3, 12, 0, 0, 0, time.UTC)
+	for i := 0; i < 5; i++ {
+		analysis := models.LLMAnalysis{
+			ID:            models.NewID(),
+			SessionID:     session.ID,
+			ModelID:       "fixture-model",
+			PromptSummary: "analysis-" + strconv.Itoa(i),
+			Messages:      []models.LLMMessage{{Role: "assistant", Content: "result"}},
+			CreatedAt:     base.Add(time.Duration(i) * time.Second),
+		}
+		if err := store.InsertLLMAnalysis(ctx, analysis); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	latest, err := store.ListLLMAnalysesPage(ctx, session.ID, 2, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := llmPromptSummaries(latest); strings.Join(got, ",") != "analysis-3,analysis-4" {
+		t.Fatalf("latest page = %#v", got)
+	}
+
+	next, err := store.ListLLMAnalysesPage(ctx, session.ID, 2, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := llmPromptSummaries(next); strings.Join(got, ",") != "analysis-1,analysis-2" {
+		t.Fatalf("offset page = %#v", got)
+	}
+
+	empty, err := store.ListLLMAnalysesPage(ctx, session.ID, 2, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(empty) != 0 {
+		t.Fatalf("expected empty page, got %#v", empty)
 	}
 }
 
@@ -704,4 +748,12 @@ func createTestStore(t *testing.T, ctx context.Context) (models.Session, models.
 		store.Close()
 	})
 	return session, target, store
+}
+
+func llmPromptSummaries(analyses []models.LLMAnalysis) []string {
+	summaries := make([]string, 0, len(analyses))
+	for _, analysis := range analyses {
+		summaries = append(summaries, analysis.PromptSummary)
+	}
+	return summaries
 }

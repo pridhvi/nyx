@@ -925,6 +925,38 @@ ORDER BY created_at ASC`, sessionID)
 	return analyses, rows.Err()
 }
 
+func (s *Store) ListLLMAnalysesPage(ctx context.Context, sessionID string, limit, offset int) ([]models.LLMAnalysis, error) {
+	if limit <= 0 {
+		return []models.LLMAnalysis{}, nil
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	rows, err := s.db.QueryContext(ctx, `
+SELECT id, session_id, model_id, prompt_summary, messages, total_tokens, created_at
+FROM (
+	SELECT id, session_id, model_id, prompt_summary, messages, total_tokens, created_at
+	FROM llm_analyses
+	WHERE session_id = ?
+	ORDER BY created_at DESC, id DESC
+	LIMIT ? OFFSET ?
+)
+ORDER BY created_at ASC, id ASC`, sessionID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var analyses []models.LLMAnalysis
+	for rows.Next() {
+		analysis, err := scanLLMAnalysis(rows)
+		if err != nil {
+			return nil, err
+		}
+		analyses = append(analyses, analysis)
+	}
+	return analyses, rows.Err()
+}
+
 func (s *Store) ListPlugins(ctx context.Context) ([]models.PluginRecord, error) {
 	rows, err := s.db.QueryContext(ctx, `
 SELECT id, name, binary, sha256, enabled, created_at, updated_at
