@@ -80,6 +80,10 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 			writeError(w, http.StatusForbidden, fmt.Errorf("cross-origin state-changing requests are not allowed"))
 			return
 		}
+		if unsafeAPIContentType(r) {
+			writeError(w, http.StatusUnsupportedMediaType, fmt.Errorf("state-changing API requests must use application/json content type"))
+			return
+		}
 		if strings.TrimSpace(s.cfg.APIKey) == "" {
 			next.ServeHTTP(w, r)
 			return
@@ -343,6 +347,34 @@ func crossOriginUnsafeRequest(r *http.Request) bool {
 		return true
 	}
 	return !sameHost(parsed.Host, r.Host)
+}
+
+func unsafeAPIContentType(r *http.Request) bool {
+	switch r.Method {
+	case http.MethodPost, http.MethodPatch, http.MethodPut:
+	default:
+		return false
+	}
+	if !strings.HasPrefix(r.URL.Path, "/api/") {
+		return false
+	}
+	if jsonContentTypeExempt(r) {
+		return false
+	}
+	mediaType := strings.ToLower(strings.TrimSpace(strings.Split(r.Header.Get("Content-Type"), ";")[0]))
+	return mediaType != "application/json"
+}
+
+func jsonContentTypeExempt(r *http.Request) bool {
+	if r.Method == http.MethodPost && r.URL.Path == "/api/plugins/upload" {
+		mediaType := strings.ToLower(strings.TrimSpace(strings.Split(r.Header.Get("Content-Type"), ";")[0]))
+		return mediaType == "multipart/form-data"
+	}
+	if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/burp/import") {
+		mediaType := strings.ToLower(strings.TrimSpace(strings.Split(r.Header.Get("Content-Type"), ";")[0]))
+		return mediaType == "application/xml" || mediaType == "text/xml"
+	}
+	return false
 }
 
 func websocketCrossOrigin(r *http.Request) bool {

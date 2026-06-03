@@ -45,7 +45,7 @@ func TestSessionAPI(t *testing.T) {
 	}
 	body := bytes.NewBufferString(`{"target":"` + targetServer.URL + `","name":"Example","mode":"active","out_of_scope":["admin.example.com"],"tools":["http-probe","security-headers","ffuf"],"tool_parameters":{"ffuf":{"wordlist":"` + wordlist + `","timeout_seconds":5}}}`)
 	start := httptest.NewRecorder()
-	handler.ServeHTTP(start, httptest.NewRequest(http.MethodPost, "/api/scan/start", body))
+	handler.ServeHTTP(start, jsonRequest(http.MethodPost, "/api/scan/start", body))
 	if start.Code != http.StatusAccepted {
 		t.Fatalf("start status = %d body=%s", start.Code, start.Body.String())
 	}
@@ -172,7 +172,7 @@ func TestSessionAPI(t *testing.T) {
 	}
 
 	analyse := httptest.NewRecorder()
-	handler.ServeHTTP(analyse, httptest.NewRequest(http.MethodPost, "/api/sessions/"+created.Session.ID+"/llm/analyse", nil))
+	handler.ServeHTTP(analyse, jsonRequest(http.MethodPost, "/api/sessions/"+created.Session.ID+"/llm/analyse", nil))
 	if analyse.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected unavailable llm status, got %d", analyse.Code)
 	}
@@ -210,7 +210,7 @@ func TestAPIKeyAuth(t *testing.T) {
 		t.Fatalf("expected query-string api key rejection, got %d", queryToken.Code)
 	}
 	login := httptest.NewRecorder()
-	handler.ServeHTTP(login, httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(`{"api_key":"secret"}`)))
+	handler.ServeHTTP(login, jsonRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(`{"api_key":"secret"}`)))
 	if login.Code != http.StatusOK {
 		t.Fatalf("expected login success, got %d body=%s", login.Code, login.Body.String())
 	}
@@ -226,7 +226,7 @@ func TestAPIKeyAuth(t *testing.T) {
 		t.Fatalf("expected cookie-authenticated health, got %d", cookieAllowed.Code)
 	}
 	logout := httptest.NewRecorder()
-	logoutReq := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+	logoutReq := jsonRequest(http.MethodPost, "/api/auth/logout", nil)
 	logoutReq.AddCookie(cookies[0])
 	handler.ServeHTTP(logout, logoutReq)
 	if logout.Code != http.StatusOK {
@@ -253,7 +253,7 @@ func TestAPIKeyAuth(t *testing.T) {
 func TestAuthCookieSecureConfig(t *testing.T) {
 	handler := NewServer(Config{SessionDir: t.TempDir(), APIKey: "secret", SecureCookies: true}).Handler()
 	login := httptest.NewRecorder()
-	handler.ServeHTTP(login, httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(`{"api_key":"secret"}`)))
+	handler.ServeHTTP(login, jsonRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(`{"api_key":"secret"}`)))
 	if login.Code != http.StatusOK {
 		t.Fatalf("expected login success, got %d body=%s", login.Code, login.Body.String())
 	}
@@ -328,7 +328,7 @@ func TestStartScanRejectsUnsafeExtraArgs(t *testing.T) {
 	handler := NewServer(Config{SessionDir: t.TempDir()}).Handler()
 	body := bytes.NewBufferString(`{"target":"http://127.0.0.1:1","tools":["sqlmap"],"tool_parameters":{"sqlmap":{"extra_args":["--os-shell"]}}}`)
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/scan/start", body))
+	handler.ServeHTTP(rec, jsonRequest(http.MethodPost, "/api/scan/start", body))
 	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "safe allow-list") {
 		t.Fatalf("expected unsafe extra args rejection, got %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -368,7 +368,7 @@ func TestPrivilegedOperationsRequireConfiguredAPIKey(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			handler.ServeHTTP(rec, httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body)))
+			handler.ServeHTTP(rec, jsonRequest(tc.method, tc.path, strings.NewReader(tc.body)))
 			if rec.Code != http.StatusForbidden {
 				t.Fatalf("expected forbidden, got %d body=%s", rec.Code, rec.Body.String())
 			}
@@ -541,6 +541,7 @@ func TestSourceBrowseEndpointsConstrainDirectoryListing(t *testing.T) {
 func TestCrossOriginStateChangingRequestsRejected(t *testing.T) {
 	handler := NewServer(Config{SessionDir: t.TempDir()}).Handler()
 	req := httptest.NewRequest(http.MethodPost, "/api/scan/start", strings.NewReader(`{"target":"http://127.0.0.1:1"}`))
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Origin", "https://attacker.example")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -549,10 +550,34 @@ func TestCrossOriginStateChangingRequestsRejected(t *testing.T) {
 	}
 }
 
+func TestStateChangingAPIRequiresJSONContentType(t *testing.T) {
+	handler := NewServer(Config{SessionDir: t.TempDir()}).Handler()
+	req := httptest.NewRequest(http.MethodPost, "/api/scan/start", strings.NewReader(`{"target":"http://127.0.0.1:1"}`))
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnsupportedMediaType {
+		t.Fatalf("expected missing content type rejection, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	form := httptest.NewRequest(http.MethodPost, "/api/scan/start", strings.NewReader("target=http://127.0.0.1:1"))
+	form.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	formRec := httptest.NewRecorder()
+	handler.ServeHTTP(formRec, form)
+	if formRec.Code != http.StatusUnsupportedMediaType {
+		t.Fatalf("expected form content type rejection, got %d body=%s", formRec.Code, formRec.Body.String())
+	}
+	jsonReq := httptest.NewRequest(http.MethodPost, "/api/scan/start", strings.NewReader(`{"target":"http://127.0.0.1:1"}`))
+	jsonReq.Header.Set("Content-Type", "application/json")
+	jsonRec := httptest.NewRecorder()
+	handler.ServeHTTP(jsonRec, jsonReq)
+	if jsonRec.Code != http.StatusAccepted {
+		t.Fatalf("expected JSON request to pass content type gate, got %d body=%s", jsonRec.Code, jsonRec.Body.String())
+	}
+}
+
 func TestMonitorConfigAPIRequiresConfiguredAPIKeyAndRedactsSecrets(t *testing.T) {
 	withoutKey := NewServer(Config{SessionDir: t.TempDir()}).Handler()
 	blocked := httptest.NewRecorder()
-	withoutKey.ServeHTTP(blocked, httptest.NewRequest(http.MethodPost, "/api/monitor/configs", bytes.NewBufferString(`{"target_input":"http://127.0.0.1:1","schedule":"@daily"}`)))
+	withoutKey.ServeHTTP(blocked, jsonRequest(http.MethodPost, "/api/monitor/configs", bytes.NewBufferString(`{"target_input":"http://127.0.0.1:1","schedule":"@daily"}`)))
 	if blocked.Code != http.StatusForbidden {
 		t.Fatalf("expected monitor writes to require configured API key, got %d body=%s", blocked.Code, blocked.Body.String())
 	}
@@ -658,7 +683,7 @@ func TestPowerFeatureEndpointsPersistAndGateActiveActions(t *testing.T) {
 		t.Fatal("expected generated payloads")
 	}
 	validateBlocked := httptest.NewRecorder()
-	handler.ServeHTTP(validateBlocked, httptest.NewRequest(http.MethodPost, "/api/sessions/"+session.ID+"/payloads/"+generated[0].ID+"/validate", bytes.NewBufferString(`{"confirm":true}`)))
+	handler.ServeHTTP(validateBlocked, jsonRequest(http.MethodPost, "/api/sessions/"+session.ID+"/payloads/"+generated[0].ID+"/validate", bytes.NewBufferString(`{"confirm":true}`)))
 	if validateBlocked.Code != http.StatusUnauthorized {
 		t.Fatalf("expected auth on payload validation, got %d body=%s", validateBlocked.Code, validateBlocked.Body.String())
 	}
@@ -673,7 +698,7 @@ func TestPowerFeatureEndpointsPersistAndGateActiveActions(t *testing.T) {
 		t.Fatalf("expected payload validation success, got %d body=%s", validateOK.Code, validateOK.Body.String())
 	}
 	blocked := httptest.NewRecorder()
-	handler.ServeHTTP(blocked, httptest.NewRequest(http.MethodPost, "/api/sessions/"+session.ID+"/credentials/test", bytes.NewBufferString(`{"mode":"correlate"}`)))
+	handler.ServeHTTP(blocked, jsonRequest(http.MethodPost, "/api/sessions/"+session.ID+"/credentials/test", bytes.NewBufferString(`{"mode":"correlate"}`)))
 	if blocked.Code != http.StatusUnauthorized {
 		t.Fatalf("expected auth on credential action, got %d body=%s", blocked.Code, blocked.Body.String())
 	}
@@ -693,7 +718,7 @@ func TestPowerFeatureEndpointsPersistAndGateActiveActions(t *testing.T) {
 		t.Fatalf("expected kerberoast confirmation gate, got %d body=%s", kerberoastNoConfirm.Code, kerberoastNoConfirm.Body.String())
 	}
 	burpBlocked := httptest.NewRecorder()
-	handler.ServeHTTP(burpBlocked, httptest.NewRequest(http.MethodPost, "/api/sessions/"+session.ID+"/burp/push-scope", nil))
+	handler.ServeHTTP(burpBlocked, jsonRequest(http.MethodPost, "/api/sessions/"+session.ID+"/burp/push-scope", nil))
 	if burpBlocked.Code != http.StatusUnauthorized {
 		t.Fatalf("expected auth on burp push-scope, got %d body=%s", burpBlocked.Code, burpBlocked.Body.String())
 	}
@@ -783,7 +808,7 @@ func TestOperatorConsoleAPI(t *testing.T) {
 
 	body := bytes.NewBufferString(`{"target":"` + targetServer.URL + `","mode":"active","tools":["http-probe"],"tool_parameters":{"ffuf":{"wordlist":"/tmp/words.txt"}},"concurrency":2,"per_tool_concurrency":1,"tool_timeout_seconds":15,"tool_delay_ms":25,"rate_limit":"gentle"}`)
 	start := httptest.NewRecorder()
-	handler.ServeHTTP(start, httptest.NewRequest(http.MethodPost, "/api/scan/start", body))
+	handler.ServeHTTP(start, jsonRequest(http.MethodPost, "/api/scan/start", body))
 	if start.Code != http.StatusAccepted {
 		t.Fatalf("start status = %d body=%s", start.Code, start.Body.String())
 	}
@@ -803,13 +828,13 @@ func TestOperatorConsoleAPI(t *testing.T) {
 	waitForCompletedScan(t, handler, created.Session.ID)
 
 	bad := httptest.NewRecorder()
-	handler.ServeHTTP(bad, httptest.NewRequest(http.MethodPost, "/api/scan/start", bytes.NewBufferString(`{"target":"`+targetServer.URL+`","mode":"active","tools":["missing-tool"]}`)))
+	handler.ServeHTTP(bad, jsonRequest(http.MethodPost, "/api/scan/start", bytes.NewBufferString(`{"target":"`+targetServer.URL+`","mode":"active","tools":["missing-tool"]}`)))
 	if bad.Code != http.StatusBadRequest {
 		t.Fatalf("expected bad request for unknown tool, got %d", bad.Code)
 	}
 
 	crtsh := httptest.NewRecorder()
-	handler.ServeHTTP(crtsh, httptest.NewRequest(http.MethodPost, "/api/scan/start", bytes.NewBufferString(`{"target":"http://127.0.0.1","mode":"passive","tools":["crtsh"]}`)))
+	handler.ServeHTTP(crtsh, jsonRequest(http.MethodPost, "/api/scan/start", bytes.NewBufferString(`{"target":"http://127.0.0.1","mode":"passive","tools":["crtsh"]}`)))
 	if crtsh.Code != http.StatusAccepted {
 		t.Fatalf("expected crtsh to be registered, got %d body=%s", crtsh.Code, crtsh.Body.String())
 	}
@@ -820,7 +845,7 @@ func TestOperatorConsoleAPI(t *testing.T) {
 	waitForCompletedScan(t, handler, crtshCreated.Session.ID)
 
 	multiTarget := httptest.NewRecorder()
-	handler.ServeHTTP(multiTarget, httptest.NewRequest(http.MethodPost, "/api/scan/start", bytes.NewBufferString(`{"targets":["`+targetServer.URL+`","`+strings.Replace(targetServer.URL, "127.0.0.1", "localhost", 1)+`"],"mode":"active","tools":["http-probe"]}`)))
+	handler.ServeHTTP(multiTarget, jsonRequest(http.MethodPost, "/api/scan/start", bytes.NewBufferString(`{"targets":["`+targetServer.URL+`","`+strings.Replace(targetServer.URL, "127.0.0.1", "localhost", 1)+`"],"mode":"active","tools":["http-probe"]}`)))
 	if multiTarget.Code != http.StatusAccepted {
 		t.Fatalf("multi-target start status = %d body=%s", multiTarget.Code, multiTarget.Body.String())
 	}
@@ -834,20 +859,20 @@ func TestOperatorConsoleAPI(t *testing.T) {
 	waitForCompletedScan(t, handler, multiCreated.Session.ID)
 
 	invalidTarget := httptest.NewRecorder()
-	handler.ServeHTTP(invalidTarget, httptest.NewRequest(http.MethodPost, "/api/scan/start", bytes.NewBufferString(`{"targets":["ftp://example.com"],"mode":"active","tools":["http-probe"]}`)))
+	handler.ServeHTTP(invalidTarget, jsonRequest(http.MethodPost, "/api/scan/start", bytes.NewBufferString(`{"targets":["ftp://example.com"],"mode":"active","tools":["http-probe"]}`)))
 	if invalidTarget.Code != http.StatusBadRequest {
 		t.Fatalf("expected invalid target rejection, got %d", invalidTarget.Code)
 	}
 
 	unsafeArgs := httptest.NewRecorder()
-	handler.ServeHTTP(unsafeArgs, httptest.NewRequest(http.MethodPost, "/api/scan/start", bytes.NewBufferString(`{"target":"`+targetServer.URL+`","mode":"active","tools":["ffuf"],"tool_parameters":{"ffuf":{"extra_args":["--output","/tmp/leak"]}}}`)))
+	handler.ServeHTTP(unsafeArgs, jsonRequest(http.MethodPost, "/api/scan/start", bytes.NewBufferString(`{"target":"`+targetServer.URL+`","mode":"active","tools":["ffuf"],"tool_parameters":{"ffuf":{"extra_args":["--output","/tmp/leak"]}}}`)))
 	if unsafeArgs.Code != http.StatusBadRequest {
 		t.Fatalf("expected bad request for unsafe extra args, got %d", unsafeArgs.Code)
 	}
 
 	profileBody := bytes.NewBufferString(`{"name":"Web active","description":"Saved","request":{"target":"","mode":"active","tools":["http-probe"],"enabled_phases":["fingerprint"],"route_seeds":["/admin"],"auth_headers":{"Authorization":"Bearer secret"},"auth_cookie_header":"session=secret","auth_profile":{"type":"form","username":"alice","password":"secret"}}}`)
 	profileCreate := httptest.NewRecorder()
-	handler.ServeHTTP(profileCreate, httptest.NewRequest(http.MethodPost, "/api/scan-profiles", profileBody))
+	handler.ServeHTTP(profileCreate, jsonRequest(http.MethodPost, "/api/scan-profiles", profileBody))
 	if profileCreate.Code != http.StatusCreated {
 		t.Fatalf("profile create status = %d body=%s", profileCreate.Code, profileCreate.Body.String())
 	}
@@ -961,6 +986,17 @@ func TestPluginUploadUsesPrivateExecutablePermissions(t *testing.T) {
 func apiKeyRequest(method, target string, body io.Reader) *http.Request {
 	req := httptest.NewRequest(method, target, body)
 	req.Header.Set("X-Nyx-API-Key", "secret")
+	if method == http.MethodPost || method == http.MethodPatch || method == http.MethodPut {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	return req
+}
+
+func jsonRequest(method, target string, body io.Reader) *http.Request {
+	req := httptest.NewRequest(method, target, body)
+	if method == http.MethodPost || method == http.MethodPatch || method == http.MethodPut {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	return req
 }
 
@@ -1087,7 +1123,7 @@ func TestStopScanCancelsRunningScan(t *testing.T) {
 
 	body := bytes.NewBufferString(`{"target":"` + targetServer.URL + `","name":"Cancel","mode":"active"}`)
 	start := httptest.NewRecorder()
-	handler.ServeHTTP(start, httptest.NewRequest(http.MethodPost, "/api/scan/start", body))
+	handler.ServeHTTP(start, jsonRequest(http.MethodPost, "/api/scan/start", body))
 	if start.Code != http.StatusAccepted {
 		t.Fatalf("start status = %d body=%s", start.Code, start.Body.String())
 	}
@@ -1103,21 +1139,21 @@ func TestStopScanCancelsRunningScan(t *testing.T) {
 	}
 
 	pause := httptest.NewRecorder()
-	handler.ServeHTTP(pause, httptest.NewRequest(http.MethodPost, "/api/scan/"+created.Session.ID+"/pause", nil))
+	handler.ServeHTTP(pause, jsonRequest(http.MethodPost, "/api/scan/"+created.Session.ID+"/pause", nil))
 	if pause.Code != http.StatusAccepted {
 		t.Fatalf("pause status = %d body=%s", pause.Code, pause.Body.String())
 	}
 	waitForScanStatus(t, handler, created.Session.ID, models.SessionStatusPaused)
 
 	resume := httptest.NewRecorder()
-	handler.ServeHTTP(resume, httptest.NewRequest(http.MethodPost, "/api/scan/"+created.Session.ID+"/resume", nil))
+	handler.ServeHTTP(resume, jsonRequest(http.MethodPost, "/api/scan/"+created.Session.ID+"/resume", nil))
 	if resume.Code != http.StatusAccepted {
 		t.Fatalf("resume status = %d body=%s", resume.Code, resume.Body.String())
 	}
 	waitForScanStatus(t, handler, created.Session.ID, models.SessionStatusRunning)
 
 	stop := httptest.NewRecorder()
-	handler.ServeHTTP(stop, httptest.NewRequest(http.MethodPost, "/api/scan/"+created.Session.ID+"/stop", nil))
+	handler.ServeHTTP(stop, jsonRequest(http.MethodPost, "/api/scan/"+created.Session.ID+"/stop", nil))
 	if stop.Code != http.StatusAccepted {
 		t.Fatalf("stop status = %d body=%s", stop.Code, stop.Body.String())
 	}

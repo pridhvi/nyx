@@ -311,6 +311,8 @@ Power-feature callback evidence is a privileged write path. Recording a built-in
 
 LLM base URLs are validated both when accepted from API/CLI input and again immediately before each OpenAI-compatible completion request. Persisted session LLM URLs therefore still have to satisfy `NYX_LLM_ALLOWED_HOSTS` at invocation time.
 
+State-changing JSON API requests (`POST`, `PATCH`, and `PUT`) must use `Content-Type: application/json`. Nyx rejects simple form posts and missing content types before they reach handlers; plugin binary upload and Burp XML import are explicit non-JSON exceptions.
+
 ## Configuration
 
 Create `~/.nyx/config.yaml` for local defaults:
