@@ -1549,12 +1549,9 @@ The frontend is a React SPA embedded in the Go binary. Routes:
 - Tool coverage matrix (which tools ran, how many findings each produced)
 
 ### 15.3 Attack Graph (`/sessions/:id/graph`)
-- Ranked attack-vector chain panel with selected-chain details.
-- Target, finding, attack vector, and source finding data columns backed by real API data.
-- Labelled source/audit graph edges (`enables`, `amplifies`, `requires`, `confirms`) remain exposed by the API and helper code.
-- Temporary in-progress graph placeholder while the interactive canvas is reworked.
-- Filter by severity.
-- Highlight top graph-derived paths and static + dynamic confirmations through ranked chains and source/finding summaries.
+- Route-level in-progress placeholder while the attack path workspace is redesigned.
+- Labelled source/audit graph edges (`enables`, `amplifies`, `requires`, `confirms`) remain exposed by the API and helper code for the future UI.
+- Attack vector, graph edge, target, finding, and source finding data remain available through API surfaces outside the hidden page UI.
 
 ### 15.4 Findings (`/sessions/:id/findings`)
 - Full findings table with all fields

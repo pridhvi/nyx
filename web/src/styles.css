@@ -2438,6 +2438,27 @@ html[data-theme="light"] .chart-panel {
   text-align: center;
 }
 
+.attack-page-placeholder {
+  align-content: center;
+  border-style: dashed;
+  display: grid;
+  gap: 10px;
+  min-height: 420px;
+  text-align: center;
+}
+
+.attack-page-placeholder h2 {
+  margin: 0;
+}
+
+.attack-page-placeholder p {
+  color: var(--text-2);
+  justify-self: center;
+  line-height: 1.55;
+  margin: 0;
+  max-width: 680px;
+}
+
 .cy-graph {
   background:
     radial-gradient(circle at center, rgba(121, 104, 242, 0.08), transparent 28rem),

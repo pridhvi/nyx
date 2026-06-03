@@ -1,143 +1,22 @@
-import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import type cytoscape from "cytoscape";
-import { listAttackGraphEdges, listFindings, listSourceFindings, listTargets, listVectors, type AttackGraphEdge, type AttackVector, type Finding, type SourceFinding, type Target } from "../api/client";
-import { useSessionContext } from "../session";
+import { type AttackGraphEdge, type AttackVector, type Finding, type SourceFinding, type Target } from "../api/client";
 
 export function AttackGraph() {
-  const { selectedSessionID: selected } = useSessionContext();
-  const [severity, setSeverity] = useState("");
-  const targetsQuery = useQuery({ queryKey: ["targets", selected], queryFn: () => listTargets(selected), enabled: selected !== "" });
-  const findingsQuery = useQuery({ queryKey: ["findings", selected], queryFn: () => listFindings(selected), enabled: selected !== "" });
-  const vectorsQuery = useQuery({ queryKey: ["vectors", selected], queryFn: () => listVectors(selected), enabled: selected !== "" });
-  const sourceQuery = useQuery({ queryKey: ["source-findings", selected], queryFn: () => listSourceFindings(selected), enabled: selected !== "" });
-  const edgesQuery = useQuery({ queryKey: ["attack-graph-edges", selected], queryFn: () => listAttackGraphEdges(selected), enabled: selected !== "" });
-
-  const nodes = useMemo(() => {
-    const targets = targetsQuery.data ?? [];
-    const findings = (findingsQuery.data ?? []).filter((finding) => !severity || finding.severity === severity);
-    const vectors = vectorsQuery.data ?? [];
-    const sourceFindings = sourceQuery.data ?? [];
-    const edges = edgesQuery.data ?? [];
-    return { targets, findings, vectors, sourceFindings, edges };
-  }, [edgesQuery.data, findingsQuery.data, severity, sourceQuery.data, targetsQuery.data, vectorsQuery.data]);
-  const [selectedVectorID, setSelectedVectorID] = useState("");
-  const rankedVectors = useMemo(() => dedupeVectors(nodes.vectors), [nodes.vectors]);
-  const selectedVector = rankedVectors.find((vector) => vector.id === selectedVectorID) ?? rankedVectors[0];
-
-  useEffect(() => {
-    if (!selectedVectorID && rankedVectors[0]) {
-      setSelectedVectorID(rankedVectors[0].id);
-    }
-  }, [rankedVectors, selectedVectorID]);
-
-  const graphData = useMemo(() => graphElements(nodes.targets, nodes.findings, rankedVectors, nodes.sourceFindings, nodes.edges), [nodes.edges, nodes.findings, nodes.sourceFindings, nodes.targets, rankedVectors]);
-
   return (
-    <section className="page wide-page">
+    <section className="page">
       <header className="page-header">
         <div>
           <h1>Attack Paths</h1>
-          <p>Targets, source findings, dynamic findings, and labelled attack-chain edges.</p>
+          <p>This workspace is being reworked.</p>
         </div>
-        <label className="compact-control">
-          Severity
-          <select value={severity} onChange={(event) => setSeverity(event.target.value)}>
-            <option value="">All</option>
-            <option value="critical">Critical</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-            <option value="info">Info</option>
-          </select>
-        </label>
       </header>
-      <div className="attack-workspace">
-      <section className="panel attack-placeholder-panel">
-        <div className="empty-state-panel">
-          <h2>Attack path graph is in progress</h2>
-          <p>The ranked chains and underlying findings remain available here while the interactive graph view is being reworked.</p>
-        </div>
-        {graphData.skippedEdges > 0 ? <p className="graph-warning">Skipped {graphData.skippedEdges} graph edge{graphData.skippedEdges === 1 ? "" : "s"} with missing source or target data.</p> : null}
+      <section className="panel attack-page-placeholder">
+        <h2>Attack Paths is in progress</h2>
+        <p>
+          The previous graph and chain workspace has been hidden while it is redesigned.
+          Findings, CVEs, Tool Runs, Reports, and LLM Analyst remain available for the selected session.
+        </p>
       </section>
-      <aside className="panel vector-chain-panel">
-        <h2>Ranked Chains</h2>
-        {rankedVectors.map((vector) => (
-          <button key={vector.id} className={`vector-chain ${selectedVectorID === vector.id ? "active" : ""}`} type="button" onClick={() => setSelectedVectorID(vector.id)}>
-            <span className={`severity ${vector.severity}`}>{vector.severity}</span>
-            <strong>{vector.title}</strong>
-            <small>score {vectorScore(vector)} · confidence {Math.round(vector.confidence * 100)}%</small>
-          </button>
-        ))}
-        {rankedVectors.length !== nodes.vectors.length ? <p className="empty-line">{nodes.vectors.length - rankedVectors.length} duplicate chain{nodes.vectors.length - rankedVectors.length === 1 ? "" : "s"} collapsed.</p> : null}
-        {rankedVectors.length === 0 ? <p className="empty-line">No attack vectors for this session.</p> : null}
-      </aside>
-      </div>
-      {selectedVector ? (
-        <section className="panel selected-chain-panel">
-          <div>
-            <span className={`severity ${selectedVector.severity}`}>{selectedVector.severity}</span>
-            <h2>{selectedVector.title}</h2>
-            <p>Composite risk score {vectorScore(selectedVector)} · confidence {Math.round(selectedVector.confidence * 100)}% · {selectedVector.owasp_category || "uncategorized"}</p>
-          </div>
-          <ol>
-            {selectedVector.steps.map((step) => <li key={step.order}>{step.description}</li>)}
-          </ol>
-        </section>
-      ) : null}
-      <div className="graph-summary">
-        <article><span>Targets</span><strong>{nodes.targets.length}</strong></article>
-        <article><span>Findings</span><strong>{nodes.findings.length}</strong></article>
-        <article><span>Attack Vectors</span><strong>{rankedVectors.length}</strong></article>
-        <article><span>Source Findings</span><strong>{nodes.sourceFindings.length}</strong></article>
-      </div>
-      <div className="graph-layout">
-        <section className="graph-column">
-          <h2>Targets</h2>
-          {nodes.targets.map((target) => (
-            <article key={target.id} className="graph-node target-node">
-              <strong>{target.host}</strong>
-              <span>{target.protocol}:{target.port} · {target.discovered_by}</span>
-              {(target.technologies ?? []).map((tech) => (
-                <small key={tech.id}>{tech.name} {tech.version}</small>
-              ))}
-            </article>
-          ))}
-        </section>
-        <section className="graph-column">
-          <h2>Findings</h2>
-          {nodes.findings.map((finding) => (
-            <article key={finding.id} className={`graph-node finding-node ${finding.severity}`}>
-              <span className={`severity ${finding.severity}`}>{finding.severity}</span>
-              <span className={`origin-badge ${finding.tool_id.startsWith("audit/") ? "static" : "dynamic"}`}>{finding.tool_id.startsWith("audit/") ? "Static" : "Dynamic"}</span>
-              <strong>{finding.title}</strong>
-              <small>{finding.tool_id} · {finding.type}</small>
-            </article>
-          ))}
-        </section>
-        <section className="graph-column">
-          <h2>Attack Vectors</h2>
-          {rankedVectors.map((vector) => (
-            <article key={vector.id} className={`graph-node vector-node ${vector.severity} ${selectedVectorID === vector.id ? "selected-graph-node" : ""}`} onClick={() => setSelectedVectorID(vector.id)}>
-              <span className={`severity ${vector.severity}`}>{vector.severity}</span>
-              <strong>{vector.title}</strong>
-              <small>{vector.owasp_category || "uncategorized"} · score {vectorScore(vector)} · confidence {Math.round(vector.confidence * 100)}%</small>
-              {vector.steps.slice(0, 3).map((step) => <small key={step.order}>{step.order}. {step.description}</small>)}
-            </article>
-          ))}
-        </section>
-        <section className="graph-column">
-          <h2>Source</h2>
-          {nodes.sourceFindings.map((finding) => (
-            <article key={finding.id} className="graph-node source-node">
-              <span className={finding.confirmed_dynamic ? "origin-badge both" : "origin-badge static"}>{finding.confirmed_dynamic ? "Static + Dynamic" : "Static"}</span>
-              <strong>{finding.kind}</strong>
-              <small>{finding.file_path}:{finding.line_number}</small>
-              <small>{finding.value}</small>
-            </article>
-          ))}
-        </section>
-      </div>
     </section>
   );
 }
@@ -189,27 +68,6 @@ export function graphElements(targets: Target[], findings: Finding[], vectors: A
     }
   }
   return { elements, skippedEdges };
-}
-
-function vectorScore(vector: AttackVector) {
-  return Math.round(severityWeight(vector.severity) * vector.confidence * 20);
-}
-
-function dedupeVectors(vectors: AttackVector[]) {
-  const seen = new Set<string>();
-  const ranked = [...vectors].sort((a, b) => vectorScore(b) - vectorScore(a));
-  return ranked.filter((vector) => {
-    const key = [
-      vector.title,
-      vector.severity,
-      vector.owasp_category ?? "",
-    ].join("::");
-    if (seen.has(key)) {
-      return false;
-    }
-    seen.add(key);
-    return true;
-  });
 }
 
 function severityColor(severity: string) {
