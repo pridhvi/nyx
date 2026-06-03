@@ -11,7 +11,7 @@ docker run --rm -p 127.0.0.1:8080:8080 -e NYX_API_KEY="$NYX_API_KEY" -v nyx-data
 curl -H "X-Nyx-API-Key: $NYX_API_KEY" http://127.0.0.1:8080/api/health
 ```
 
-The web console prompts for the same API key when auth is enabled and stores only an opaque HttpOnly session cookie. Do not put API keys in URLs; query-string API keys are rejected.
+The web console prompts for the same API key when auth is enabled and stores only an opaque HttpOnly session cookie. Browser session tokens are kept in server memory with a 12-hour TTL, are pruned periodically, and are intentionally cleared on server restart. Do not put API keys in URLs; query-string API keys are rejected.
 
 Run the packaged smoke check:
 

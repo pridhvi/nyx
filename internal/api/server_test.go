@@ -261,6 +261,23 @@ func TestAuthCookieSecureConfig(t *testing.T) {
 	}
 }
 
+func TestAuthSessionPruningRemovesOnlyExpiredSessions(t *testing.T) {
+	server := NewServer(Config{SessionDir: t.TempDir(), APIKey: "secret"})
+	now := time.Now()
+	server.authSessions["expired"] = now.Add(-time.Second)
+	server.authSessions["active"] = now.Add(time.Hour)
+
+	if pruned := server.pruneExpiredAuthSessions(now); pruned != 1 {
+		t.Fatalf("expected one expired auth session pruned, got %d", pruned)
+	}
+	if _, ok := server.authSessions["expired"]; ok {
+		t.Fatal("expired auth session was not removed")
+	}
+	if _, ok := server.authSessions["active"]; !ok {
+		t.Fatal("active auth session was removed")
+	}
+}
+
 func TestStartScanRejectsUnsafeExtraArgs(t *testing.T) {
 	handler := NewServer(Config{SessionDir: t.TempDir()}).Handler()
 	body := bytes.NewBufferString(`{"target":"http://127.0.0.1:1","tools":["sqlmap"],"tool_parameters":{"sqlmap":{"extra_args":["--os-shell"]}}}`)

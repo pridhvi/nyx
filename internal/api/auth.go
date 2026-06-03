@@ -1,8 +1,10 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -104,6 +106,7 @@ const (
 	authFailureWindow     = time.Minute
 	authFailureLimit      = 8
 	authSessionTTL        = 12 * time.Hour
+	authSessionCleanup    = time.Hour
 	authSessionCookieName = "nyx_session"
 )
 
@@ -132,6 +135,40 @@ func (s *Server) validAuthSession(token string) bool {
 		return false
 	}
 	return true
+}
+
+func (s *Server) pruneExpiredAuthSessions(now time.Time) int {
+	s.securityMu.Lock()
+	defer s.securityMu.Unlock()
+	pruned := 0
+	for token, expires := range s.authSessions {
+		if !expires.After(now) {
+			delete(s.authSessions, token)
+			pruned++
+		}
+	}
+	return pruned
+}
+
+func (s *Server) startAuthSessionCleanup(ctx context.Context) {
+	if strings.TrimSpace(s.cfg.APIKey) == "" {
+		return
+	}
+	slog.Debug("browser auth sessions use in-memory storage and expire on server restart", "ttl", authSessionTTL.String())
+	ticker := time.NewTicker(authSessionCleanup)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case now := <-ticker.C:
+				if pruned := s.pruneExpiredAuthSessions(now); pruned > 0 {
+					slog.Debug("pruned expired browser auth sessions", "count", pruned)
+				}
+			}
+		}
+	}()
 }
 
 func (s *Server) deleteAuthSession(token string) {

@@ -111,6 +111,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	if err := scheduler.Start(ctx); err != nil {
 		return err
 	}
+	s.startAuthSessionCleanup(ctx)
 	defer func() {
 		scheduler.Stop()
 		s.monitorMu.Lock()

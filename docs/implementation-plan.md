@@ -966,7 +966,8 @@ work and must be carried forward:
   API-key requirements for non-loopback binds, plugin management, API source
   scans, and LLM endpoint probing. Query-string API keys are rejected, failed
   auth is rate-limited, the browser console uses opaque HttpOnly session
-  cookies, cross-origin unsafe requests and WebSockets are blocked, and optional
+  cookies backed by memory-only 12-hour server sessions with periodic pruning,
+  cross-origin unsafe requests and WebSockets are blocked, and optional
   source-root/LLM-host allowlists can constrain privileged API inputs.
 - Expanded health output:
   - DB readiness
