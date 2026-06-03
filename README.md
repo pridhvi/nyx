@@ -1,63 +1,181 @@
-# nyx
+# Nyx
 
-A local-first web application penetration testing framework that chains 20+ security tools, normalizes findings into a shared database, and uses a local LLM to map attack vectors.
+Nyx is a local-first web application penetration testing workspace. It runs scoped dynamic scans, optional source audits, evidence review, attack-path analysis, local LLM-assisted triage, and report generation from one Go binary with an embedded React UI.
 
-## What it does
+> **Authorized use only:** Use Nyx only against systems you own or have explicit written permission to test. Nyx can launch active security checks and external scanner tools. Unauthorized testing may be illegal.
 
-nyx is for pentesters, bug bounty hunters, and security researchers who want one local workspace for web app reconnaissance, fingerprinting, enumeration, vulnerability checks, source-aware audit, evidence review, and reporting. It keeps each engagement scoped, stores the scan state in SQLite, keeps full tool stdout/stderr as sidecar logs beside the session database, and lets optional external tools contribute findings without making those tools mandatory.
+Nyx runs locally by default. There is no telemetry, no required cloud account, and no required hosted LLM. External scanner tools and local OpenAI-compatible models can improve coverage, but the app degrades gracefully when they are absent.
 
-At a high level, nyx creates a scoped session, runs a dependency-aware tool pipeline, normalizes tool output into common target/finding/evidence models, correlates CVEs, builds deterministic and graph-derived attack vectors, lets a local OpenAI-compatible model annotate the results, and generates Markdown, escaped HTML, SARIF, or PDF reports.
+![Nyx Command Center](docs/assets/readme/nyx-command-center.png)
 
-It runs entirely locally by default. There is no telemetry, no required cloud service, and no required hosted LLM. Ollama, LM Studio, llama.cpp, and OpenAI-compatible endpoints can be used when LLM analysis is enabled.
+## Contents
 
-When serving beyond loopback, Nyx requires `NYX_API_KEY` or `server.api_key`. Host-privileged API operations, including plugin management, API source scans, and LLM endpoint probing, require API-key authentication even in local mode. The browser console uses an HttpOnly session cookie after API-key login; API keys are accepted in `X-Nyx-API-Key` or `Authorization: Bearer` headers, not in query strings.
+- [What Nyx Is For](#what-nyx-is-for)
+- [What The UI Looks Like](#what-the-ui-looks-like)
+- [Quick Start With Docker Compose](#quick-start-with-docker-compose)
+- [Build And Run From Source](#build-and-run-from-source)
+- [First CLI Scans](#first-cli-scans)
+- [Web UI Workflow](#web-ui-workflow)
+- [Authenticated Scans](#authenticated-scans)
+- [Reports And Evidence](#reports-and-evidence)
+- [Optional LLM Analysis](#optional-llm-analysis)
+- [Monitoring](#monitoring)
+- [Supported Tools](#supported-tools)
+- [Configuration](#configuration)
+- [Benchmarks And Validation](#benchmarks-and-validation)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
 
-## Quick start
+## What Nyx Is For
 
-| Docker Compose | Single binary |
+Nyx is for pentesters, security researchers, bug bounty hunters, and defensive teams who want a repeatable local workspace for web application assessment.
+
+Use Nyx when you want to:
+
+- Start a scoped web scan and keep every finding, tool run, and raw log in a local session directory.
+- Combine dynamic checks with static source-aware audit in the same report.
+- Run optional tools such as `ffuf`, `sqlmap`, `dalfox`, `nuclei`, `nikto`, `nmap`, and ProjectDiscovery utilities without making them mandatory.
+- Review normalized findings, HTTP evidence, stdout/stderr sidecars, attack paths, CVE matches, and reports in a browser UI.
+- Ask a local OpenAI-compatible model to summarize findings or suggest safe next checks while deterministic rules remain authoritative.
+
+Nyx is not a replacement for authorization, scoping, or manual validation. It is an operator workspace that keeps evidence organized and makes safe, repeatable checks easier to run.
+
+## What The UI Looks Like
+
+The screenshots below are generated from the repository's local vulnerable fixture. They do not use a real target, API key, or LLM endpoint.
+
+![Nyx demo workflow](docs/assets/readme/nyx-demo-flow.gif)
+
+| Scan setup | Findings triage |
 | --- | --- |
-| `NYX_API_KEY=$(openssl rand -hex 24) docker compose up --build` | `make build` |
-| `curl http://127.0.0.1:6767/api/health` | `./bin/nyx scan --target https://example.com --no-llm` |
+| ![Scan Builder](docs/assets/readme/nyx-scan-builder.png) | ![Findings](docs/assets/readme/nyx-findings.png) |
 
-After building the binary, you can also run:
+| Tool evidence | Report composer |
+| --- | --- |
+| ![Tool Runs](docs/assets/readme/nyx-tool-runs.png) | ![Reports](docs/assets/readme/nyx-reports.png) |
+
+| LLM analyst | Mobile triage |
+| --- | --- |
+| ![LLM Analyst](docs/assets/readme/nyx-llm-analyst.png) | ![Mobile Findings](docs/assets/readme/nyx-mobile-findings.png) |
+
+Regenerate the README media from fixture data with:
 
 ```sh
+make readme-media
+```
+
+The generator always writes PNG screenshots under `docs/assets/readme/`. It also writes `nyx-demo-flow.gif` when ImageMagick or Python Pillow is available.
+
+## Quick Start With Docker Compose
+
+Docker Compose is the easiest way to try the full web UI with the bundled baseline scanner set.
+
+```sh
+git clone https://github.com/pridhvi/nyx.git
+cd nyx
+
+export NYX_API_KEY="$(openssl rand -hex 24)"
+docker compose up --build
+```
+
+Open [http://127.0.0.1:6767](http://127.0.0.1:6767), paste the API key when prompted, and start a scan from **Scan Builder**.
+
+Check the API from another shell:
+
+```sh
+curl -H "X-Nyx-API-Key: $NYX_API_KEY" http://127.0.0.1:6767/api/health
+```
+
+Compose publishes Nyx only on `127.0.0.1:6767` by default. Nyx refuses non-loopback serving without an API key. API keys are accepted through `X-Nyx-API-Key` or `Authorization: Bearer` headers and through the browser login cookie, not query strings.
+
+## Build And Run From Source
+
+Prerequisites:
+
+- Go `1.26.3` or newer within the Go 1.26 line.
+- Node.js and npm for the embedded React UI build.
+- Optional external scanner tools for deeper dynamic coverage.
+
+Build the UI and binary:
+
+```sh
+make build
+```
+
+Serve the embedded UI:
+
+```sh
+export NYX_API_KEY="$(openssl rand -hex 24)"
 ./bin/nyx serve --host 127.0.0.1 --port 6767
 ```
 
-Static and combined source-aware modes use the same session database and report pipeline:
+Open [http://127.0.0.1:6767](http://127.0.0.1:6767) and log in with `NYX_API_KEY`.
+
+To install commonly used Linux scanner tools, review the dry run first:
 
 ```sh
-./bin/nyx audit /path/to/repo --no-llm --format sarif --output audit.sarif
-./bin/nyx scan --target https://example.com --source /path/to/repo --no-llm
+./scripts/install-linux-tools.sh
+./scripts/install-linux-tools.sh --execute
 ```
 
-For authenticated or deeper dynamic scans, route seeds and auth material can be
-provided without hardcoding target behavior into adapters:
+## First CLI Scans
+
+Use placeholder targets below only after replacing them with systems you are authorized to test.
+
+| Goal | Command |
+| --- | --- |
+| Dynamic web scan | `./bin/nyx scan --target https://authorized-target.example --no-llm` |
+| Static source audit | `./bin/nyx audit /path/to/repo --no-llm --format sarif --output audit.sarif` |
+| Combined source-aware scan | `./bin/nyx scan --target https://authorized-target.example --source /path/to/repo --no-llm` |
+| Generate HTML report | `./bin/nyx report <session-id> --format html --output report.html` |
+| Generate PDF report | `./bin/nyx report <session-id> --format pdf --output report.pdf` |
+| Export session bundle | `./bin/nyx sessions export <session-id> --output session.zip` |
+
+Sessions are stored under `$HOME/.nyx/sessions` by default. Each session is a directory containing `<session-id>/session.db` plus optional raw tool logs under `<session-id>/runs/`.
+
+Use `--lean` when you want normalized findings but do not want to retain raw sidecar logs:
 
 ```sh
-./bin/nyx scan --target https://example.com \
-  --route-seed-file routes.txt \
-  --auth-profile auth-profile.json \
+./bin/nyx scan --target https://authorized-target.example --no-llm --lean
+```
+
+## Web UI Workflow
+
+1. Start `nyx serve` or Docker Compose.
+2. Log in with the configured API key.
+3. Open **Scan Builder** and enter one or more authorized targets.
+4. Select mode, phases, tools, route seeds, optional auth, runtime limits, and optional LLM settings.
+5. Start the scan and watch the session dashboard, lifecycle events, tool nodes, and terminal feed.
+6. Review **Findings**, **Tool Runs**, **Attack Paths**, **CVEs**, and **Reports**.
+7. Export Markdown, HTML, SARIF, or PDF reports.
+
+The UI is backed by the same local session database used by the CLI. You can run a scan from the CLI, then inspect that session in the browser.
+
+## Authenticated Scans
+
+Nyx supports static headers/cookies and target-agnostic login profiles. Auth material is redacted or omitted from API session JSON, scan profiles, persisted tool-run arguments, logs, and UI surfaces where secrets could leak.
+
+Static auth examples:
+
+```sh
+./bin/nyx scan --target https://authorized-target.example \
+  --route-seeds "/account,/api/search?q=test" \
   --auth-header "Authorization: Bearer <token>" \
-  --secondary-auth-header "Authorization: Bearer <second-user-token>" \
   --auth-cookie "session=<cookie>" \
   --no-llm
 ```
 
-Seed routes are scope-checked before use. Auth headers/cookies are applied to
-compatible built-in HTTP checks and subprocess adapters such as `ffuf`,
-`sqlmap`, and `dalfox`; API session JSON and persisted tool-run arguments
-redact those secret values. For subprocess scanners that support it, Nyx passes
-auth material through temporary request/config files instead of live process
-arguments, then removes those files after the tool exits. Secondary auth
-headers/cookies are only used by authorization checks such as `idor-check` to
-compare access as another identity. Saved scan profiles keep route seeds and
-scanner options but intentionally omit auth secrets.
+Secondary identity material is used by authorization checks such as IDOR replay:
 
-`--auth-profile` accepts target-agnostic JSON for form or JSON login flows. Form
-profiles can extract an HTML CSRF token, submit username/password fields, run
-bounded post-login form steps, and validate the session with a follow-up URL:
+```sh
+./bin/nyx scan --target https://authorized-target.example \
+  --route-seeds "/profile?id=1001" \
+  --auth-header "Authorization: Bearer <primary-user-token>" \
+  --secondary-auth-header "Authorization: Bearer <second-user-token>" \
+  --no-llm
+```
+
+Form login profile:
 
 ```json
 {
@@ -75,14 +193,7 @@ bounded post-login form steps, and validate the session with a follow-up URL:
 }
 ```
 
-When `validation_url` is present, Nyx re-validates the resolved auth context
-during longer scans and re-runs the profile if validation fails. Set
-`refresh_interval_seconds` to tune the validation/re-login interval, or
-`validate_each_phase` for fragile benchmark sessions that should be checked
-before every adapter phase. Auth validation, invalidation, and refresh outcomes
-are emitted as scan lifecycle events.
-
-JSON login profiles can extract a token into an auth header:
+JSON login profile:
 
 ```json
 {
@@ -96,71 +207,133 @@ JSON login profiles can extract a token into an auth header:
 }
 ```
 
-## Features
+Run with:
 
-- **Scan pipeline:** DAG-driven execution across reconnaissance, fingerprinting, enumeration, and vulnerability phases with optional subprocess tools.
-- **Built-in audit:** `nyx audit` performs static extraction and optional SAST/dependency tool execution for Python, JavaScript/TypeScript, Go, PHP, Ruby, and Java repositories without executing repository code.
-- **Combined mode:** `nyx scan --source <repo>` runs audit first, then source-aware dynamic adapters, then a shared correlation phase in one session.
-- **Findings & evidence:** Normalized findings, sidecar stdout/stderr retention, HTTP request/response evidence, technologies, CVE correlation, and tool-run history.
-- **Attack vector engine:** Rule-based and graph-derived chains with confidence scoring, ordered steps, labelled edges, prerequisite findings, and OWASP mapping.
-- **LLM analysis:** OpenAI-compatible local model support, constrained tool calling, persisted audit trail, post-scan analysis, and interactive chat.
-- **Reporting:** Markdown, escaped HTML, SARIF 2.1.0, and PDF output with source findings, tool coverage, dependency CVEs, suppressed findings, and cross-confirmed evidence.
-- **Continuous monitoring:** `nyx monitor` stores recurring scan configs in the global state DB, creates normal session runs, diffs each run against a baseline, and records attack-surface changes.
-- **Power-feature modules:** Operator-triggered workspace for LLM-assisted payloads with safe fixture validation, lockout-aware credential checks, provider-backed OSINT status, AD/BloodHound records, evasion/block events, callback-backed PoC evidence, and Burp XML/REST bridge actions.
-- **Plugin system:** Subprocess JSON contract so adapters can be written in any language.
-- **Web UI:** Dense midnight/violet operator console with bundled local fonts, command-center dashboard, responsive mobile actions, scan builder rail, monitor workspace, triage split panes with mobile finding cards, grouped source evidence, deduplicated attack paths, CVE table, responsive tool inventory, polished stdout/stderr log drawers, LLM analyst workspace, system health, and report composer.
+```sh
+./bin/nyx scan --target https://authorized-target.example \
+  --auth-profile auth-profile.json \
+  --route-seed-file routes.txt \
+  --no-llm
+```
 
-## Supported tools
+When `validation_url` is present, Nyx re-validates and can re-login during longer scans. Auth lifecycle events are emitted for valid, invalid, refreshing, refreshed, failed, and skipped states.
+
+## Reports And Evidence
+
+Nyx normalizes all tool output into shared target, finding, evidence, technology, CVE, and attack-vector models. Reports can include dynamic findings, source findings, cross-confirmation, tool coverage, dependency CVEs, suppressed findings, and LLM-generated narrative when available.
+
+Supported report formats:
+
+| Format | Use |
+| --- | --- |
+| Markdown | Operator notes and repository artifacts |
+| HTML | Browser-readable report with escaped report and finding content |
+| SARIF 2.1.0 | Code scanning and static-analysis import |
+| PDF | Client-facing or archival report output |
+
+Examples:
+
+```sh
+./bin/nyx report <session-id> --format md --output report.md
+./bin/nyx report <session-id> --format html --output report.html
+./bin/nyx report <session-id> --format sarif --output report.sarif
+./bin/nyx report <session-id> --format pdf --output report.pdf
+```
+
+Raw stdout/stderr sidecars live under `<session-id>/runs/*.log` unless the scan used `--lean`.
+
+## Optional LLM Analysis
+
+LLM analysis is optional. Nyx works without it.
+
+Nyx supports OpenAI-compatible local endpoints such as Ollama, LM Studio, llama.cpp servers, and compatible hosted endpoints when explicitly configured.
+
+```yaml
+llm:
+  enabled: true
+  provider: openai-compatible
+  base_url: http://127.0.0.1:11434/v1
+  api_key: local
+  model: llama3:8b
+```
+
+CLI examples:
+
+```sh
+./bin/nyx scan --target https://authorized-target.example \
+  --llm-url http://127.0.0.1:11434/v1 \
+  --llm-model llama3:8b
+
+./bin/nyx llm analyse <session-id>
+./bin/nyx llm chat <session-id>
+```
+
+LLM output can summarize, explain, and suggest safe follow-up checks. Deterministic findings, scope checks, CVE matches, and attack-vector rules remain authoritative.
+
+For tighter deployments, set `NYX_LLM_ALLOWED_HOSTS` to allowed endpoint hosts:
+
+```sh
+export NYX_LLM_ALLOWED_HOSTS=127.0.0.1,localhost,ollama
+```
+
+Private, loopback, link-local, multicast, unspecified, and metadata-service LLM endpoints require an explicit allowlist entry for model probing, chat, and automatic scan analysis.
+
+## Monitoring
+
+Monitor configs, runs, and surface changes are stored in the global state database, not inside a single session DB. Scheduled monitor runs execute while `nyx serve` is running. On startup, Nyx queues one catch-up run for each enabled monitor whose `next_run_at` is overdue.
+
+```sh
+./bin/nyx monitor create --target https://authorized-target.example --schedule '@daily' --name example
+./bin/nyx monitor run <config-id>
+./bin/nyx monitor changes <config-id>
+```
+
+The UI exposes monitor configs, manual runs, run history, and surface-change review.
+
+## Supported Tools
 
 All external tools are optional. Missing tools are recorded as tool runs and the scan continues with available adapters.
 
-| Phase | Tools |
+| Phase | Built-in and optional adapters |
 | --- | --- |
-| Recon | `http-probe`, `security-headers`, `subfinder`, `dnsx`, `naabu`, `httpx`, `whois`, `waybackurls`, `nmap`, `crt.sh` |
+| Recon | `http-probe`, `security-headers`, `subfinder`, `dnsx`, `naabu`, `httpx`, `whois`, `waybackurls`, `nmap`, opt-in `crt.sh` |
 | Fingerprinting | `whatweb`, `nuclei-tech`, `testssl.sh`, GraphQL introspection, OpenAPI/Swagger discovery, `wpscan`, `droopescan` |
-| Enumeration | `ffuf`, `arjun`, `linkfinder` hidden JavaScript endpoint discovery, `gitleaks`, JavaScript secret scanning, CORS checks, scoped cloud bucket checks |
-| Vulnerability | `nuclei-vuln`, `sqlmap`, `dalfox`, SSRFmap, JWT claim review with optional `jwt_tool` supplement, OAuth checks, strict credential validation for explicitly safe benchmark targets, reflected XSS validation for browser-facing routes, browser-backed DOM XSS validation with dialog-marker observation for seeded hash/search routes on explicitly safe benchmark targets, stored XSS read-back validation for explicitly safe benchmark targets, SQL injection validation with SQLite error indicators, open redirect validation including operator-seeded external redirect URLs, file inclusion validation, command injection validation for explicitly safe benchmark targets, upload validation, IDOR route checks, workflow-assist review hints, observability-assist review hints, deserialization-assist review hints, CSRF form analysis, weak session ID sampling, SSTI checks, XXE fuzzing, `nikto` |
+| Enumeration | `ffuf`, `arjun`, `linkfinder`, `gitleaks`, JavaScript secret scanning, CORS checks, scoped cloud bucket checks |
+| Vulnerability | `nuclei-vuln`, `sqlmap`, `dalfox`, SSRFmap, JWT review, OAuth checks, safe XSS/SQLi/open redirect/file inclusion/command injection/upload/IDOR validators, workflow and observability assist, CSRF, weak session ID sampling, SSTI, XXE, `nikto` |
+| Static audit | Built-in route/parameter/sink extractors plus optional `semgrep`, `bandit`, `gosec`, `govulncheck`, `npm audit`, `retire.js`, `safety`, `brakeman`, `spotbugs`, `psalm`, `trufflehog`, `gitleaks`, `grype` |
 
-Static audit tools are registered as `audit/<id>`. Built-in source analyzers always run; optional tools such as `semgrep`, `bandit`, `gosec`, `govulncheck`, `npm audit`, `retire.js`, `safety`, `brakeman`, `spotbugs`, `psalm`, `trufflehog`, `gitleaks`, and `grype` run when installed. Their native outputs are parsed into normalized findings or package CVEs where possible, with a generic JSON fallback for future adapter shapes.
+The Docker image uses a pinned Debian 13 slim runtime digest and bundles the baseline scanner set promised by the project: `curl`, `dig`, `ffuf`, `nikto`, `nmap`, `python3`, `sqlmap`, `whatweb`, and `whois`.
 
-The Docker image uses a pinned Debian 13 slim runtime digest, enables Debian's non-free component for `nikto`, bundles a baseline scanner set (`curl`, `dig`, `ffuf`, `nikto`, `nmap`, `python3`, `sqlmap`, `whatweb`, and `whois`), and verifies those tools during Docker smoke tests. Other external scanners remain optional user-installed tools in single-binary mode and are reported by the tool-version smoke script when present. `scripts/install-linux-tools.sh` prints a dry-run Linux setup plan by default and can install the supported tool set with `--execute`; it prepends user-local Go, Python, Composer, and Ruby paths so broken system shims do not mask working user installs. ProjectDiscovery tools currently run as subprocess adapters with shared allow-list validation for extra subprocess arguments, and authenticated subprocess adapters avoid putting auth secrets directly in command argv where the scanner supports request/config files; native Go-library integrations are intentionally deferred until they prove worth the added dependency and in-process resource risk.
+Subprocess adapters run through `exec.CommandContext(binary, args...)` with discrete arguments. Extra subprocess arguments are validated through a shared allow-list for supported tools, and persisted invalid parameters are rejected before an external tool starts.
 
 ## Configuration
 
-Create `~/.nyx/config.yaml` with the local defaults you care about:
+Create `~/.nyx/config.yaml` for local defaults:
 
 ```yaml
 database:
   session_dir: ~/.nyx/sessions
 
+server:
+  host: 127.0.0.1
+  port: 6767
+  api_key: ""
+  secure_cookies: false
+
+scan:
+  mode: active
+  tools: []
+
 llm:
-  enabled: true
+  enabled: false
   provider: openai-compatible
-  base_url: http://127.0.0.1:11434/v1
-  api_key: ollama
-  model: llama3:8b
+  base_url: ""
+  api_key: ""
+  model: ""
 
 logging:
   level: info
   format: text
-
-power:
-  active_validation:
-    enabled: false
-  callbacks:
-    provider: builtin
-    interactsh_url: ""
-  credentials:
-    max_attempts_per_user: 3
-    delay_seconds: 3
-    store_plaintext: false
-  providers:
-    github_token: ""
-    shodan_api_key: ""
-    securitytrails_api_key: ""
-  burp:
-    base_url: ""
-    api_key: ""
 
 tools:
   nmap: /usr/bin/nmap
@@ -169,90 +342,25 @@ tools:
   dalfox: /usr/local/bin/dalfox
 ```
 
-Sessions are stored as directories under `database.session_dir`: `<session-id>/session.db` plus optional `<session-id>/runs/*.log` sidecars. Use `./bin/nyx scan --lean` to discard raw sidecar logs after normalization, or `./bin/nyx sessions export <session-id> --output session.zip` to package the database and logs together.
+Important environment variables:
 
-Monitoring state is global rather than per-session. Monitor configs, runs, and `surface_changes` live in `<state-dir>/nyx-state.db`, where `<state-dir>` is the parent of `database.session_dir` when that directory is named `sessions`. Scheduled monitor runs execute while `nyx serve` is running; on startup, one overdue catch-up run is queued for each enabled monitor whose persisted `next_run_at` is in the past. Manual runs are available from both CLI and UI:
+| Variable | Purpose |
+| --- | --- |
+| `NYX_API_KEY` | Required when serving beyond loopback and recommended for browser/API use |
+| `NYX_SESSION_DIR` | Override local session storage |
+| `NYX_SOURCE_ROOTS` | Comma-separated allowlist for API-triggered source scans |
+| `NYX_LLM_ALLOWED_HOSTS` | Comma-separated allowlist for protected LLM endpoint hosts |
+| `NYX_SECURE_COOKIES` | Force the browser login cookie to carry `Secure` behind HTTPS termination |
+| `NYX_LOG_LEVEL` | `debug`, `info`, `warn`, or `error` |
+| `NYX_LOG_FORMAT` | `text` or `json` |
 
-```sh
-./bin/nyx monitor create --target https://example.com --schedule '@daily' --name example
-./bin/nyx monitor run <config-id>
-./bin/nyx monitor changes <config-id>
-```
+Power-feature modules are explicit and safe by default. Provider tokens and active validation settings are configured separately and redacted from effective config, logs, API output, and UI surfaces.
 
-Advanced modules are explicit and safe by default:
+See [docs/deployment.md](docs/deployment.md) for Docker, Compose, config mounts, secure cookies, and deployment notes.
 
-```sh
-./bin/nyx payloads generate <session-id> --finding <finding-id>
-./bin/nyx payloads validate <session-id> --payload <payload-id> --confirm --enabled=true
-./bin/nyx creds test <session-id> --mode defaults --url http://127.0.0.1:18081/login --confirm --max-attempts 2
-./bin/nyx osint run <session-id> --providers github,shodan,securitytrails
-./bin/nyx ad kerberoast <session-id> --username svc-http --confirm
-./bin/nyx poc run <session-id> --finding <finding-id> --confirm --active=true
-./bin/nyx burp export scope <session-id> --output scope.xml
-./bin/nyx burp status <session-id>
-```
+## Benchmarks And Validation
 
-Power-provider secrets are always redacted in effective config, logs, API output,
-and UI surfaces. Active validation, credential checks, Burp REST actions, and AD
-request records are opt-in; API-triggered active actions require configured
-API-key authentication.
-
-For stricter local deployments, set `NYX_SOURCE_ROOTS` to a comma-separated list of allowed repository roots for API-triggered source scans, and `NYX_LLM_ALLOWED_HOSTS` to allowed LLM endpoint hosts such as `127.0.0.1,localhost,ollama,10.0.0.100`. LLM endpoints that resolve to private, loopback, link-local, multicast, unspecified, or metadata-service addresses require an explicit allowlist entry. The LLM allowlist is enforced for model probing, chat, and automatic scan analysis. Set `NYX_SECURE_COOKIES=true` or `server.secure_cookies: true` when serving through HTTPS behind a reverse proxy so the browser session cookie is always emitted with the `Secure` flag.
-
-Structured logs use Go `slog`. Set `NYX_LOG_LEVEL=debug|info|warn|error` and `NYX_LOG_FORMAT=text|json` for CLI/server internals without changing human-readable command output.
-
-Run the deeper local fixture integration suite with:
-
-```sh
-NYX_RUN_INTEGRATION=1 make test-integration
-NYX_RUN_POWER_INTEGRATION=1 make power-integration
-NYX_RUN_BROWSER_SMOKE=1 make browser-smoke
-```
-
-The integration smoke starts the built-in vulnerable fixture and verifies
-dynamic scans, static audits, combined source-aware correlation, reports, and
-lean sidecar-log behavior. The power integration smoke additionally verifies
-payload validation, credential redaction, provider skip status, PoC records, and
-power report sections against deterministic fixture routes. The browser smoke
-starts a fixture-backed session, serves the embedded UI, checks dashboard,
-findings, power, reports, and attack-path pages in Chromium, fails on console
-errors, and writes screenshots to `/tmp/nyx-browser-*.png`. The standard
-integration suite runs in GitHub Actions on a nightly schedule and on manual
-dispatch; the power and browser suites are local opt-in for now.
-
-Benchmark-driven scanner depth uses DVWA and OWASP Juice Shop as repeatable
-ground-truth targets for generic scanner improvements. App-specific credentials,
-target setup, route seeds, and expected coverage mappings live under
-`benchmarks/`; scanner adapters must remain target-agnostic. The benchmark
-harness preflights DVWA token-backed database setup when needed, login, and low
-security level, and creates/reuses the Juice Shop benchmark user before
-scanning, so authentication failures are reported as setup failures instead of
-noisy low-coverage scans. Active-mode
-scans now include bounded, auth-aware built-in validators for reflected XSS
-markers, browser-backed DOM XSS markers including JavaScript dialog marker
-observation, stored XSS read-back markers only when a profile marks the target
-intentionally vulnerable and non-production, strict
-credential validation with an explicit attempt budget only when benchmark
-credentials are configured, SQL injection boolean/error canaries including
-SQLite error markers, local hosts-file marker probes for file
-inclusion, harmless command-injection marker checks only when a profile marks
-the target intentionally vulnerable and non-production, harmless file uploads,
-IDOR adjacent-object checks with optional secondary-identity replay,
-workflow-assist review hints for seeded high-value forms and business-control
-parameters including CAPTCHA-protected sensitive workflows and CAPTCHA challenge
-responses that expose answers, observability-assist review hints for seeded
-metrics, logging, debug, health, and monitoring surfaces, CSP bypass review
-candidates from seeded CSP-related routes, deserialization-assist review hints
-for upload, import, restore, serialized-object, YAML, pickle, and archive
-surfaces, structured human-assist evidence with response context, redacted
-excerpts, and relevant form metadata where available, CSRF form-token analysis,
-weak session identifier sampling,
-non-exfiltrating XML entity markers for raw XML and upload-like multipart
-routes, and open redirects on seeded query routes or operator-seeded external
-redirect URLs; they do not follow external
-redirects and only report confirmed validation when the marker, predicate
-behavior, credential success marker, seeded redirect response, or
-secondary-identity replay is observed.
+Nyx uses DVWA and OWASP Juice Shop as repeatable ground-truth benchmarks for generic scanner depth. App-specific setup, credentials, route seeds, and expected mappings live under `benchmarks/`; scanner adapters must remain target-agnostic.
 
 ```sh
 make benchmark-targets-up
@@ -262,49 +370,54 @@ NYX_RUN_BENCHMARKS=1 make benchmark-all
 make benchmark-targets-down
 ```
 
-Benchmark artifacts are written under `artifacts/benchmarks/<timestamp>/` and
-include session directories, normal reports, SARIF, target metadata, and
-coverage summaries. Benchmark summaries enforce the current accepted Linux VM
-baseline by default: DVWA must cover at least 14 expected items, Juice Shop must
-cover at least 15 expected items, and benchmark tool runs must not exit
-nonzero. Use `NYX_BENCHMARK_MIN_COVERED_DVWA`,
-`NYX_BENCHMARK_MIN_COVERED_JUICE_SHOP`, or
-`NYX_BENCHMARK_ALLOW_FAILED_TOOLS=1` only for local experiments where a
-temporary lower gate is intentional. Linux full-tool acceptance should be run
-with user-local Go/Python/Ruby binary directories on `PATH`;
-`NYX_TOOL_SMOKE_STRICT=1 scripts/tool-version-smoke.sh linux-full` now fails
-when benchmark-critical dynamic tools such as `arjun`, `dalfox`, `linkfinder`,
-or `nuclei` are missing.
-See
-[docs/benchmark-driven-scanner-depth.md](docs/benchmark-driven-scanner-depth.md)
-for the staged plan.
+Benchmark artifacts are written under `artifacts/benchmarks/<timestamp>/`. The current accepted Linux VM baseline requires DVWA to cover at least 14 expected items, Juice Shop to cover at least 15 expected items, and benchmark tool runs to avoid nonzero exits unless a local override is set.
 
-Most recent acceptance snapshot: on 2026-05-28, commit `a41272c` passed strict
-Linux tool smoke, `NYX_RUN_LINUX_FULL=1 make linux-full-smoke`, DVWA at 14/14
-with 42 findings, Juice Shop at 15/15 with 28 findings, and LM Studio-backed
-LLM CLI/UI smoke against persisted DVWA session data.
+See [docs/benchmark-driven-scanner-depth.md](docs/benchmark-driven-scanner-depth.md) for the benchmark plan and acceptance history.
 
-Docker smoke validation builds the image, starts the API, checks health/tools endpoints, runs `nyx version`, and verifies bundled scanner versions:
+## Troubleshooting
+
+| Symptom | What to check |
+| --- | --- |
+| Browser asks for an API key | Use the `NYX_API_KEY` value from the server environment. |
+| `401` from API calls | Send `X-Nyx-API-Key: $NYX_API_KEY` or `Authorization: Bearer $NYX_API_KEY`. Do not put keys in URLs. |
+| Tool is marked missing | Install the binary or configure its path under `tools:`. Missing tools do not stop the whole scan. |
+| LLM endpoint is rejected | Add the endpoint host to `NYX_LLM_ALLOWED_HOSTS` when it is loopback/private/link-local/multicast/unspecified or metadata-like. |
+| No raw stdout/stderr logs | The scan may have used `--lean`; otherwise check `<session-id>/runs/*.log`. |
+| Docker health check fails | Run `make compose-config`, then `make docker-smoke` on a machine with a Docker daemon. |
+| Browser UI regression suspected | Run `NYX_RUN_BROWSER_SMOKE=1 make browser-smoke`; screenshots are written to `/tmp/nyx-browser-*.png`. |
+
+## Development
+
+Common local checks:
+
+```sh
+go test -count=1 ./...
+go vet ./...
+gofmt -l $(rg --files -g '*.go')
+cd web && npm test
+cd web && npm run build
+make security-scan
+make compose-config
+```
+
+Docker and browser checks:
 
 ```sh
 make docker-smoke
+NYX_RUN_BROWSER_SMOKE=1 make browser-smoke
+make readme-media
 ```
 
-Production security scanning uses `gosec` through a repo-local policy:
+Documentation map:
 
-```sh
-make security-scan
-```
+- [docs/nyx-project-spec.md](docs/nyx-project-spec.md): canonical product and architecture specification.
+- [docs/implementation-plan.md](docs/implementation-plan.md): implementation traceability and completed phases.
+- [docs/deployment.md](docs/deployment.md): Docker, Compose, and deployment hardening notes.
+- [docs/benchmark-driven-scanner-depth.md](docs/benchmark-driven-scanner-depth.md): DVWA/Juice Shop benchmark depth plan.
+- [docs/nyx-power-features-spec.md](docs/nyx-power-features-spec.md): future and implemented power-feature design.
+- [docs/power-feature-plans/](docs/power-feature-plans/): agent-ready plans for power-feature modules.
 
-The policy excludes `scripts/vulnerable-fixture`, which is intentionally
-insecure test material, and excludes `G104` cleanup-error noise from the
-blocking scan. Remaining intentional production findings use narrow `#nosec`
-comments with reasons at the relevant code site.
-
-See [docs/](docs/) for the project spec, implementation roadmap, future
-power-feature modules, and detailed power-feature implementation plans.
-
-> **Authorized use only:** nyx is intended exclusively for authorized penetration testing, security research, and CTF challenges. Only use it against systems you own or have explicit, written permission to test. Unauthorized scanning or exploitation may be illegal. The authors accept no responsibility for misuse.
+Production security scanning uses `make security-scan`, which runs the repo-local `gosec` policy. The intentionally vulnerable fixture is excluded from that blocking policy.
 
 ## License
 

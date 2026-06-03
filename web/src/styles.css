@@ -263,11 +263,9 @@ pre {
 }
 
 .brand img {
-  background: linear-gradient(135deg, var(--accent), #4538a6);
   border-radius: var(--r-md);
   box-shadow: 0 0 24px var(--accent-glow);
   height: 32px;
-  padding: 5px;
   width: 32px;
 }
 

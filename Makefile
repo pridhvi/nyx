@@ -1,4 +1,4 @@
-.PHONY: build ci dev test security-scan benchmark-summary-test test-integration power-integration browser-smoke tool-version-smoke linux-full-smoke benchmark-targets-up benchmark-targets-down benchmark-targets-status benchmark-dvwa benchmark-juice benchmark-all lint web web-build run sqlc migrate-up docker-smoke compose-config clean release-snapshot
+.PHONY: build ci dev test security-scan benchmark-summary-test test-integration power-integration browser-smoke readme-media tool-version-smoke linux-full-smoke benchmark-targets-up benchmark-targets-down benchmark-targets-status benchmark-dvwa benchmark-juice benchmark-all lint web web-build run sqlc migrate-up docker-smoke compose-config clean release-snapshot
 
 build:
 	cd web && npm run build
@@ -28,6 +28,9 @@ power-integration:
 
 browser-smoke:
 	./scripts/browser-smoke.sh
+
+readme-media:
+	./scripts/readme-media.sh
 
 tool-version-smoke:
 	./scripts/tool-version-smoke.sh host

@@ -14,6 +14,9 @@ This repo has a buildable backend with module path `github.com/pridhvi/nyx`, abs
 - Prefer deterministic rule logic for attack vectors; LLM output should annotate, not decide correctness.
 - Keep external scanner tools optional and degrade gracefully when missing.
 - Default to local-only operation: no telemetry, no required cloud API keys.
+- Keep README screenshots and the demo GIF generated from safe local fixture data
+  with `make readme-media`; do not use live targets, real API keys, local model
+  names, or customer data in committed docs media.
 - Keep container runtime bases reproducible; Docker should stay on a pinned
   Debian stable/slim digest rather than a rolling distribution.
 - Keep subprocess arguments validated through the shared adapter allow-list,

@@ -1307,6 +1307,10 @@ work and must be carried forward:
 - Docker smoke is part of CI.
 - Linux full-tool validation scripts remain available for manual acceptance
   runs on hosts where external tools are installed.
+- README media capture is available through `make readme-media`. It starts the
+  local vulnerable fixture, creates a temporary session, seeds deterministic
+  demo LLM history, captures UI screenshots under `docs/assets/readme/`, and
+  writes a compact demo GIF when a local encoder is available.
 
 ### Spec Alignment Follow-ups
 
@@ -1377,9 +1381,9 @@ greenfield assumptions:
 | 16. Configuration File | Phase 14 | Implemented | Viper-backed `~/.nyx/config.yaml` defaults, YAML/TOML/JSON parsing, config init/show, env overrides, logging settings, tool path maps, plugin directories, CVE settings, power provider/callback/credential/validation settings with redaction, and CLI override paths exist. |
 | 17. Scope Validation | Phase 3 | Implemented | Checker, adapter boundary tests, cancellation, lifecycle status coverage, and privileged API source/LLM allowlist controls exist. |
 | 18. Error Handling & Logging | Phases 3, 4, 5 | Implemented | Tool failures persist without failing scans; structured slog configuration supports `NYX_LOG_LEVEL` and `NYX_LOG_FORMAT`, and non-fatal adapter failures are logged. |
-| 19. Testing Strategy | Phase 18 | Implemented | Go/API/adapter/config/report/LLM/power tests, govulncheck, production gosec policy, frontend CI build, Docker smoke, scheduled/manual fixture-backed integration smoke, opt-in power integration smoke, opt-in browser smoke with screenshot capture and console-error checks, and opt-in Linux full-tool fixture validation scripts exist. |
+| 19. Testing Strategy | Phase 18 | Implemented | Go/API/adapter/config/report/LLM/power tests, govulncheck, production gosec policy, frontend CI build, Docker smoke, scheduled/manual fixture-backed integration smoke, opt-in power integration smoke, opt-in browser smoke with screenshot capture and console-error checks, README fixture media capture, and opt-in Linux full-tool fixture validation scripts exist. |
 | 20. Docker Setup | Phase 17 | Implemented | Dockerfile, healthcheck, compose, deployment docs, bundled scanner version smoke, and Docker smoke exist. |
-| 21. Makefile | Phase 17 | Implemented | Build, CI, test, security-scan, integration smoke, power integration smoke, browser smoke, tool-version smoke, Linux full smoke, lint, web, compose, Docker smoke, migration, cleanup, and release snapshot targets exist. |
+| 21. Makefile | Phase 17 | Implemented | Build, CI, test, security-scan, integration smoke, power integration smoke, browser smoke, README media capture, tool-version smoke, Linux full smoke, lint, web, compose, Docker smoke, migration, cleanup, and release snapshot targets exist. |
 | 22. Build Order Recommendation | This plan | Implemented | This roadmap follows the spec build order while preserving current work. |
 | 23. Security & Legal Notes | Phase 0 | Implemented | README and CLI help include prominent authorized-use warnings; scope remains a hard implementation boundary. |
 
