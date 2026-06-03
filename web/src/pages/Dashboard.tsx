@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties, type MouseEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, AlertTriangle, CheckCircle2, Clock, Loader2, Pause, Play, Radar, RefreshCw, Square, TerminalSquare, Trash2, XCircle } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, Clock, Loader2, Pause, Play, Radar, Square, TerminalSquare, Trash2, XCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { deleteSession, getScanStatus, getSessionStats, listFindings, listTargets, listToolRuns, listTools, pauseScan, resumeScan, scanEventsURL, stopScan, type ScanEvent, type ToolRun } from "../api/client";
 import { useSessionContext } from "../session";
@@ -221,7 +221,6 @@ export function Dashboard() {
               <button className="secondary danger" onClick={() => window.confirm("Delete this session and its database?") && deleteMutation.mutate()}><Trash2 size={16} />Delete</button>
             </>
           ) : null}
-          <button className="secondary" onClick={refreshSessions}><RefreshCw size={16} />Refresh</button>
         </div>
       </header>
       <div className="command-layout">

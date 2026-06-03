@@ -142,8 +142,10 @@ work and must be carried forward:
   default; OSINT records include provider status for GitHub/Shodan/passive DNS
   configuration; AD/internal-network records include safe enum, relay-risk, and
   Kerberoast request recording without cracking; PoC records can include safe
-  validation and callback correlation; Burp supports XML import/export plus
-  REST status, scope push, and issue pull helpers. All modules have additive
+  validation and callback correlation; callback event bodies are redacted before
+  API/UI display; Burp supports session-scoped XML import/export plus loopback
+  default REST status, scope push, and issue pull helpers with explicit
+  allowlisting for remote/private REST hosts. All modules have additive
   models, persistence, API/CLI access, report sections, integration smoke, and
   consolidated UI visibility. Active behavior remains explicit, conservative,
   scope-checked, and API-key-gated through the API.

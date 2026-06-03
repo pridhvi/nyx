@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { listFindings, updateFinding, type Finding, type FindingStatus } from "../api/client";
 import { useSessionContext } from "../session";
 import { sortLabel, useSortableRows } from "../sort";
@@ -8,6 +9,8 @@ import { sortLabel, useSortableRows } from "../sort";
 export function Findings() {
   const queryClient = useQueryClient();
   const { selectedSessionID: selected } = useSessionContext();
+  const [searchParams] = useSearchParams();
+  const focusedFindingID = searchParams.get("finding_id")?.trim() ?? "";
   const [severity, setSeverity] = useState("");
   const [origin, setOrigin] = useState("");
   const [status, setStatus] = useState("");
@@ -33,7 +36,8 @@ export function Findings() {
     enabled: selected !== "",
   });
   const allFindings = findingsQuery.data ?? [];
-  const findings = evidenceKind === "human-assist" ? allFindings.filter(isHumanAssistFinding) : allFindings;
+  const evidenceFilteredFindings = evidenceKind === "human-assist" ? allFindings.filter(isHumanAssistFinding) : allFindings;
+  const findings = filterFindingsByID(evidenceFilteredFindings, focusedFindingID);
   type FindingSortKey = "severity" | "origin" | "type" | "tool" | "title" | "cves" | "evidence";
   const accessors = useMemo<Record<FindingSortKey, (finding: Finding) => string | number>>(() => ({
     severity: (finding: Finding) => severityRank(finding.severity),
@@ -50,11 +54,13 @@ export function Findings() {
   const allVisibleSelected = sortedFindings.length > 0 && sortedFindings.every((finding) => selectedFindingIDs.has(finding.id));
   const hasStoredFindings = (sessionFindingsQuery.data ?? []).length > 0;
   const hasVisibleFindings = sortedFindings.length > 0;
-  const hasFilters = Boolean(severity || origin || status || evidenceKind);
+  const hasFilters = Boolean(severity || origin || status || evidenceKind || focusedFindingID);
   const emptyMessage = !selected
     ? "Select a session to review findings."
     : findingsQuery.isLoading || sessionFindingsQuery.isLoading
       ? "Loading findings."
+      : focusedFindingID
+        ? `No finding matches ${focusedFindingID}.`
       : hasStoredFindings && hasFilters
         ? "No findings match the current filters."
         : "No findings yet for the selected session.";
@@ -144,6 +150,7 @@ export function Findings() {
     if (nextFinding.id !== selectedFinding?.id) {
       setSelectedFinding(nextFinding);
       setEditSeverity(nextFinding.severity);
+      setEditStatus(nextFinding.status ?? "open");
       setEditRemediation(nextFinding.remediation ?? "");
       setEvidenceTab("normalized");
     }
@@ -454,6 +461,11 @@ export function defaultSelectedFinding(currentID: string | undefined, visibleFin
     return null;
   }
   return visibleFindings.find((finding) => finding.id === currentID) ?? visibleFindings[0];
+}
+
+export function filterFindingsByID(findings: Finding[], findingID: string) {
+  if (!findingID) return findings;
+  return findings.filter((finding) => finding.id === findingID);
 }
 
 export function isHumanAssistFinding(finding: Pick<Finding, "evidence_normalized" | "tags" | "tool_id"> & { tags?: string[] }) {

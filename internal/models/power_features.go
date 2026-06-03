@@ -132,6 +132,7 @@ type BurpConfig struct {
 	ID                   string    `json:"id"`
 	BaseURL              string    `json:"base_url"`
 	APIKey               string    `json:"api_key,omitempty"`
+	AllowedHosts         []string  `json:"-"`
 	CollaboratorProvider string    `json:"collaborator_provider"`
 	CollaboratorURL      string    `json:"collaborator_url"`
 	InteractshToken      string    `json:"interactsh_token,omitempty"`
@@ -161,9 +162,10 @@ type BurpCallback struct {
 }
 
 type BurpImportResult struct {
-	TargetsImported  int `json:"targets_imported"`
-	FindingsImported int `json:"findings_imported"`
-	EvidenceImported int `json:"evidence_imported"`
+	TargetsImported   int `json:"targets_imported"`
+	FindingsImported  int `json:"findings_imported"`
+	EvidenceImported  int `json:"evidence_imported"`
+	SkippedOutOfScope int `json:"skipped_out_of_scope,omitempty"`
 }
 
 type ProviderStatus struct {

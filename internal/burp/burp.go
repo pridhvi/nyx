@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -55,6 +56,10 @@ func ImportXML(ctx context.Context, store *db.Store, session models.Session, raw
 	for _, issue := range parsed.Issues {
 		host := strings.TrimSpace(issue.Host)
 		if host == "" {
+			continue
+		}
+		if !hostInSessionScope(session, host) {
+			result.SkippedOutOfScope++
 			continue
 		}
 		target := models.Target{
@@ -235,6 +240,9 @@ func ImportJSON(ctx context.Context, store *db.Store, session models.Session, ra
 }
 
 func restRequest(ctx context.Context, config models.BurpConfig, method, endpoint string, body io.Reader) (*http.Request, error) {
+	if err := ValidateBaseURL(config.BaseURL, config.AllowedHosts); err != nil {
+		return nil, err
+	}
 	base, err := url.Parse(strings.TrimRight(config.BaseURL, "/"))
 	if err != nil || base.Scheme == "" || base.Host == "" {
 		return nil, fmt.Errorf("invalid Burp REST base URL")
@@ -265,6 +273,68 @@ func mapSeverity(value string) models.Severity {
 	default:
 		return models.SeverityMedium
 	}
+}
+
+func hostInSessionScope(session models.Session, rawHost string) bool {
+	host := burpScopeHost(rawHost)
+	if host == "" {
+		return false
+	}
+	for _, blocked := range session.OutOfScope {
+		if scopeEntryMatchesHost(blocked, host) {
+			return false
+		}
+	}
+	entries := append(splitScopeEntries(session.TargetInput), session.InScope...)
+	for _, allowed := range entries {
+		if scopeEntryMatchesHost(allowed, host) {
+			return true
+		}
+	}
+	return false
+}
+
+func splitScopeEntries(value string) []string {
+	return strings.FieldsFunc(value, func(r rune) bool {
+		return r == '\n' || r == '\r' || r == ',' || r == ' ' || r == '\t'
+	})
+}
+
+func scopeEntryMatchesHost(entry, host string) bool {
+	entry = strings.TrimSpace(entry)
+	if entry == "" {
+		return false
+	}
+	if _, cidr, err := net.ParseCIDR(entry); err == nil {
+		ip := net.ParseIP(host)
+		return ip != nil && cidr.Contains(ip)
+	}
+	pattern := burpScopeHost(entry)
+	if pattern == "" {
+		return false
+	}
+	host = strings.TrimSuffix(strings.ToLower(host), ".")
+	pattern = strings.TrimSuffix(strings.ToLower(pattern), ".")
+	if strings.HasPrefix(pattern, "*.") {
+		return strings.HasSuffix(host, strings.TrimPrefix(pattern, "*"))
+	}
+	return host == pattern
+}
+
+func burpScopeHost(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	if parsed, err := url.Parse(raw); err == nil && parsed.Host != "" {
+		raw = parsed.Host
+	}
+	if host, _, err := net.SplitHostPort(raw); err == nil {
+		raw = host
+	}
+	raw = strings.Trim(strings.ToLower(raw), "[]")
+	raw, _, _ = strings.Cut(raw, "/")
+	return raw
 }
 
 func mapConfidence(value string) float64 {

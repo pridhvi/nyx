@@ -36,6 +36,13 @@ This repo has a buildable backend with module path `github.com/pridhvi/nyx`, abs
   can initiate outbound requests; private, loopback, link-local, multicast,
   unspecified, and metadata-service endpoints require an explicit allowlist
   entry.
+- Keep Burp REST endpoints constrained to loopback unless `NYX_BURP_ALLOWED_HOSTS`
+  or `power.burp.allowed_hosts` explicitly allow a remote/private host, and keep
+  Burp XML imports scoped to the selected session.
+- Keep effective config and health responses free of absolute local filesystem
+  paths; expose readiness/configured indicators instead.
+- Keep callback event bodies and subprocess extra args from exposing bearer
+  tokens, cookies, or query-string secrets in API/UI output or process argv.
 - Use `NYX_SECURE_COOKIES=true` or `server.secure_cookies: true` when Nyx is
   served behind HTTPS termination so browser session cookies always carry the
   `Secure` flag.

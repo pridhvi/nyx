@@ -3,6 +3,8 @@ package burp
 import (
 	"context"
 	"encoding/base64"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -38,6 +40,42 @@ func TestImportXMLPersistsTargetFindingAndEvidence(t *testing.T) {
 	}
 	if findings[0].HTTPEvidence == nil || !strings.Contains(findings[0].HTTPEvidence.RequestRaw, "GET /admin") {
 		t.Fatalf("expected decoded HTTP evidence, got %#v", findings[0].HTTPEvidence)
+	}
+}
+
+func TestImportXMLSkipsOutOfScopeHosts(t *testing.T) {
+	ctx := context.Background()
+	store, session := burpTestStore(t)
+	defer store.Close()
+	raw := []byte(`<issues><issue><host>https://outside.example.test</host><path>/admin</path><location>https://outside.example.test/admin</location><name>Outside finding</name><severity>High</severity><confidence>Firm</confidence></issue></issues>`)
+
+	result, err := ImportXML(ctx, store, session, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.TargetsImported != 0 || result.FindingsImported != 0 || result.SkippedOutOfScope != 1 {
+		t.Fatalf("unexpected scoped import result: %#v", result)
+	}
+	findings, err := store.ListFindings(ctx, session.ID, db.FindingFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("expected no out-of-scope findings, got %#v", findings)
+	}
+}
+
+func TestValidateBaseURLAllowsLoopbackAndRejectsRemoteWithoutAllowlist(t *testing.T) {
+	local := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer local.Close()
+	if err := ValidateBaseURL(local.URL, nil); err != nil {
+		t.Fatalf("expected loopback Burp REST URL to validate: %v", err)
+	}
+	if err := ValidateBaseURL("http://8.8.8.8", nil); err == nil || !strings.Contains(err.Error(), "loopback") {
+		t.Fatalf("expected remote Burp REST URL rejection, got %v", err)
+	}
+	if err := ValidateBaseURL("http://8.8.8.8", []string{"8.8.8.8"}); err != nil {
+		t.Fatalf("expected allowlisted Burp REST host to validate: %v", err)
 	}
 }
 

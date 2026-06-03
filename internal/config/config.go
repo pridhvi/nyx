@@ -79,8 +79,9 @@ type PowerProviderConfig struct {
 }
 
 type PowerBurpConfig struct {
-	BaseURL string `json:"base_url"`
-	APIKey  string `json:"api_key"`
+	BaseURL      string   `json:"base_url"`
+	APIKey       string   `json:"api_key"`
+	AllowedHosts []string `json:"allowed_hosts"`
 }
 
 type PowerCallbackConfig struct {
@@ -201,6 +202,7 @@ func Load(path string) (Config, error) {
 	cfg.Power.Providers.SecurityTrailsAPIKey = v.GetString("power.providers.securitytrails_api_key")
 	cfg.Power.Burp.BaseURL = v.GetString("power.burp.base_url")
 	cfg.Power.Burp.APIKey = v.GetString("power.burp.api_key")
+	cfg.Power.Burp.AllowedHosts = getStringSlice(v, "power.burp.allowed_hosts")
 	cfg.Power.Callbacks.Provider = v.GetString("power.callbacks.provider")
 	cfg.Power.Callbacks.InteractshURL = v.GetString("power.callbacks.interactsh_url")
 	cfg.Power.Credentials.MaxAttemptsPerUser = v.GetInt("power.credentials.max_attempts_per_user")
@@ -242,6 +244,7 @@ func ApplyEnv(cfg Config) Config {
 	cfg.Power.Providers.SecurityTrailsAPIKey = first(os.Getenv("NYX_POWER_PROVIDERS_SECURITYTRAILS_API_KEY"), cfg.Power.Providers.SecurityTrailsAPIKey)
 	cfg.Power.Burp.BaseURL = first(os.Getenv("NYX_POWER_BURP_BASE_URL"), cfg.Power.Burp.BaseURL)
 	cfg.Power.Burp.APIKey = first(os.Getenv("NYX_POWER_BURP_API_KEY"), cfg.Power.Burp.APIKey)
+	cfg.Power.Burp.AllowedHosts = append(cfg.Power.Burp.AllowedHosts, splitCSV(os.Getenv("NYX_BURP_ALLOWED_HOSTS"))...)
 	cfg.Power.Callbacks.Provider = first(os.Getenv("NYX_POWER_CALLBACKS_PROVIDER"), cfg.Power.Callbacks.Provider)
 	cfg.Power.Callbacks.InteractshURL = first(os.Getenv("NYX_POWER_CALLBACKS_INTERACTSH_URL"), cfg.Power.Callbacks.InteractshURL)
 	if value := os.Getenv("NYX_CVE_ENABLE_REMOTE"); strings.TrimSpace(value) != "" {
@@ -355,6 +358,7 @@ power:
   burp:
     base_url: %s
     api_key: %s
+    allowed_hosts: %s
   callbacks:
     provider: %s
     interactsh_url: %s
@@ -370,7 +374,7 @@ plugins: []
 		c.Database.SessionDir, c.Server.Host, c.Server.Port, c.Server.APIKey, c.Server.SecureCookies, c.Logging.Level, c.Logging.Format, c.Scan.Mode, strings.Join(c.Scan.Phases, ","), strings.Join(c.Scan.Tools, ","), c.Scan.Concurrency, c.Scan.RateLimit,
 		c.CVE.OfflinePath, c.CVE.EnableRemote, c.CVE.CacheTTL, c.CVE.ExploitDBPath, strings.Join(c.CVE.Sources, ","),
 		c.Power.Providers.GitHubToken, c.Power.Providers.ShodanAPIKey, c.Power.Providers.SecurityTrailsAPIKey,
-		c.Power.Burp.BaseURL, c.Power.Burp.APIKey, c.Power.Callbacks.Provider, c.Power.Callbacks.InteractshURL,
+		c.Power.Burp.BaseURL, c.Power.Burp.APIKey, strings.Join(c.Power.Burp.AllowedHosts, ","), c.Power.Callbacks.Provider, c.Power.Callbacks.InteractshURL,
 		c.Power.Credentials.MaxAttemptsPerUser, c.Power.Credentials.DelaySeconds, c.Power.Credentials.StorePlaintext,
 		c.Power.ActiveValidation.Enabled)
 }
@@ -412,6 +416,7 @@ func setDefaults(v *viper.Viper, cfg Config) {
 	v.SetDefault("power.providers.securitytrails_api_key", cfg.Power.Providers.SecurityTrailsAPIKey)
 	v.SetDefault("power.burp.base_url", cfg.Power.Burp.BaseURL)
 	v.SetDefault("power.burp.api_key", cfg.Power.Burp.APIKey)
+	v.SetDefault("power.burp.allowed_hosts", cfg.Power.Burp.AllowedHosts)
 	v.SetDefault("power.callbacks.provider", cfg.Power.Callbacks.Provider)
 	v.SetDefault("power.callbacks.interactsh_url", cfg.Power.Callbacks.InteractshURL)
 	v.SetDefault("power.credentials.max_attempts_per_user", cfg.Power.Credentials.MaxAttemptsPerUser)
@@ -430,7 +435,7 @@ func bindEnv(v *viper.Viper) {
 		"scan.mode", "scan.phases", "scan.tools", "scan.concurrency", "scan.rate_limit",
 		"cve.offline_path", "cve.enable_remote", "cve.cache_ttl", "cve.exploitdb_path", "cve.sources",
 		"power.providers.github_token", "power.providers.shodan_api_key", "power.providers.securitytrails_api_key",
-		"power.burp.base_url", "power.burp.api_key",
+		"power.burp.base_url", "power.burp.api_key", "power.burp.allowed_hosts",
 		"power.callbacks.provider", "power.callbacks.interactsh_url",
 		"power.credentials.max_attempts_per_user", "power.credentials.delay_seconds", "power.credentials.store_plaintext",
 		"power.active_validation.enabled",

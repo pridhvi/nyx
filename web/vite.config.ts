@@ -9,7 +9,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes("node_modules/cytoscape")) {
+          if (id.includes("node_modules/@xyflow") || id.includes("node_modules/dagre") || id.includes("node_modules/@dagrejs")) {
             return "graph";
           }
           if (id.includes("node_modules/recharts")) {

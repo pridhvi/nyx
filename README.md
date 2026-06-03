@@ -303,11 +303,13 @@ All external tools are optional. Missing tools are recorded as tool runs and the
 
 The Docker image uses a pinned Debian 13 slim runtime digest and bundles the baseline scanner set promised by the project: `curl`, `dig`, `ffuf`, `nikto`, `nmap`, `python3`, `sqlmap`, `whatweb`, and `whois`.
 
-Subprocess adapters run through `exec.CommandContext(binary, args...)` with discrete arguments. Extra subprocess arguments are validated through a shared allow-list for supported tools, and persisted invalid parameters are rejected before an external tool starts.
+Subprocess adapters run through `exec.CommandContext(binary, args...)` with discrete arguments. Extra subprocess arguments are validated through a shared allow-list for supported tools, persisted invalid parameters are rejected before an external tool starts, and header/cookie auth belongs in Nyx's dedicated auth fields rather than scanner argv.
 
 Configured plugin binaries are hash-pinned at registration. The upload API returns a SHA-256 digest, API/CLI plugin registration stores the digest on the plugin record, and Nyx re-computes the digest before execution so a changed binary produces a failed tool run instead of being spawned.
 
-Power-feature callback evidence is a privileged write path. Recording a built-in callback requires configured API-key authentication so local no-key mode cannot inject fake PoC evidence.
+Power-feature callback evidence is a privileged write path. Recording a built-in callback requires configured API-key authentication so local no-key mode cannot inject fake PoC evidence. Callback event bodies are redacted before API/UI display.
+
+Burp XML imports are constrained to the selected session's scope and skip out-of-scope issue hosts. Burp REST sync defaults to loopback-only endpoints; set `NYX_BURP_ALLOWED_HOSTS` or `power.burp.allowed_hosts` for an intentional remote/private Burp REST host.
 
 LLM base URLs are validated both when accepted from API/CLI input and again immediately before each OpenAI-compatible completion request. Persisted session LLM URLs therefore still have to satisfy `NYX_LLM_ALLOWED_HOSTS` at invocation time.
 
@@ -363,6 +365,7 @@ Important environment variables:
 | `NYX_SESSION_DIR` | Override local session storage |
 | `NYX_SOURCE_ROOTS` | Comma-separated allowlist for API-triggered source scans and the Scan Builder source folder picker |
 | `NYX_LLM_ALLOWED_HOSTS` | Comma-separated allowlist for protected LLM endpoint hosts |
+| `NYX_BURP_ALLOWED_HOSTS` | Comma-separated allowlist for non-loopback Burp REST sync hosts |
 | `NYX_SECURE_COOKIES` | Force the browser login cookie to carry `Secure` behind HTTPS termination |
 | `NYX_LOG_LEVEL` | `debug`, `info`, `warn`, or `error` |
 | `NYX_LOG_FORMAT` | `text` or `json` |

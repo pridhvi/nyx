@@ -104,6 +104,32 @@ func TestHealthDoesNotExposeSessionDirectory(t *testing.T) {
 	}
 }
 
+func TestEffectiveConfigDoesNotExposeLocalPaths(t *testing.T) {
+	sessionDir := t.TempDir()
+	toolDir := t.TempDir()
+	cfg := appconfig.Default()
+	cfg.Database.SessionDir = sessionDir
+	cfg.CVE.OfflinePath = filepath.Join(sessionDir, "nvd.json")
+	cfg.CVE.ExploitDBPath = filepath.Join(sessionDir, "exploitdb")
+	cfg.Tools = map[string]string{"ffuf": filepath.Join(toolDir, "ffuf")}
+	handler := NewServer(Config{SessionDir: sessionDir, AppConfig: cfg, ToolPaths: cfg.Tools}).Handler()
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/config/effective", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, leaked := range []string{sessionDir, toolDir, cfg.CVE.OfflinePath, cfg.CVE.ExploitDBPath} {
+		if strings.Contains(body, leaked) {
+			t.Fatalf("effective config leaked local path %q: %s", leaked, body)
+		}
+	}
+	if !strings.Contains(body, `"session_dir_status":"ready"`) || !strings.Contains(body, `"ffuf":"configured"`) {
+		t.Fatalf("expected readiness/configured indicators, got %s", body)
+	}
+}
+
 func TestSessionAPI(t *testing.T) {
 	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
@@ -1010,7 +1036,7 @@ func TestPowerFeatureEndpointsPersistAndGateActiveActions(t *testing.T) {
 		t.Fatalf("expected auth on callback recording, got %d body=%s", callbackBlocked.Code, callbackBlocked.Body.String())
 	}
 	callbackOK := httptest.NewRecorder()
-	handler.ServeHTTP(callbackOK, apiKeyRequest(http.MethodGet, "/api/sessions/"+session.ID+"/callbacks/"+callback.Token, nil))
+	handler.ServeHTTP(callbackOK, apiKeyRequest(http.MethodGet, "/api/sessions/"+session.ID+"/callbacks/"+callback.Token, strings.NewReader("GET /cb?token=secret HTTP/1.1\r\nAuthorization: Bearer top-secret\r\nCookie: session=private\r\n\r\n")))
 	if callbackOK.Code != http.StatusOK || !strings.Contains(callbackOK.Body.String(), `"received":true`) {
 		t.Fatalf("expected callback record success, got %d body=%s", callbackOK.Code, callbackOK.Body.String())
 	}
@@ -1018,6 +1044,9 @@ func TestPowerFeatureEndpointsPersistAndGateActiveActions(t *testing.T) {
 	handler.ServeHTTP(callbacks, apiKeyRequest(http.MethodGet, "/api/sessions/"+session.ID+"/callbacks", nil))
 	if callbacks.Code != http.StatusOK || !strings.Contains(callbacks.Body.String(), `"received":true`) || !strings.Contains(callbacks.Body.String(), "127.0.0.1") {
 		t.Fatalf("expected received callback in list, got %d body=%s", callbacks.Code, callbacks.Body.String())
+	}
+	if strings.Contains(callbacks.Body.String(), "top-secret") || strings.Contains(callbacks.Body.String(), "session=private") || strings.Contains(callbacks.Body.String(), "token=secret") {
+		t.Fatalf("expected callback event secrets to be redacted, got %s", callbacks.Body.String())
 	}
 }
 

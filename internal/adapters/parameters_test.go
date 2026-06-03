@@ -99,6 +99,25 @@ func TestValidateToolParametersRejectsUnsafeExtraArgs(t *testing.T) {
 	}
 }
 
+func TestValidateToolParametersRejectsSecretBearingFFUFExtraArgs(t *testing.T) {
+	for _, args := range [][]string{
+		{"-H", "Authorization: Bearer secret"},
+		{"-b", "session=secret"},
+	} {
+		err := ValidateExtraArgs("ffuf", args)
+		if err == nil || !strings.Contains(err.Error(), "safe allow-list") {
+			t.Fatalf("expected ffuf secret-bearing args %v to be rejected, got %v", args, err)
+		}
+	}
+}
+
+func TestRedactCommandArgsMasksLegacyCookieFlag(t *testing.T) {
+	redacted := redactCommandArgs([]string{"-u", "https://example.test/FUZZ", "-b", "session=secret"})
+	if strings.Contains(strings.Join(redacted, " "), "session=secret") {
+		t.Fatalf("expected legacy cookie arg to be redacted, got %#v", redacted)
+	}
+}
+
 func TestValidateToolParametersRejectsUnknownParameter(t *testing.T) {
 	err := ValidateToolParameterValues("ffuf", map[string]any{"shell": "nope"})
 	if err == nil || !strings.Contains(err.Error(), "does not support parameter") {

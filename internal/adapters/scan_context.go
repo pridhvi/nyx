@@ -424,7 +424,7 @@ func redactCommandArgs(args []string) []string {
 	out := append([]string(nil), args...)
 	for i := 0; i < len(out); i++ {
 		switch out[i] {
-		case "-H", "--headers", "--cookie":
+		case "-H", "-b", "--headers", "--cookie":
 			if i+1 < len(out) {
 				out[i+1] = "********"
 				i++

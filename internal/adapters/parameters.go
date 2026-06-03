@@ -136,7 +136,7 @@ func mergeParameterNames(base map[string]bool, names ...string) map[string]bool 
 
 func safeExtraArgFlags(toolID string) map[string]bool {
 	flags := map[string][]string{
-		"ffuf":        {"-ac", "-b", "-fc", "-fl", "-fs", "-fw", "-H", "-mc", "-rate", "-recursion", "-recursion-depth", "-t", "-timeout"},
+		"ffuf":        {"-ac", "-fc", "-fl", "-fs", "-fw", "-mc", "-rate", "-recursion", "-recursion-depth", "-t", "-timeout"},
 		"nuclei-tech": {"-c", "-exclude-tags", "-headless", "-retries", "-rl", "-tags", "-timeout"},
 		"nuclei-vuln": {"-c", "-exclude-tags", "-headless", "-retries", "-rl", "-tags", "-timeout"},
 		"sqlmap":      {"--delay", "--param-filter", "--random-agent", "--technique", "--threads", "--timeout"},

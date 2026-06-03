@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { burpResultRow, callbackRows, credentialRows, credentialState, payloadRows, powerFeatureLabel, powerState, providerStatusRows } from "./pages/PowerFeatures";
+import { burpResultRow, callbackRows, credentialRows, credentialState, payloadRows, powerFeatureLabel, powerState, providerStatusRows, redactedCallbackEvent } from "./pages/PowerFeatures";
 import type { BurpStatusResponse, CredentialFinding, Payload, PowerCallback, ProviderStatus } from "./api/client";
 
 describe("power feature view helpers", () => {
@@ -55,6 +55,16 @@ describe("power feature view helpers", () => {
     expect(providerStatusRows(statuses)[0]).toEqual(["github", "code_search", "skipped", "missing token"]);
     expect(callbackRows(callbacks)[0]).toEqual(["builtin", "received", "http://127.0.0.1/cb/tok", "127.0.0.1", "GET"]);
     expect(burpResultRow(burp)).toEqual(["unavailable", "Burp REST base URL is not configured"]);
+  });
+
+  it("redacts callback event secrets before rendering rows", () => {
+    const event = "GET /cb?token=secret HTTP/1.1\r\nAuthorization: Bearer test\r\nCookie: session=private\r\n\r\n";
+    const redacted = redactedCallbackEvent(event);
+    expect(redacted).toContain("token=[redacted]");
+    expect(redacted).toContain("Authorization: Bearer [redacted]");
+    expect(redacted).toContain("Cookie: [redacted]");
+    expect(redacted).not.toContain("secret");
+    expect(redacted).not.toContain("session=private");
   });
 
   it("uses human-readable power feature labels", () => {

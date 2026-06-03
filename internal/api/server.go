@@ -37,16 +37,17 @@ import (
 )
 
 type Config struct {
-	Host            string
-	Port            int
-	SessionDir      string
-	APIKey          string
-	SecureCookies   bool
-	HTTPClient      adapters.HTTPDoer
-	ToolPaths       map[string]string
-	AppConfig       appconfig.Config
-	SourceRoots     []string
-	LLMAllowedHosts []string
+	Host             string
+	Port             int
+	SessionDir       string
+	APIKey           string
+	SecureCookies    bool
+	HTTPClient       adapters.HTTPDoer
+	ToolPaths        map[string]string
+	AppConfig        appconfig.Config
+	SourceRoots      []string
+	LLMAllowedHosts  []string
+	BurpAllowedHosts []string
 }
 
 type Server struct {
@@ -90,6 +91,8 @@ func NewServer(cfg Config) *Server {
 	cfg.AppConfig.Server.SecureCookies = cfg.SecureCookies
 	cfg.SourceRoots = append(cfg.SourceRoots, splitEnvList(os.Getenv("NYX_SOURCE_ROOTS"))...)
 	cfg.LLMAllowedHosts = append(cfg.LLMAllowedHosts, splitEnvList(os.Getenv("NYX_LLM_ALLOWED_HOSTS"))...)
+	cfg.BurpAllowedHosts = append(cfg.BurpAllowedHosts, cfg.AppConfig.Power.Burp.AllowedHosts...)
+	cfg.BurpAllowedHosts = append(cfg.BurpAllowedHosts, splitEnvList(os.Getenv("NYX_BURP_ALLOWED_HOSTS"))...)
 	server := &Server{
 		cfg:          cfg,
 		scanManager:  NewScanManager(cfg.SessionDir, cfg.HTTPClient, cfg.LLMAllowedHosts),
@@ -332,8 +335,12 @@ func (s *Server) effectiveConfig(w http.ResponseWriter, r *http.Request) {
 		cfg.Server.APIKey = s.cfg.APIKey
 		cfg.Tools = s.cfg.ToolPaths
 	}
+	dirReady := db.EnsureSessionsDir(s.cfg.SessionDir) == nil
 	writeJSON(w, map[string]any{
-		"database": map[string]any{"session_dir": firstNonEmpty(cfg.Database.SessionDir, s.cfg.SessionDir)},
+		"database": map[string]any{
+			"session_dir":        readiness(dirReady),
+			"session_dir_status": readiness(dirReady),
+		},
 		"server": map[string]any{
 			"host":           cfg.Server.Host,
 			"port":           cfg.Server.Port,
@@ -352,24 +359,39 @@ func (s *Server) effectiveConfig(w http.ResponseWriter, r *http.Request) {
 		},
 		"scan": cfg.Scan,
 		"cve": map[string]any{
-			"offline_path":   cfg.CVE.OfflinePath,
+			"offline_path":   configuredStatus(cfg.CVE.OfflinePath),
 			"enable_remote":  cfg.CVE.EnableRemote,
 			"cache_ttl":      cfg.CVE.CacheTTL,
-			"exploitdb_path": cfg.CVE.ExploitDBPath,
+			"exploitdb_path": configuredStatus(cfg.CVE.ExploitDBPath),
 			"sources":        cfg.CVE.Sources,
 		},
 		"power":   cfg.Power.Redacted(),
-		"tools":   cfg.Tools,
+		"tools":   configuredStringMap(cfg.Tools),
 		"plugins": cfg.Plugins,
 		"paths": map[string]string{
-			"state_dir":         s.stateDir(),
-			"scan_profiles":     s.scanProfilesPath(),
-			"plugin_registry":   s.globalPluginsPath(),
-			"plugin_bin_dir":    s.pluginBinDir(),
+			"state_dir":         configuredStatus(s.stateDir()),
+			"scan_profiles":     configuredStatus(s.scanProfilesPath()),
+			"plugin_registry":   configuredStatus(s.globalPluginsPath()),
+			"plugin_bin_dir":    configuredStatus(s.pluginBinDir()),
 			"session_events_ws": "/api/scan/{id}/events",
 		},
 		"runtime": map[string]string{"goos": runtime.GOOS, "goarch": runtime.GOARCH},
 	})
+}
+
+func configuredStatus(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return "not configured"
+	}
+	return "configured"
+}
+
+func configuredStringMap(values map[string]string) map[string]string {
+	out := make(map[string]string, len(values))
+	for key, value := range values {
+		out[key] = configuredStatus(value)
+	}
+	return out
 }
 
 func absolutePath(value string) string {
@@ -818,7 +840,7 @@ func (s *Server) listPowerCallbacks(w http.ResponseWriter, r *http.Request) {
 		writeDBError(w, err)
 		return
 	}
-	writeJSON(w, callbacks)
+	writeJSON(w, redactPowerCallbacks(callbacks))
 }
 
 func (s *Server) recordPowerCallback(w http.ResponseWriter, r *http.Request) {
@@ -1006,6 +1028,7 @@ func (s *Server) currentBurpConfig(ctx context.Context) (models.BurpConfig, erro
 	defer store.Close()
 	config, err := store.GetBurpConfig(ctx)
 	if err == nil {
+		config.AllowedHosts = s.cfg.BurpAllowedHosts
 		return config, nil
 	}
 	if !errors.Is(err, db.ErrNotFound) {
@@ -1016,6 +1039,7 @@ func (s *Server) currentBurpConfig(ctx context.Context) (models.BurpConfig, erro
 		ID:                   "config",
 		BaseURL:              s.cfg.AppConfig.Power.Burp.BaseURL,
 		APIKey:               s.cfg.AppConfig.Power.Burp.APIKey,
+		AllowedHosts:         s.cfg.BurpAllowedHosts,
 		CollaboratorProvider: s.cfg.AppConfig.Power.Callbacks.Provider,
 		CollaboratorURL:      s.cfg.AppConfig.Power.Callbacks.InteractshURL,
 		CreatedAt:            now,
@@ -1040,6 +1064,13 @@ func (s *Server) setupBurpCollaborator(w http.ResponseWriter, r *http.Request) {
 		config.CreatedAt = now
 	}
 	config.UpdatedAt = now
+	if strings.TrimSpace(config.BaseURL) != "" {
+		if err := burp.ValidateBaseURL(config.BaseURL, s.cfg.BurpAllowedHosts); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+	}
+	config.AllowedHosts = nil
 	store, err := s.openState(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)

@@ -21,10 +21,10 @@ export function Settings() {
         <section className="panel">
           <h2>Storage</h2>
           <dl>
-            <dt>Session Dir</dt><dd>{cfg?.database.session_dir}</dd>
+            <dt>Session Storage</dt><dd>{cfg?.database.session_dir_status ?? cfg?.database.session_dir}</dd>
             <dt>Scan Profiles</dt><dd>{cfg?.paths?.scan_profiles}</dd>
             <dt>Plugin Registry</dt><dd>{cfg?.paths?.plugin_registry}</dd>
-            <dt>Disk Readiness</dt><dd>{cfg?.database.session_dir ? "configured" : "unknown"}</dd>
+            <dt>Disk Readiness</dt><dd>{cfg?.database.session_dir_status ?? "unknown"}</dd>
           </dl>
         </section>
         <section className="panel">

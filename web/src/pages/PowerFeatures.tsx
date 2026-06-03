@@ -212,7 +212,15 @@ export function providerStatusRows(statuses: ProviderStatus[]) {
 }
 
 export function callbackRows(callbacks: PowerCallback[]) {
-  return callbacks.map((item) => [item.provider, item.received ? "received" : "pending", item.url, item.source_ip || "-", item.raw_event || "-"]);
+  return callbacks.map((item) => [item.provider, item.received ? "received" : "pending", item.url, item.source_ip || "-", redactedCallbackEvent(item.raw_event ?? "") || "-"]);
+}
+
+export function redactedCallbackEvent(value: string) {
+  const redacted = value
+    .replace(/(authorization\s*:\s*bearer\s+)[^\s\r\n]+/gi, "$1[redacted]")
+    .replace(/(cookie\s*:\s*)[^\r\n]+/gi, "$1[redacted]")
+    .replace(/((?:api[_-]?key|token|secret|password)=)[^&\s]+/gi, "$1[redacted]");
+  return redacted.length > 300 ? `${redacted.slice(0, 300)}\n...[truncated]` : redacted;
 }
 
 export function burpResultRow(status?: BurpStatusResponse, pushMessage = "", pushAvailable = false, importedCount = 0) {

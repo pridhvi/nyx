@@ -550,7 +550,7 @@ export type SourceDirectoryResponse = {
 };
 
 export type EffectiveConfig = {
-  database: { session_dir: string };
+  database: { session_dir: string; session_dir_status?: string };
   server: { host: string; port: number; auth_enabled: boolean };
   llm: { enabled: boolean; configured: boolean; provider: string; base_url: string; model: string; api_key_set: boolean; max_tokens: number; temperature: number };
   scan: Record<string, unknown>;
