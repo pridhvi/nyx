@@ -53,7 +53,11 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.clearAuthFailures(keys...)
-	token, expires := s.createAuthSession()
+	token, expires, err := s.createAuthSession()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
 	http.SetCookie(w, authSessionCookie(token, expires, s.secureCookie(r)))
 	writeJSON(w, map[string]any{"authenticated": true, "auth_enabled": true, "expires_at": expires.UTC().Format(time.RFC3339)})
 }
@@ -128,13 +132,23 @@ const (
 	authSessionCookieName = "nyx_session"
 )
 
-func (s *Server) createAuthSession() (string, time.Time) {
-	token := models.NewID() + models.NewID()
+var newAuthSessionID = models.NewIDWithError
+
+func (s *Server) createAuthSession() (string, time.Time, error) {
+	left, err := newAuthSessionID()
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	right, err := newAuthSessionID()
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	token := left + right
 	expires := time.Now().Add(authSessionTTL)
 	s.authSessionMu.Lock()
 	s.authSessions[token] = expires
 	s.authSessionMu.Unlock()
-	return token, expires
+	return token, expires, nil
 }
 
 func (s *Server) validAuthSession(token string) bool {

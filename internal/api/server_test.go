@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -397,6 +398,26 @@ func TestAuthCookieSecureConfig(t *testing.T) {
 	cookies := login.Result().Cookies()
 	if len(cookies) != 1 || !cookies[0].Secure {
 		t.Fatalf("expected secure auth cookie, got %#v", cookies)
+	}
+}
+
+func TestAuthLoginFailsWhenSessionTokenCannotBeGenerated(t *testing.T) {
+	previous := newAuthSessionID
+	newAuthSessionID = func() (string, error) {
+		return "", errors.New("entropy unavailable")
+	}
+	defer func() {
+		newAuthSessionID = previous
+	}()
+
+	handler := NewServer(Config{SessionDir: t.TempDir(), APIKey: "secret"}).Handler()
+	login := httptest.NewRecorder()
+	handler.ServeHTTP(login, jsonRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(`{"api_key":"secret"}`)))
+	if login.Code != http.StatusInternalServerError {
+		t.Fatalf("expected session token failure, got %d body=%s", login.Code, login.Body.String())
+	}
+	if cookies := login.Result().Cookies(); len(cookies) != 0 {
+		t.Fatalf("expected no auth cookie on token generation failure, got %#v", cookies)
 	}
 }
 

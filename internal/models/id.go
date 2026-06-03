@@ -1,16 +1,41 @@
 package models
 
 import (
-	"crypto/rand"
+	"crypto/sha256"
 	"fmt"
+	"os"
+	"sync/atomic"
+	"time"
+
+	"github.com/google/uuid"
 )
 
-func NewID() string {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		panic(err)
+var (
+	newRandomUUID     = uuid.NewRandom
+	fallbackIDCounter atomic.Uint64
+)
+
+func NewIDWithError() (string, error) {
+	id, err := newRandomUUID()
+	if err != nil {
+		return "", fmt.Errorf("generate random id: %w", err)
 	}
-	b[6] = (b[6] & 0x0f) | 0x40
-	b[8] = (b[8] & 0x3f) | 0x80
-	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+	return id.String(), nil
+}
+
+func NewID() string {
+	id, err := NewIDWithError()
+	if err == nil {
+		return id
+	}
+	return fallbackID()
+}
+
+func fallbackID() string {
+	seed := fmt.Sprintf("%d:%d:%d", time.Now().UnixNano(), os.Getpid(), fallbackIDCounter.Add(1))
+	sum := sha256.Sum256([]byte(seed))
+	id := uuid.UUID(sum[:16])
+	id[6] = (id[6] & 0x0f) | 0x40
+	id[8] = (id[8] & 0x3f) | 0x80
+	return id.String()
 }

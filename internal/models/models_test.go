@@ -2,10 +2,58 @@ package models
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
+
+func TestNewIDWithErrorReturnsRandomUUID(t *testing.T) {
+	id, err := NewIDWithError()
+	if err != nil {
+		t.Fatalf("NewIDWithError returned error: %v", err)
+	}
+	if _, err := uuid.Parse(id); err != nil {
+		t.Fatalf("NewIDWithError returned invalid UUID %q: %v", id, err)
+	}
+}
+
+func TestNewIDWithErrorReportsEntropyFailure(t *testing.T) {
+	restore := replaceRandomUUID(func() (uuid.UUID, error) {
+		return uuid.Nil, errors.New("entropy unavailable")
+	})
+	defer restore()
+
+	if _, err := NewIDWithError(); err == nil {
+		t.Fatal("expected entropy error")
+	}
+}
+
+func TestNewIDFallsBackWithoutPanic(t *testing.T) {
+	restore := replaceRandomUUID(func() (uuid.UUID, error) {
+		return uuid.Nil, errors.New("entropy unavailable")
+	})
+	defer restore()
+
+	id := NewID()
+	parsed, err := uuid.Parse(id)
+	if err != nil {
+		t.Fatalf("NewID fallback returned invalid UUID %q: %v", id, err)
+	}
+	if parsed.Version() != 4 {
+		t.Fatalf("NewID fallback version = %d, want 4", parsed.Version())
+	}
+}
+
+func replaceRandomUUID(fn func() (uuid.UUID, error)) func() {
+	previous := newRandomUUID
+	newRandomUUID = fn
+	return func() {
+		newRandomUUID = previous
+	}
+}
 
 func TestFindingSerializationAndValidation(t *testing.T) {
 	finding := Finding{
