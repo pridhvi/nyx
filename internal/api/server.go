@@ -50,13 +50,14 @@ type Config struct {
 }
 
 type Server struct {
-	cfg          Config
-	scanManager  *ScanManager
-	monitorMu    sync.Mutex
-	monitorSched *monitor.Scheduler
-	securityMu   sync.Mutex
-	authFailures map[string]authFailureState
-	authSessions map[string]time.Time
+	cfg           Config
+	scanManager   *ScanManager
+	monitorMu     sync.Mutex
+	monitorSched  *monitor.Scheduler
+	authFailureMu sync.Mutex
+	authFailures  map[string]authFailureState
+	authSessionMu sync.Mutex
+	authSessions  map[string]time.Time
 }
 
 const (

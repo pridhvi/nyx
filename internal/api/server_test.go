@@ -325,12 +325,16 @@ func TestAuthCookieSecureConfig(t *testing.T) {
 func TestAuthSessionPruningRemovesOnlyExpiredSessions(t *testing.T) {
 	server := NewServer(Config{SessionDir: t.TempDir(), APIKey: "secret"})
 	now := time.Now()
+	server.authSessionMu.Lock()
 	server.authSessions["expired"] = now.Add(-time.Second)
 	server.authSessions["active"] = now.Add(time.Hour)
+	server.authSessionMu.Unlock()
 
 	if pruned := server.pruneExpiredAuthSessions(now); pruned != 1 {
 		t.Fatalf("expected one expired auth session pruned, got %d", pruned)
 	}
+	server.authSessionMu.Lock()
+	defer server.authSessionMu.Unlock()
 	if _, ok := server.authSessions["expired"]; ok {
 		t.Fatal("expired auth session was not removed")
 	}
@@ -353,9 +357,13 @@ func TestAuthFailureBackoffEscalatesAndResetsOnSuccess(t *testing.T) {
 	if !server.authLimitedAt(now.Add(time.Second), keys...) {
 		t.Fatal("expected auth to be limited after threshold failures")
 	}
+	server.authFailureMu.Lock()
 	firstLockout := server.authFailures[keys[0]].LockedUntil
+	server.authFailureMu.Unlock()
 	server.recordAuthFailureAt(firstLockout.Add(time.Second), keys...)
+	server.authFailureMu.Lock()
 	secondLockout := server.authFailures[keys[0]].LockedUntil
+	server.authFailureMu.Unlock()
 	if !secondLockout.After(firstLockout.Add(authLockoutBase)) {
 		t.Fatalf("expected later failures to increase lockout, first=%s second=%s", firstLockout, secondLockout)
 	}
@@ -369,12 +377,16 @@ func TestAuthFailureBackoffEscalatesAndResetsOnSuccess(t *testing.T) {
 func TestAuthFailurePruningRemovesIdleUnlockedRecords(t *testing.T) {
 	server := NewServer(Config{SessionDir: t.TempDir(), APIKey: "secret"})
 	now := time.Now()
+	server.authFailureMu.Lock()
 	server.authFailures["old"] = authFailureState{Count: 2, LastFailure: now.Add(-authFailureIdleReset - time.Second)}
 	server.authFailures["locked"] = authFailureState{Count: authFailureLimit, LastFailure: now.Add(-authFailureIdleReset - time.Second), LockedUntil: now.Add(time.Minute)}
+	server.authFailureMu.Unlock()
 
 	if pruned := server.pruneStaleAuthFailures(now); pruned != 1 {
 		t.Fatalf("expected one stale auth failure record pruned, got %d", pruned)
 	}
+	server.authFailureMu.Lock()
+	defer server.authFailureMu.Unlock()
 	if _, ok := server.authFailures["old"]; ok {
 		t.Fatal("stale unlocked auth failure record was not removed")
 	}

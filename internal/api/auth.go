@@ -131,9 +131,9 @@ const (
 func (s *Server) createAuthSession() (string, time.Time) {
 	token := models.NewID() + models.NewID()
 	expires := time.Now().Add(authSessionTTL)
-	s.securityMu.Lock()
+	s.authSessionMu.Lock()
 	s.authSessions[token] = expires
-	s.securityMu.Unlock()
+	s.authSessionMu.Unlock()
 	return token, expires
 }
 
@@ -142,8 +142,8 @@ func (s *Server) validAuthSession(token string) bool {
 		return false
 	}
 	now := time.Now()
-	s.securityMu.Lock()
-	defer s.securityMu.Unlock()
+	s.authSessionMu.Lock()
+	defer s.authSessionMu.Unlock()
 	expires, ok := s.authSessions[token]
 	if !ok {
 		return false
@@ -156,8 +156,8 @@ func (s *Server) validAuthSession(token string) bool {
 }
 
 func (s *Server) pruneExpiredAuthSessions(now time.Time) int {
-	s.securityMu.Lock()
-	defer s.securityMu.Unlock()
+	s.authSessionMu.Lock()
+	defer s.authSessionMu.Unlock()
 	pruned := 0
 	for token, expires := range s.authSessions {
 		if !expires.After(now) {
@@ -193,9 +193,9 @@ func (s *Server) startAuthSessionCleanup(ctx context.Context) {
 }
 
 func (s *Server) deleteAuthSession(token string) {
-	s.securityMu.Lock()
+	s.authSessionMu.Lock()
 	delete(s.authSessions, token)
-	s.securityMu.Unlock()
+	s.authSessionMu.Unlock()
 }
 
 func authSessionCookie(token string, expires time.Time, secure bool) *http.Cookie {
@@ -229,8 +229,8 @@ func (s *Server) authLimited(keys ...string) bool {
 }
 
 func (s *Server) authLimitedAt(now time.Time, keys ...string) bool {
-	s.securityMu.Lock()
-	defer s.securityMu.Unlock()
+	s.authFailureMu.Lock()
+	defer s.authFailureMu.Unlock()
 	for _, key := range keys {
 		state, ok := s.authFailures[key]
 		if !ok {
@@ -252,8 +252,8 @@ func (s *Server) recordAuthFailure(keys ...string) {
 }
 
 func (s *Server) recordAuthFailureAt(now time.Time, keys ...string) {
-	s.securityMu.Lock()
-	defer s.securityMu.Unlock()
+	s.authFailureMu.Lock()
+	defer s.authFailureMu.Unlock()
 	for _, key := range keys {
 		state := s.authFailures[key]
 		if authFailureExpired(state, now) {
@@ -269,16 +269,16 @@ func (s *Server) recordAuthFailureAt(now time.Time, keys ...string) {
 }
 
 func (s *Server) clearAuthFailures(keys ...string) {
-	s.securityMu.Lock()
-	defer s.securityMu.Unlock()
+	s.authFailureMu.Lock()
+	defer s.authFailureMu.Unlock()
 	for _, key := range keys {
 		delete(s.authFailures, key)
 	}
 }
 
 func (s *Server) pruneStaleAuthFailures(now time.Time) int {
-	s.securityMu.Lock()
-	defer s.securityMu.Unlock()
+	s.authFailureMu.Lock()
+	defer s.authFailureMu.Unlock()
 	pruned := 0
 	for key, state := range s.authFailures {
 		if authFailureExpired(state, now) {
