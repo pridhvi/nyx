@@ -70,7 +70,15 @@ func SessionDBPath(dir, sessionID string) (string, error) {
 	if !validSessionID(sessionID) {
 		return "", fmt.Errorf("invalid session id %q", sessionID)
 	}
-	return filepath.Join(dir, sessionID, "session.db"), nil
+	root, err := filepath.Abs(filepath.Clean(dir))
+	if err != nil {
+		return "", err
+	}
+	candidate := filepath.Join(root, sessionID, "session.db")
+	if !pathInsideOrEqual(root, candidate) {
+		return "", fmt.Errorf("session path escapes session directory")
+	}
+	return candidate, nil
 }
 
 func CreateSessionDB(ctx context.Context, dir string, session models.Session, target models.Target) (SessionRecord, error) {
@@ -1595,4 +1603,17 @@ func validSessionID(sessionID string) bool {
 		return false
 	}
 	return true
+}
+
+func pathInsideOrEqual(root, candidate string) bool {
+	root, err := filepath.Abs(filepath.Clean(root))
+	if err != nil {
+		return false
+	}
+	candidate, err = filepath.Abs(filepath.Clean(candidate))
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(root, candidate)
+	return err == nil && (rel == "." || (!strings.HasPrefix(rel, ".."+string(filepath.Separator)) && rel != ".."))
 }

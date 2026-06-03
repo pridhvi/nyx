@@ -317,6 +317,8 @@ The HTTP server uses finite read/header/idle timeouts and applies a request time
 
 On server shutdown, Nyx stops the monitor scheduler, cancels active scan contexts, and waits for scan goroutines to persist their final cancelled state before exit. Interrupted scans are marked cancelled; resumable scan replay is not currently implemented.
 
+Session database paths are resolved under the configured sessions directory with both strict session ID validation and an absolute path containment check before filesystem access.
+
 ## Configuration
 
 Create `~/.nyx/config.yaml` for local defaults:

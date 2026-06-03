@@ -69,6 +69,30 @@ func TestDefaultSessionsDirIsAbsoluteStatePath(t *testing.T) {
 	}
 }
 
+func TestSessionDBPathStaysInsideSessionDir(t *testing.T) {
+	dir := t.TempDir()
+	sessionID := models.NewID()
+	path, err := SessionDBPath(dir, sessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !filepath.IsAbs(path) {
+		t.Fatalf("expected absolute session DB path, got %q", path)
+	}
+	want := filepath.Join(dir, sessionID, "session.db")
+	if path != want {
+		t.Fatalf("expected %q, got %q", want, path)
+	}
+	if !pathInsideOrEqual(dir, path) {
+		t.Fatalf("expected %q to stay inside %q", path, dir)
+	}
+	for _, id := range []string{"../escape", "..", "nested/session", `nested\session`, ""} {
+		if _, err := SessionDBPath(dir, id); err == nil {
+			t.Fatalf("expected invalid session id %q to be rejected", id)
+		}
+	}
+}
+
 func TestCreateListShowDeleteSessionLifecycle(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
