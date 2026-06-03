@@ -309,6 +309,8 @@ Configured plugin binaries are hash-pinned at registration. The upload API retur
 
 Power-feature callback evidence is a privileged write path. Recording a built-in callback requires configured API-key authentication so local no-key mode cannot inject fake PoC evidence.
 
+LLM base URLs are validated both when accepted from API/CLI input and again immediately before each OpenAI-compatible completion request. Persisted session LLM URLs therefore still have to satisfy `NYX_LLM_ALLOWED_HOSTS` at invocation time.
+
 ## Configuration
 
 Create `~/.nyx/config.yaml` for local defaults:

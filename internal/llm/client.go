@@ -44,10 +44,7 @@ func NewOpenAIClient(config Config) *OpenAIClient {
 }
 
 func (c *OpenAIClient) Complete(ctx context.Context, request ChatRequest) (ChatCompletion, error) {
-	if !c.config.Configured() {
-		return ChatCompletion{}, ErrNotConfigured
-	}
-	if err := ValidateBaseURL(c.config.BaseURL, c.config.AllowedHosts); err != nil {
+	if err := c.validateReady(); err != nil {
 		return ChatCompletion{}, err
 	}
 	resp, err := c.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
@@ -67,10 +64,7 @@ func (c *OpenAIClient) Complete(ctx context.Context, request ChatRequest) (ChatC
 }
 
 func (c *OpenAIClient) CompleteStream(ctx context.Context, request ChatRequest) (ChatCompletion, error) {
-	if !c.config.Configured() {
-		return ChatCompletion{}, ErrNotConfigured
-	}
-	if err := ValidateBaseURL(c.config.BaseURL, c.config.AllowedHosts); err != nil {
+	if err := c.validateReady(); err != nil {
 		return ChatCompletion{}, err
 	}
 	stream, err := c.client.CreateChatCompletionStream(ctx, openai.ChatCompletionRequest{
@@ -138,4 +132,11 @@ func (c *OpenAIClient) CompleteStream(ctx context.Context, request ChatRequest) 
 		}
 	}
 	return ChatCompletion{Message: message, TotalTokens: totalTokens}, nil
+}
+
+func (c *OpenAIClient) validateReady() error {
+	if !c.config.Configured() {
+		return ErrNotConfigured
+	}
+	return ValidateBaseURL(c.config.BaseURL, c.config.AllowedHosts)
 }

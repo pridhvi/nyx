@@ -51,6 +51,36 @@ func TestValidateBaseURLHonorsAllowedHosts(t *testing.T) {
 	}
 }
 
+func TestOpenAIClientValidatesBaseURLAtInvocation(t *testing.T) {
+	client := NewOpenAIClient(Config{
+		Provider: "openai-compatible",
+		BaseURL:  "http://127.0.0.1:1234/v1",
+		Model:    "stored-session-model",
+	})
+	_, err := client.Complete(context.Background(), ChatRequest{
+		Model:    "stored-session-model",
+		Messages: []openai.ChatCompletionMessage{{Role: openai.ChatMessageRoleUser, Content: "hello"}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "explicit allowlist") {
+		t.Fatalf("expected invocation-time base URL validation, got %v", err)
+	}
+}
+
+func TestOpenAIClientStreamValidatesBaseURLAtInvocation(t *testing.T) {
+	client := NewOpenAIClient(Config{
+		Provider: "openai-compatible",
+		BaseURL:  "http://127.0.0.1:1234/v1",
+		Model:    "stored-session-model",
+	})
+	_, err := client.CompleteStream(context.Background(), ChatRequest{
+		Model:    "stored-session-model",
+		Messages: []openai.ChatCompletionMessage{{Role: openai.ChatMessageRoleUser, Content: "hello"}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "explicit allowlist") {
+		t.Fatalf("expected stream invocation-time base URL validation, got %v", err)
+	}
+}
+
 func TestBuildContextTruncatesEvidenceAndIncludesStructuredData(t *testing.T) {
 	ctx := context.Background()
 	session, store := testLLMStore(t, ctx)
