@@ -92,7 +92,7 @@ Compose publishes Nyx only on `127.0.0.1:6767` by default. Nyx refuses non-loopb
 
 Prerequisites:
 
-- Go `1.26.3` or newer within the Go 1.26 line.
+- Go `1.26.4` or newer within the Go 1.26 line.
 - Node.js and npm for the embedded React UI build.
 - Optional external scanner tools for deeper dynamic coverage.
 

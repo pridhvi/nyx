@@ -65,7 +65,7 @@ Go is the primary language for all backend components. Rationale:
 - `//go:embed` lets the compiled frontend assets be bundled into the binary — one file deployment.
 - CGO-free builds with `modernc.org/sqlite` enable true cross-compilation (`GOOS=windows go build` just works).
 
-**Current Go target:** 1.26.3 or newer within the 1.26 line
+**Current Go target:** 1.26.4 or newer within the 1.26 line
 
 ### 3.2 Complete Dependency List
 
@@ -142,7 +142,7 @@ ProjectDiscovery tools (`nuclei`, `httpx`, `subfinder`, `naabu`, `dnsx`) are sub
 
 ### 3.6 Packaging
 
-- **Docker:** Multi-stage build. Stage 1 builds the frontend (`node:20-alpine`). Stage 2 builds the Go binary (`golang:1.26.3-alpine`). Stage 3 runs on a pinned Debian 13 slim runtime digest with baseline external tools installed and a tool-version smoke script for bundled scanner checks.
+- **Docker:** Multi-stage build. Stage 1 builds the frontend (`node:20-alpine`). Stage 2 builds the Go binary (`golang:1.26.4-alpine`). Stage 3 runs on a pinned Debian 13 slim runtime digest with baseline external tools installed and a tool-version smoke script for bundled scanner checks.
 - **Single binary option:** `goreleaser` for cross-platform binary releases. The binary embeds the frontend. External tools (nmap etc.) must be installed separately in this mode.
 
 ### 3.7 Current V1 Architecture Notes
@@ -1746,7 +1746,7 @@ RUN npm ci
 COPY web/ ./
 RUN npm run build
 
-FROM golang:1.26.3-alpine AS backend
+FROM golang:1.26.4-alpine AS backend
 RUN apk add --no-cache git
 WORKDIR /src
 COPY go.mod go.sum ./
