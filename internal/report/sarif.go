@@ -57,7 +57,7 @@ func renderSARIF(report models.Report) []byte {
 	rules := map[string]sarifRule{}
 	results := make([]sarifResult, 0, len(findings))
 	for _, finding := range findings {
-		if finding.Status == "suppressed" || finding.Status == "dismissed" {
+		if finding.Status == models.FindingStatusSuppressed || finding.Status == models.FindingStatusFalsePositive {
 			continue
 		}
 		ruleID := finding.ToolID + "/" + string(finding.Type)

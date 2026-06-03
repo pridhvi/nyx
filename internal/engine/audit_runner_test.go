@@ -181,7 +181,7 @@ func auditFinding(sessionID, toolID, url string, tags []string) models.Finding {
 		Title:      "audit finding",
 		URL:        url,
 		Tags:       tags,
-		Status:     "pending",
+		Status:     models.FindingStatusOpen,
 		CreatedAt:  time.Now().UTC(),
 	}
 }

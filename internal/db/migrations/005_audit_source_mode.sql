@@ -20,7 +20,7 @@ CREATE TABLE findings_new (
     evidence_normalized  TEXT NOT NULL DEFAULT '',
     code_context         TEXT NOT NULL DEFAULT '',
     flow_summary         TEXT NOT NULL DEFAULT '',
-    status               TEXT NOT NULL DEFAULT 'pending',
+    status               TEXT NOT NULL DEFAULT 'open',
     notes                TEXT NOT NULL DEFAULT '',
     tags                 TEXT NOT NULL DEFAULT '[]',
     created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP

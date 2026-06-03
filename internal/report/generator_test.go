@@ -49,7 +49,7 @@ func TestGenerateMarkdownHTMLAndPDFReports(t *testing.T) {
 		URL:                "https://example.com",
 		EvidenceRaw:        "raw evidence",
 		EvidenceNormalized: "normalized evidence",
-		Status:             "open",
+		Status:             models.FindingStatusOpen,
 		CreatedAt:          time.Now().UTC(),
 	}
 	if err := store.InsertFinding(ctx, finding); err != nil {
@@ -66,7 +66,7 @@ func TestGenerateMarkdownHTMLAndPDFReports(t *testing.T) {
 		Title:       `<script>alert("title")</script>`,
 		Description: `<img src=x onerror=alert("description")>`,
 		URL:         "https://example.com/unsafe",
-		Status:      "open",
+		Status:      models.FindingStatusOpen,
 		CreatedAt:   time.Now().UTC(),
 	}); err != nil {
 		t.Fatal(err)
@@ -106,7 +106,7 @@ func TestGenerateMarkdownHTMLAndPDFReports(t *testing.T) {
 		Confidence: 0.3,
 		Title:      "Suppressed finding",
 		URL:        "file://main.go#L20",
-		Status:     "suppressed",
+		Status:     models.FindingStatusSuppressed,
 		CreatedAt:  time.Now().UTC(),
 	}); err != nil {
 		t.Fatal(err)

@@ -119,8 +119,8 @@ func (r *AuditRunner) Run(ctx context.Context, session models.Session, repoPath 
 			filtered := filterAuditFindingsByDiff(applySuppression(output.Findings, rules), r.options.DiffPaths)
 			if r.options.NoLLM || !r.options.LLMConfig.Configured() {
 				for i := range filtered {
-					if filtered[i].Status == "" || filtered[i].Status == "pending" {
-						filtered[i].Status = "confirmed"
+					if filtered[i].Status == "" || filtered[i].Status == models.FindingStatusOpen {
+						filtered[i].Status = models.FindingStatusConfirmed
 					}
 				}
 			}

@@ -1564,6 +1564,8 @@ The frontend is a React SPA embedded in the Go binary. Routes:
 - Bulk actions: export selected, change severity, add notes
 - Filters: severity, origin, status, type, tool, OWASP category, has CVE, has exploit
 - Origin badges distinguish dynamic, static, and static + dynamic findings.
+- Finding triage status is server-validated and limited to `open`,
+  `confirmed`, `false-positive`, `suppressed`, and `wont-fix`.
 - Audit fields include status, notes, code context, and flow summary.
 
 ### 15.4a Source (`/sessions/:id/source`)

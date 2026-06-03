@@ -24,6 +24,15 @@ func (t FindingType) Valid() bool {
 	}
 }
 
+func (s FindingStatus) Valid() bool {
+	switch s {
+	case "", FindingStatusOpen, FindingStatusConfirmed, FindingStatusFalsePositive, FindingStatusSuppressed, FindingStatusWontFix:
+		return true
+	default:
+		return false
+	}
+}
+
 func (s SessionStatus) Valid() bool {
 	switch s {
 	case SessionStatusPending, SessionStatusRunning, SessionStatusPaused, SessionStatusCompleted, SessionStatusFailed, SessionStatusCancelled:
@@ -72,6 +81,9 @@ func (f Finding) Validate() error {
 	}
 	if !f.Severity.Valid() {
 		errs = append(errs, fmt.Errorf("severity %q is invalid", f.Severity))
+	}
+	if !f.Status.Valid() {
+		errs = append(errs, fmt.Errorf("status %q is invalid", f.Status))
 	}
 	errs = appendRange(errs, "confidence", f.Confidence, 0, 1)
 	errs = appendRange(errs, "cvss_score", f.CVSSScore, 0, 10)

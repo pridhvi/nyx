@@ -284,7 +284,7 @@ func cspReviewFinding(input AdapterInput, rawURL string, statusCode int, policie
 	finding := externalFinding(input, "csp-review", models.FindingTypeVulnerability, models.SeverityMedium, "Potential CSP bypass review candidate", "A seeded page combines a script policy that may allow bypass research with a CSP-related surface or user-controlled script/source field. This is a human-assist candidate and does not prove bypass execution.", "Review the script-src policy, remove unnecessary external script sources, avoid user-controlled script include flows, and prefer nonces or hashes with strict-dynamic where appropriate.", string(evidence), map[string]any{"url": rawURL, "policies": policies, "risk_reasons": reasons, "source_fields": sourceFields, "validated": false, "human_assist": true}, []string{"csp", "csp-bypass", "human-assist"})
 	finding.URL = rawURL
 	finding.Method = http.MethodGet
-	finding.Status = "suspected"
+	finding.Status = models.FindingStatusOpen
 	finding.Confidence = 0.55
 	return finding
 }

@@ -46,7 +46,7 @@ type FindingFilter struct {
 	Severity string
 	ToolID   string
 	Type     string
-	Status   string
+	Status   models.FindingStatus
 	Origin   string
 }
 
@@ -286,7 +286,7 @@ INSERT INTO findings (
 		finding.EvidenceNormalized,
 		finding.CodeContext,
 		finding.FlowSummary,
-		firstNonEmpty(finding.Status, "pending"),
+		firstNonEmpty(string(finding.Status), string(models.FindingStatusOpen)),
 		finding.Notes,
 		string(tags),
 		formatTime(finding.CreatedAt),
@@ -316,7 +316,7 @@ INSERT INTO findings (
 	return tx.Commit()
 }
 
-func (s *Store) UpdateFinding(ctx context.Context, findingID string, severity models.Severity, remediation string) error {
+func (s *Store) UpdateFinding(ctx context.Context, findingID string, severity models.Severity, remediation string, status models.FindingStatus) error {
 	query := `UPDATE findings SET id = id`
 	args := []any{}
 	if severity != "" {
@@ -326,6 +326,10 @@ func (s *Store) UpdateFinding(ctx context.Context, findingID string, severity mo
 	if remediation != "" {
 		query += `, remediation = ?`
 		args = append(args, remediation)
+	}
+	if status != "" {
+		query += `, status = ?`
+		args = append(args, string(status))
 	}
 	query += ` WHERE id = ?`
 	args = append(args, findingID)
@@ -356,7 +360,7 @@ WHERE id = ? AND session_id = ?`,
 		finding.EvidenceNormalized,
 		finding.CodeContext,
 		finding.FlowSummary,
-		firstNonEmpty(finding.Status, "pending"),
+		firstNonEmpty(string(finding.Status), string(models.FindingStatusOpen)),
 		finding.Notes,
 		finding.ID,
 		finding.SessionID,
@@ -689,7 +693,7 @@ WHERE session_id = ?`
 	}
 	if filter.Status != "" {
 		query += ` AND status = ?`
-		args = append(args, filter.Status)
+		args = append(args, string(filter.Status))
 	}
 	switch filter.Origin {
 	case "static":
@@ -1271,6 +1275,7 @@ func scanFinding(row rowScanner) (models.Finding, error) {
 	var finding models.Finding
 	var createdAt string
 	var tags string
+	var status string
 	err := row.Scan(
 		&finding.ID,
 		&finding.SessionID,
@@ -1290,7 +1295,7 @@ func scanFinding(row rowScanner) (models.Finding, error) {
 		&finding.EvidenceNormalized,
 		&finding.CodeContext,
 		&finding.FlowSummary,
-		&finding.Status,
+		&status,
 		&finding.Notes,
 		&tags,
 		&createdAt,
@@ -1298,6 +1303,7 @@ func scanFinding(row rowScanner) (models.Finding, error) {
 	if err != nil {
 		return models.Finding{}, err
 	}
+	finding.Status = normalizeFindingStatus(status)
 	if err := json.Unmarshal([]byte(tags), &finding.Tags); err != nil {
 		return models.Finding{}, err
 	}
@@ -1307,6 +1313,17 @@ func scanFinding(row rowScanner) (models.Finding, error) {
 	}
 	finding.CreatedAt = created
 	return finding, nil
+}
+
+func normalizeFindingStatus(status string) models.FindingStatus {
+	switch strings.TrimSpace(status) {
+	case "", "pending":
+		return models.FindingStatusOpen
+	case "dismissed":
+		return models.FindingStatusFalsePositive
+	default:
+		return models.FindingStatus(status)
+	}
 }
 
 func scanHTTPEvidence(row rowScanner) (models.HTTPEvidence, error) {

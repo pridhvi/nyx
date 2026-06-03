@@ -210,7 +210,7 @@ func parseGenericStaticOutput(input StaticAdapterInput, toolID string, decoded a
 			URL:         fileURL(file, line),
 			EvidenceRaw: mustJSON(obj),
 			CodeContext: firstString(obj, "code", "context", "extra"),
-			Status:      "pending",
+			Status:      models.FindingStatusOpen,
 			Tags:        []string{"audit", toolID},
 			CreatedAt:   time.Now().UTC(),
 		})
@@ -438,7 +438,7 @@ func staticFinding(input StaticAdapterInput, toolID, path string, line int, mess
 		URL:         fileURL(path, line),
 		EvidenceRaw: mustJSON(raw),
 		CodeContext: firstString(mapFromAny(raw), "code", "context", "extra"),
-		Status:      "pending",
+		Status:      models.FindingStatusOpen,
 		Tags:        []string{"audit", toolID},
 		CreatedAt:   time.Now().UTC(),
 	}
@@ -475,7 +475,7 @@ func sourceFindingToAuditFinding(sessionID, toolID string, severity models.Sever
 		Method:      sf.Method,
 		EvidenceRaw: sf.Value,
 		CodeContext: sf.Context,
-		Status:      "pending",
+		Status:      models.FindingStatusOpen,
 		Tags:        []string{"audit", toolID, string(sf.Kind)},
 		CreatedAt:   time.Now().UTC(),
 	}

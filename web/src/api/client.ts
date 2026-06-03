@@ -64,6 +64,8 @@ export type Target = {
   technologies?: Technology[];
 };
 
+export type FindingStatus = "open" | "confirmed" | "false-positive" | "suppressed" | "wont-fix";
+
 export type CVEMatch = {
   id: string;
   session_id?: string;
@@ -106,7 +108,7 @@ export type Finding = {
   cve_matches?: CVEMatch[];
   code_context?: string;
   flow_summary?: string;
-  status?: string;
+  status?: FindingStatus;
   notes?: string;
   tags?: string[];
   created_at: string;
@@ -721,7 +723,7 @@ export function pullBurpIssues(sessionID: string) {
   return api<Finding[]>(`/api/sessions/${sessionID}/burp/pull-issues`, { method: "POST", body: "{}" });
 }
 
-export function updateFinding(sessionID: string, findingID: string, payload: { severity?: string; remediation?: string }) {
+export function updateFinding(sessionID: string, findingID: string, payload: { severity?: string; remediation?: string; status?: FindingStatus }) {
   return api<Finding>(`/api/sessions/${sessionID}/findings/${findingID}`, {
     method: "PATCH",
     body: JSON.stringify(payload),

@@ -82,11 +82,16 @@ func (s *Server) listFindings(w http.ResponseWriter, r *http.Request) {
 		writeDBError(w, err)
 		return
 	}
+	status, err := parseFindingStatus(r.URL.Query().Get("status"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
 	findings, err := store.ListFindings(r.Context(), session.ID, db.FindingFilter{
 		Severity: r.URL.Query().Get("severity"),
 		ToolID:   firstNonEmpty(r.URL.Query().Get("tool_id"), r.URL.Query().Get("tool")),
 		Type:     r.URL.Query().Get("type"),
-		Status:   r.URL.Query().Get("status"),
+		Status:   status,
 		Origin:   r.URL.Query().Get("origin"),
 	})
 	if err != nil {
@@ -117,6 +122,7 @@ func (s *Server) listSourceFindings(w http.ResponseWriter, r *http.Request) {
 type updateFindingRequest struct {
 	Severity    models.Severity `json:"severity"`
 	Remediation string          `json:"remediation"`
+	Status      string          `json:"status"`
 }
 
 func (s *Server) updateFinding(w http.ResponseWriter, r *http.Request) {
@@ -135,7 +141,12 @@ func (s *Server) updateFinding(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, fmt.Errorf("invalid severity %q", req.Severity))
 		return
 	}
-	if err := store.UpdateFinding(r.Context(), findingID, req.Severity, req.Remediation); err != nil {
+	status, err := parseFindingStatus(req.Status)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := store.UpdateFinding(r.Context(), findingID, req.Severity, req.Remediation, status); err != nil {
 		writeDBError(w, err)
 		return
 	}
@@ -151,6 +162,14 @@ func (s *Server) updateFinding(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeDBError(w, db.ErrNotFound)
+}
+
+func parseFindingStatus(value string) (models.FindingStatus, error) {
+	status := models.FindingStatus(strings.TrimSpace(value))
+	if status.Valid() {
+		return status, nil
+	}
+	return "", fmt.Errorf("invalid finding status %q", value)
 }
 
 func (s *Server) listToolRuns(w http.ResponseWriter, r *http.Request) {

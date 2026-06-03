@@ -51,7 +51,7 @@ func TestMigrationCreatesExpectedTables(t *testing.T) {
 			t.Fatalf("expected table %s: %v", table, err)
 		}
 	}
-	for _, version := range []string{"001_initial", "002_phase2_persistence", "003_operator_console", "004_tool_run_sidecars", "005_audit_source_mode", "006_power_features", "007_power_feature_depth"} {
+	for _, version := range []string{"001_initial", "002_phase2_persistence", "003_operator_console", "004_tool_run_sidecars", "005_audit_source_mode", "006_power_features", "007_power_feature_depth", "008_plugin_integrity", "009_finding_status_enum"} {
 		var got string
 		if err := store.db.QueryRowContext(ctx, `SELECT version FROM schema_migrations WHERE version = ?`, version).Scan(&got); err != nil {
 			t.Fatalf("expected migration %s: %v", version, err)
@@ -461,7 +461,7 @@ func TestExistingInitialDatabaseMigratesToPhase2(t *testing.T) {
 	if err := store.db.QueryRowContext(ctx, `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'plugins'`).Scan(&pluginTable); err != nil {
 		t.Fatalf("expected plugins table after migration: %v", err)
 	}
-	for _, expected := range []string{"002_phase2_persistence", "003_operator_console", "004_tool_run_sidecars", "005_audit_source_mode", "006_power_features", "007_power_feature_depth"} {
+	for _, expected := range []string{"002_phase2_persistence", "003_operator_console", "004_tool_run_sidecars", "005_audit_source_mode", "006_power_features", "007_power_feature_depth", "008_plugin_integrity", "009_finding_status_enum"} {
 		var version string
 		if err := store.db.QueryRowContext(ctx, `SELECT version FROM schema_migrations WHERE version = ?`, expected).Scan(&version); err != nil {
 			t.Fatalf("expected %s migration record: %v", expected, err)
@@ -510,7 +510,7 @@ func TestAuditSourcePersistenceAndStats(t *testing.T) {
 		Title:       "Static SQL sink",
 		URL:         "file://app.py#L10",
 		CodeContext: "db.execute(query)",
-		Status:      "confirmed",
+		Status:      models.FindingStatusConfirmed,
 		CreatedAt:   time.Now().UTC(),
 	}
 	if err := store.InsertFinding(ctx, staticFinding); err != nil {

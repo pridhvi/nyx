@@ -1,0 +1,1 @@
+-- Finding status normalization is intentionally not reversed.

@@ -661,7 +661,7 @@ func TestReflectedXSSCheckUsesSeededRoutes(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
 	}
 	finding := out.Findings[0]
-	if finding.ToolID != "reflected-xss-check" || finding.Parameter != "q" || finding.Status != "confirmed" || finding.Severity != models.SeverityHigh {
+	if finding.ToolID != "reflected-xss-check" || finding.Parameter != "q" || finding.Status != models.FindingStatusConfirmed || finding.Severity != models.SeverityHigh {
 		t.Fatalf("unexpected finding: %#v", finding)
 	}
 }
@@ -802,7 +802,7 @@ func TestBruteForceCheckConfirmsConfiguredCredential(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
 	}
 	finding := out.Findings[0]
-	if finding.ToolID != "brute-force-check" || finding.Status != "confirmed" || finding.Severity != models.SeverityHigh || finding.Parameter != "username,password" {
+	if finding.ToolID != "brute-force-check" || finding.Status != models.FindingStatusConfirmed || finding.Severity != models.SeverityHigh || finding.Parameter != "username,password" {
 		t.Fatalf("unexpected finding: %#v", finding)
 	}
 	if strings.Contains(out.ToolRun.RawStdout, "password") || strings.Contains(finding.EvidenceRaw, "password") {
@@ -910,7 +910,7 @@ func TestStoredXSSCheckConfirmsReadbackMarker(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
 	}
 	finding := out.Findings[0]
-	if finding.ToolID != "stored-xss-check" || finding.Parameter != "message" || finding.Status != "confirmed" || finding.Severity != models.SeverityHigh {
+	if finding.ToolID != "stored-xss-check" || finding.Parameter != "message" || finding.Status != models.FindingStatusConfirmed || finding.Severity != models.SeverityHigh {
 		t.Fatalf("unexpected finding: %#v", finding)
 	}
 }
@@ -1052,7 +1052,7 @@ func TestOpenRedirectCheckUsesSeededRoutesWithoutFollowingRedirect(t *testing.T)
 		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
 	}
 	finding := out.Findings[0]
-	if finding.ToolID != "open-redirect-check" || finding.Parameter != "next" || finding.Status != "confirmed" || finding.Severity != models.SeverityHigh {
+	if finding.ToolID != "open-redirect-check" || finding.Parameter != "next" || finding.Status != models.FindingStatusConfirmed || finding.Severity != models.SeverityHigh {
 		t.Fatalf("unexpected finding: %#v", finding)
 	}
 }
@@ -1072,7 +1072,7 @@ func TestOpenRedirectCheckConfirmsSeededExternalRedirect(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
 	}
 	finding := out.Findings[0]
-	if finding.ToolID != "open-redirect-check" || finding.Parameter != "to" || finding.Status != "confirmed" || finding.Severity != models.SeverityHigh {
+	if finding.ToolID != "open-redirect-check" || finding.Parameter != "to" || finding.Status != models.FindingStatusConfirmed || finding.Severity != models.SeverityHigh {
 		t.Fatalf("unexpected finding: %#v", finding)
 	}
 	if !strings.Contains(finding.EvidenceNormalized, "seeded-external-redirect") && !testHasTag(finding.Tags, "seeded-external-redirect") {
@@ -1142,7 +1142,7 @@ func TestSQLICheckConfirmsBooleanDifferential(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
 	}
 	finding := out.Findings[0]
-	if finding.ToolID != "sqli-check" || finding.Parameter != "id" || finding.Status != "confirmed" || finding.Severity != models.SeverityHigh {
+	if finding.ToolID != "sqli-check" || finding.Parameter != "id" || finding.Status != models.FindingStatusConfirmed || finding.Severity != models.SeverityHigh {
 		t.Fatalf("unexpected finding: %#v", finding)
 	}
 }
@@ -1172,7 +1172,7 @@ func TestSQLICheckConfirmsQuotedBooleanDifferentialForNumericSeed(t *testing.T) 
 		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
 	}
 	finding := out.Findings[0]
-	if finding.ToolID != "sqli-check" || finding.Parameter != "id" || finding.Status != "confirmed" || finding.Severity != models.SeverityHigh {
+	if finding.ToolID != "sqli-check" || finding.Parameter != "id" || finding.Status != models.FindingStatusConfirmed || finding.Severity != models.SeverityHigh {
 		t.Fatalf("unexpected finding: %#v", finding)
 	}
 	if !strings.Contains(out.ToolRun.RawStdout, "technique=quoted-boolean-differential boolean=true") {
@@ -1198,7 +1198,7 @@ func TestSQLICheckReportsSQLErrorAsSuspected(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
 	}
 	finding := out.Findings[0]
-	if finding.ToolID != "sqli-check" || finding.Parameter != "id" || finding.Status != "suspected" || finding.Severity != models.SeverityMedium {
+	if finding.ToolID != "sqli-check" || finding.Parameter != "id" || finding.Status != models.FindingStatusOpen || finding.Severity != models.SeverityMedium {
 		t.Fatalf("unexpected finding: %#v", finding)
 	}
 }
@@ -1222,7 +1222,7 @@ func TestSQLICheckReportsSQLiteErrorIndicator(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
 	}
 	finding := out.Findings[0]
-	if finding.ToolID != "sqli-check" || finding.Parameter != "q" || finding.Status != "suspected" || finding.Severity != models.SeverityMedium {
+	if finding.ToolID != "sqli-check" || finding.Parameter != "q" || finding.Status != models.FindingStatusOpen || finding.Severity != models.SeverityMedium {
 		t.Fatalf("unexpected finding: %#v", finding)
 	}
 	if !strings.Contains(out.ToolRun.RawStdout, "sql_error_indicator=true") {
@@ -1269,7 +1269,7 @@ func TestFileInclusionCheckConfirmsHostsFileInclusion(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
 	}
 	finding := out.Findings[0]
-	if finding.ToolID != "file-inclusion-check" || finding.Parameter != "page" || finding.Status != "confirmed" || finding.Severity != models.SeverityHigh {
+	if finding.ToolID != "file-inclusion-check" || finding.Parameter != "page" || finding.Status != models.FindingStatusConfirmed || finding.Severity != models.SeverityHigh {
 		t.Fatalf("unexpected finding: %#v", finding)
 	}
 	if !strings.Contains(strings.ToLower(finding.Title), "file inclusion") {
@@ -1330,7 +1330,7 @@ func TestCommandInjectionCheckConfirmsBenchmarkSafeMarker(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
 	}
 	finding := out.Findings[0]
-	if finding.ToolID != "command-injection-check" || finding.Parameter != "ip" || finding.Method != http.MethodPost || finding.Status != "confirmed" || finding.Severity != models.SeverityHigh {
+	if finding.ToolID != "command-injection-check" || finding.Parameter != "ip" || finding.Method != http.MethodPost || finding.Status != models.FindingStatusConfirmed || finding.Severity != models.SeverityHigh {
 		t.Fatalf("unexpected finding: %#v", finding)
 	}
 }
@@ -1411,7 +1411,7 @@ func TestUploadCheckConfirmsMarkerUpload(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
 	}
 	finding := out.Findings[0]
-	if finding.ToolID != "upload-check" || finding.Parameter != "avatar" || finding.Status != "confirmed" || finding.Severity != models.SeverityHigh {
+	if finding.ToolID != "upload-check" || finding.Parameter != "avatar" || finding.Status != models.FindingStatusConfirmed || finding.Severity != models.SeverityHigh {
 		t.Fatalf("unexpected finding: %#v", finding)
 	}
 }
@@ -1435,7 +1435,7 @@ func TestIDORCheckReportsAdjacentObjectAccess(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
 	}
 	finding := out.Findings[0]
-	if finding.ToolID != "idor-check" || finding.Parameter != "id" || finding.Status != "suspected" || finding.Severity != models.SeverityMedium {
+	if finding.ToolID != "idor-check" || finding.Parameter != "id" || finding.Status != models.FindingStatusOpen || finding.Severity != models.SeverityMedium {
 		t.Fatalf("unexpected finding: %#v", finding)
 	}
 }
@@ -1461,7 +1461,7 @@ func TestIDORCheckConfirmsSecondaryIdentityReplay(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
 	}
 	finding := out.Findings[0]
-	if finding.ToolID != "idor-check" || finding.Status != "confirmed" || finding.Severity != models.SeverityHigh {
+	if finding.ToolID != "idor-check" || finding.Status != models.FindingStatusConfirmed || finding.Severity != models.SeverityHigh {
 		t.Fatalf("unexpected finding: %#v", finding)
 	}
 }
@@ -1484,7 +1484,7 @@ func TestWorkflowAssistReportsGETStateChangingForm(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
 	}
 	finding := out.Findings[0]
-	if finding.ToolID != "workflow-assist" || finding.Status != "suspected" || finding.Severity != models.SeverityMedium {
+	if finding.ToolID != "workflow-assist" || finding.Status != models.FindingStatusOpen || finding.Severity != models.SeverityMedium {
 		t.Fatalf("unexpected finding: %#v", finding)
 	}
 	if !strings.Contains(strings.ToLower(finding.Title), "workflow") {
@@ -1528,7 +1528,7 @@ func TestWorkflowAssistReportsCaptchaProtectedSensitiveWorkflow(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
 	}
 	finding := out.Findings[0]
-	if finding.ToolID != "workflow-assist" || finding.Status != "suspected" || finding.Severity != models.SeverityLow {
+	if finding.ToolID != "workflow-assist" || finding.Status != models.FindingStatusOpen || finding.Severity != models.SeverityLow {
 		t.Fatalf("unexpected finding: %#v", finding)
 	}
 	if !strings.Contains(strings.ToLower(finding.Title), "captcha-protected workflow") {
@@ -1558,7 +1558,7 @@ func TestWorkflowAssistReportsCaptchaAnswerExposure(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
 	}
 	finding := out.Findings[0]
-	if finding.ToolID != "workflow-assist" || finding.Status != "confirmed" || finding.Severity != models.SeverityMedium {
+	if finding.ToolID != "workflow-assist" || finding.Status != models.FindingStatusConfirmed || finding.Severity != models.SeverityMedium {
 		t.Fatalf("unexpected finding: %#v", finding)
 	}
 	if !strings.Contains(strings.ToLower(finding.Title), "captcha answer exposed") || !strings.Contains(finding.EvidenceNormalized, `"answer_present":true`) {
@@ -1623,7 +1623,7 @@ func TestObservabilityAssistReportsMetricsSurface(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
 	}
 	finding := out.Findings[0]
-	if finding.ToolID != "observability-assist" || finding.Status != "suspected" || finding.Severity != models.SeverityLow {
+	if finding.ToolID != "observability-assist" || finding.Status != models.FindingStatusOpen || finding.Severity != models.SeverityLow {
 		t.Fatalf("unexpected finding: %#v", finding)
 	}
 	if !strings.Contains(strings.ToLower(finding.Title), "observability") || !strings.Contains(finding.EvidenceNormalized, "prometheus-metrics") {
@@ -1703,7 +1703,7 @@ func TestDeserializationAssistReportsUploadImportSurface(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
 	}
 	finding := out.Findings[0]
-	if finding.ToolID != "deserialization-assist" || finding.Status != "suspected" || finding.Severity != models.SeverityLow {
+	if finding.ToolID != "deserialization-assist" || finding.Status != models.FindingStatusOpen || finding.Severity != models.SeverityLow {
 		t.Fatalf("unexpected finding: %#v", finding)
 	}
 	if !strings.Contains(strings.ToLower(finding.Title), "deserialization") || !strings.Contains(finding.EvidenceNormalized, "yaml-data") {
@@ -1796,7 +1796,7 @@ func TestCSPReviewReportsExternalScriptIncludeForm(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
 	}
 	finding := out.Findings[0]
-	if finding.ToolID != "csp-review" || finding.Status != "suspected" || finding.Severity != models.SeverityMedium {
+	if finding.ToolID != "csp-review" || finding.Status != models.FindingStatusOpen || finding.Severity != models.SeverityMedium {
 		t.Fatalf("unexpected finding: %#v", finding)
 	}
 	if !strings.Contains(strings.ToLower(finding.Title), "csp bypass") {
@@ -1849,7 +1849,7 @@ func TestCSRFCheckReportsStateChangingFormWithoutToken(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
 	}
 	finding := out.Findings[0]
-	if finding.ToolID != "csrf-check" || finding.Status != "suspected" || finding.Severity != models.SeverityMedium {
+	if finding.ToolID != "csrf-check" || finding.Status != models.FindingStatusOpen || finding.Severity != models.SeverityMedium {
 		t.Fatalf("unexpected finding: %#v", finding)
 	}
 }
@@ -1890,7 +1890,7 @@ func TestWeakSessionIDCheckConfirmsSequentialCookie(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
 	}
 	finding := out.Findings[0]
-	if finding.ToolID != "weak-session-check" || finding.Parameter != "weakSessionID" || finding.Status != "confirmed" || finding.Severity != models.SeverityHigh {
+	if finding.ToolID != "weak-session-check" || finding.Parameter != "weakSessionID" || finding.Status != models.FindingStatusConfirmed || finding.Severity != models.SeverityHigh {
 		t.Fatalf("unexpected finding: %#v", finding)
 	}
 }
@@ -1916,7 +1916,7 @@ func TestWeakSessionIDCheckSubmitsGenerationForm(t *testing.T) {
 		t.Fatalf("expected 1 finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
 	}
 	finding := out.Findings[0]
-	if finding.ToolID != "weak-session-check" || finding.Parameter != "dvwaSession" || finding.Method != http.MethodPost || finding.Status != "confirmed" || finding.Severity != models.SeverityHigh {
+	if finding.ToolID != "weak-session-check" || finding.Parameter != "dvwaSession" || finding.Method != http.MethodPost || finding.Status != models.FindingStatusConfirmed || finding.Severity != models.SeverityHigh {
 		t.Fatalf("unexpected finding: %#v", finding)
 	}
 }
@@ -1987,7 +1987,7 @@ func TestParseXXEFindings(t *testing.T) {
 	if len(findings) != 1 {
 		t.Fatalf("expected 1 finding, got %d", len(findings))
 	}
-	if findings[0].ToolID != "xxe-fuzz" || findings[0].Severity != models.SeverityHigh || findings[0].Status != "confirmed" {
+	if findings[0].ToolID != "xxe-fuzz" || findings[0].Severity != models.SeverityHigh || findings[0].Status != models.FindingStatusConfirmed {
 		t.Fatalf("unexpected finding: %#v", findings[0])
 	}
 }
@@ -2022,7 +2022,7 @@ func TestXXEFuzzUsesMultipartForUploadCandidate(t *testing.T) {
 	if len(out.Findings) != 1 {
 		t.Fatalf("expected 1 XXE finding, got %d; stdout=%s", len(out.Findings), out.ToolRun.RawStdout)
 	}
-	if out.Findings[0].ToolID != "xxe-fuzz" || out.Findings[0].Status != "confirmed" {
+	if out.Findings[0].ToolID != "xxe-fuzz" || out.Findings[0].Status != models.FindingStatusConfirmed {
 		t.Fatalf("unexpected finding: %#v", out.Findings[0])
 	}
 	if !strings.Contains(out.ToolRun.RawStdout, "mode=multipart") {

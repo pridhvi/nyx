@@ -21,6 +21,16 @@ const (
 	FindingTypeInfo             FindingType = "info"
 )
 
+type FindingStatus string
+
+const (
+	FindingStatusOpen          FindingStatus = "open"
+	FindingStatusConfirmed     FindingStatus = "confirmed"
+	FindingStatusFalsePositive FindingStatus = "false-positive"
+	FindingStatusSuppressed    FindingStatus = "suppressed"
+	FindingStatusWontFix       FindingStatus = "wont-fix"
+)
+
 type Finding struct {
 	ID                 string        `json:"id"`
 	SessionID          string        `json:"session_id"`
@@ -40,7 +50,7 @@ type Finding struct {
 	EvidenceNormalized string        `json:"evidence_normalized"`
 	CodeContext        string        `json:"code_context,omitempty"`
 	FlowSummary        string        `json:"flow_summary,omitempty"`
-	Status             string        `json:"status,omitempty"`
+	Status             FindingStatus `json:"status,omitempty"`
 	Notes              string        `json:"notes,omitempty"`
 	HTTPEvidence       *HTTPEvidence `json:"http_evidence,omitempty"`
 	Tags               []string      `json:"tags"`

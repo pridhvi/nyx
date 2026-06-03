@@ -1185,11 +1185,13 @@ work and must be carried forward:
   - backend attack graph edge and vector APIs remain available for the future UI
 - Implemented Findings `/sessions/:id/findings`:
   - sortable findings table
-  - bulk severity/remediation workflow for selected findings
+  - bulk severity/status/remediation workflow for selected findings
   - split finding detail workspace with persisted evidence tabs
   - raw HTTP request/response evidence view
-  - persisted severity/remediation edits
-  - severity/type/tool/OWASP/CVE/exploit filters
+  - persisted severity/status/remediation edits
+  - validated triage statuses: `open`, `confirmed`, `false-positive`,
+    `suppressed`, and `wont-fix`
+  - severity/status/type/tool/OWASP/CVE/exploit filters
   - CVE matches
   - empty-state panel instead of empty tables when no findings are available or
     filters hide all findings

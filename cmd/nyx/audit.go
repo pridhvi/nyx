@@ -195,7 +195,7 @@ func printFindings(findings []models.Finding) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(w, "SEVERITY\tSTATUS\tTOOL\tTITLE\tLOCATION")
 	for _, finding := range findings {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", finding.Severity, firstNonEmpty(finding.Status, "confirmed"), finding.ToolID, finding.Title, finding.URL)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", finding.Severity, firstNonEmpty(string(finding.Status), string(models.FindingStatusConfirmed)), finding.ToolID, finding.Title, finding.URL)
 	}
 	return w.Flush()
 }

@@ -432,12 +432,12 @@ func toolCoverageMarkdown(runs []models.ToolRun) string {
 func suppressedFindingsMarkdown(findings []models.Finding) string {
 	var b strings.Builder
 	for _, finding := range findings {
-		if finding.Status == "suppressed" || finding.Status == "dismissed" {
+		if finding.Status == models.FindingStatusSuppressed || finding.Status == models.FindingStatusFalsePositive {
 			fmt.Fprintf(&b, "- **%s** [%s] %s (%s)\n", finding.Title, finding.Status, finding.URL, finding.ToolID)
 		}
 	}
 	if strings.TrimSpace(b.String()) == "" {
-		return "No suppressed or dismissed findings were recorded."
+		return "No suppressed or false-positive findings were recorded."
 	}
 	return strings.TrimSpace(b.String())
 }
@@ -445,7 +445,7 @@ func suppressedFindingsMarkdown(findings []models.Finding) string {
 func activeFindings(findings []models.Finding) []models.Finding {
 	out := make([]models.Finding, 0, len(findings))
 	for _, finding := range findings {
-		if finding.Status == "suppressed" || finding.Status == "dismissed" {
+		if finding.Status == models.FindingStatusSuppressed || finding.Status == models.FindingStatusFalsePositive {
 			continue
 		}
 		out = append(out, finding)

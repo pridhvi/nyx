@@ -138,6 +138,28 @@ func TestSessionAPI(t *testing.T) {
 	if len(decodedFindings) == 0 {
 		t.Fatal("expected security header findings")
 	}
+	invalidFindingStatus := httptest.NewRecorder()
+	handler.ServeHTTP(invalidFindingStatus, jsonRequest(http.MethodPatch, "/api/sessions/"+created.Session.ID+"/findings/"+decodedFindings[0].ID, bytes.NewBufferString(`{"status":"needs-review"}`)))
+	if invalidFindingStatus.Code != http.StatusBadRequest || !strings.Contains(invalidFindingStatus.Body.String(), "invalid finding status") {
+		t.Fatalf("expected invalid finding status rejection, got %d body=%s", invalidFindingStatus.Code, invalidFindingStatus.Body.String())
+	}
+	validFindingStatus := httptest.NewRecorder()
+	handler.ServeHTTP(validFindingStatus, jsonRequest(http.MethodPatch, "/api/sessions/"+created.Session.ID+"/findings/"+decodedFindings[0].ID, bytes.NewBufferString(`{"status":"false-positive"}`)))
+	if validFindingStatus.Code != http.StatusOK {
+		t.Fatalf("valid finding status update = %d body=%s", validFindingStatus.Code, validFindingStatus.Body.String())
+	}
+	var updatedFinding models.Finding
+	if err := json.NewDecoder(validFindingStatus.Body).Decode(&updatedFinding); err != nil {
+		t.Fatal(err)
+	}
+	if updatedFinding.Status != models.FindingStatusFalsePositive {
+		t.Fatalf("expected false-positive finding status, got %#v", updatedFinding.Status)
+	}
+	invalidFindingFilter := httptest.NewRecorder()
+	handler.ServeHTTP(invalidFindingFilter, httptest.NewRequest(http.MethodGet, "/api/sessions/"+created.Session.ID+"/findings?status=needs-review", nil))
+	if invalidFindingFilter.Code != http.StatusBadRequest || !strings.Contains(invalidFindingFilter.Body.String(), "invalid finding status") {
+		t.Fatalf("expected invalid finding status filter rejection, got %d body=%s", invalidFindingFilter.Code, invalidFindingFilter.Body.String())
+	}
 
 	runs := httptest.NewRecorder()
 	handler.ServeHTTP(runs, httptest.NewRequest(http.MethodGet, "/api/sessions/"+created.Session.ID+"/tool-runs", nil))

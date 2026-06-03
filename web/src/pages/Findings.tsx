@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
-import { listFindings, updateFinding, type Finding } from "../api/client";
+import { listFindings, updateFinding, type Finding, type FindingStatus } from "../api/client";
 import { useSessionContext } from "../session";
 import { sortLabel, useSortableRows } from "../sort";
 
@@ -15,8 +15,10 @@ export function Findings() {
   const [selectedFinding, setSelectedFinding] = useState<Finding | null>(null);
   const [selectedFindingIDs, setSelectedFindingIDs] = useState<Set<string>>(() => new Set());
   const [editSeverity, setEditSeverity] = useState("");
+  const [editStatus, setEditStatus] = useState<FindingStatus>("open");
   const [editRemediation, setEditRemediation] = useState("");
   const [bulkSeverity, setBulkSeverity] = useState("");
+  const [bulkStatus, setBulkStatus] = useState("");
   const [bulkRemediation, setBulkRemediation] = useState("");
   const [evidenceTab, setEvidenceTab] = useState<"normalized" | "raw" | "http" | "cves" | "code">("normalized");
   const [dismissedFindingSignature, setDismissedFindingSignature] = useState("");
@@ -57,7 +59,7 @@ export function Findings() {
         ? "No findings match the current filters."
         : "No findings yet for the selected session.";
   const updateMutation = useMutation({
-    mutationFn: () => updateFinding(selected, selectedFinding?.id ?? "", { severity: editSeverity, remediation: editRemediation }),
+    mutationFn: () => updateFinding(selected, selectedFinding?.id ?? "", { severity: editSeverity, status: editStatus, remediation: editRemediation }),
     onSuccess: (finding) => {
       setSelectedFinding(finding);
       queryClient.invalidateQueries({ queryKey: ["findings-page-all", selected] });
@@ -70,6 +72,7 @@ export function Findings() {
     mutationFn: async () => {
       const payload = {
         severity: bulkSeverity || undefined,
+        status: (bulkStatus || undefined) as FindingStatus | undefined,
         remediation: bulkRemediation || undefined,
       };
       await Promise.all(Array.from(selectedFindingIDs).map((findingID) => updateFinding(selected, findingID, payload)));
@@ -77,6 +80,7 @@ export function Findings() {
     onSuccess: () => {
       setSelectedFindingIDs(new Set());
       setBulkSeverity("");
+      setBulkStatus("");
       setBulkRemediation("");
       queryClient.invalidateQueries({ queryKey: ["findings-page-all", selected] });
       queryClient.invalidateQueries({ queryKey: ["findings-page", selected] });
@@ -89,6 +93,7 @@ export function Findings() {
     setDismissedFindingSignature("");
     setSelectedFinding(finding);
     setEditSeverity(finding.severity);
+    setEditStatus(finding.status ?? "open");
     setEditRemediation(finding.remediation ?? "");
     setEvidenceTab("normalized");
   }
@@ -187,10 +192,11 @@ export function Findings() {
           Status
           <select value={status} onChange={(event) => setStatus(event.target.value)}>
             <option value="">All</option>
+            <option value="open">Open</option>
             <option value="confirmed">Confirmed</option>
-            <option value="pending">Pending</option>
+            <option value="false-positive">False Positive</option>
             <option value="suppressed">Suppressed</option>
-            <option value="dismissed">Dismissed</option>
+            <option value="wont-fix">Won't Fix</option>
           </select>
         </label>
         <label className="compact-control">
@@ -217,6 +223,17 @@ export function Findings() {
             <option value="info">Info</option>
           </select>
         </label>
+        <label className="compact-control">
+          Status
+          <select value={bulkStatus} onChange={(event) => setBulkStatus(event.target.value)}>
+            <option value="">Keep current</option>
+            <option value="open">Open</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="false-positive">False Positive</option>
+            <option value="suppressed">Suppressed</option>
+            <option value="wont-fix">Won't Fix</option>
+          </select>
+        </label>
         <label className="bulk-remediation">
           Remediation
           <input value={bulkRemediation} onChange={(event) => setBulkRemediation(event.target.value)} placeholder="Leave blank to keep current remediation" />
@@ -225,7 +242,7 @@ export function Findings() {
           className="primary"
           type="button"
           onClick={() => bulkUpdateMutation.mutate()}
-          disabled={selectedCount === 0 || (!bulkSeverity && !bulkRemediation) || bulkUpdateMutation.isPending}
+          disabled={selectedCount === 0 || (!bulkSeverity && !bulkStatus && !bulkRemediation) || bulkUpdateMutation.isPending}
         >
           {bulkUpdateMutation.isPending ? "Applying" : "Apply"}
         </button>
@@ -331,6 +348,16 @@ export function Findings() {
                   <option value="medium">Medium</option>
                   <option value="low">Low</option>
                   <option value="info">Info</option>
+                </select>
+              </label>
+              <label className="compact-control">
+                Status
+                <select value={editStatus} onChange={(event) => setEditStatus(event.target.value as FindingStatus)}>
+                  <option value="open">Open</option>
+                  <option value="confirmed">Confirmed</option>
+                  <option value="false-positive">False Positive</option>
+                  <option value="suppressed">Suppressed</option>
+                  <option value="wont-fix">Won't Fix</option>
                 </select>
               </label>
               <label>

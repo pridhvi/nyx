@@ -88,7 +88,7 @@ func (a DOMXSSCheck) Run(ctx context.Context, input AdapterInput) (AdapterOutput
 			finding.URL = probeURL
 			finding.Parameter = candidate.Parameter
 			finding.Method = http.MethodGet
-			finding.Status = "confirmed"
+			finding.Status = models.FindingStatusConfirmed
 			finding.Confidence = 0.9
 			findings = append(findings, finding)
 			break
