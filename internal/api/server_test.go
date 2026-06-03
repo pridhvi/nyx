@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -12,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -1194,4 +1196,72 @@ func TestStopScanCancelsRunningScan(t *testing.T) {
 		t.Fatalf("stop status = %d body=%s", stop.Code, stop.Body.String())
 	}
 	waitForScanStatus(t, handler, created.Session.ID, models.SessionStatusCancelled)
+}
+
+func TestScanManagerShutdownDrainsRunningScans(t *testing.T) {
+	requestStarted := make(chan struct{})
+	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-requestStarted:
+		default:
+			close(requestStarted)
+		}
+		<-r.Context().Done()
+	}))
+	defer targetServer.Close()
+	parsed, err := url.Parse(targetServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	port, err := strconv.Atoi(parsed.Port())
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionDir := t.TempDir()
+	session := models.Session{
+		ID:           models.NewID(),
+		Name:         "Shutdown",
+		Status:       models.SessionStatusPending,
+		Mode:         models.ScanModeActive,
+		TargetInput:  targetServer.URL,
+		InScope:      []string{targetServer.URL},
+		EnabledTools: []string{"http-probe"},
+		CreatedAt:    time.Now().UTC(),
+	}
+	target := models.Target{
+		ID:        models.NewID(),
+		SessionID: session.ID,
+		Host:      parsed.Hostname(),
+		Port:      port,
+		Protocol:  parsed.Scheme,
+		CreatedAt: time.Now().UTC(),
+	}
+	record, err := db.CreateSessionDB(t.Context(), sessionDir, session, target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager := NewScanManager(sessionDir, targetServer.Client(), nil)
+	manager.Start(record.Session)
+	select {
+	case <-requestStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("scan did not start target request")
+	}
+	shutdownCtx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	if err := manager.Shutdown(shutdownCtx); err != nil {
+		t.Fatal(err)
+	}
+	store, err := db.OpenSession(t.Context(), sessionDir, session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	got, err := store.GetSession(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != models.SessionStatusCancelled {
+		t.Fatalf("expected cancelled scan after manager shutdown, got %s", got.Status)
+	}
 }

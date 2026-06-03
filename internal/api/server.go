@@ -68,6 +68,8 @@ const (
 	serverReadTimeout          = 30 * time.Second
 	serverIdleTimeout          = 2 * time.Minute
 	nonStreamingHandlerTimeout = 2 * time.Minute
+	serverShutdownTimeout      = 5 * time.Second
+	scanManagerShutdownTimeout = 30 * time.Second
 )
 
 func NewServer(cfg Config) *Server {
@@ -131,9 +133,14 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	}()
 	select {
 	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		return server.Shutdown(shutdownCtx)
+		scheduler.Stop()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), serverShutdownTimeout)
+		httpErr := server.Shutdown(shutdownCtx)
+		cancel()
+		scanCtx, cancel := context.WithTimeout(context.Background(), scanManagerShutdownTimeout)
+		scanErr := s.scanManager.Shutdown(scanCtx)
+		cancel()
+		return errors.Join(httpErr, scanErr)
 	case err := <-errCh:
 		if err == http.ErrServerClosed {
 			return nil

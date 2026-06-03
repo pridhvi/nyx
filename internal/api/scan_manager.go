@@ -19,19 +19,26 @@ type ScanManager struct {
 	httpClient      adapters.HTTPDoer
 	llmAllowedHosts []string
 	events          *scanEventBroker
+	ctx             context.Context
+	cancel          context.CancelFunc
+	wg              sync.WaitGroup
 	mu              sync.Mutex
 	running         map[string]context.CancelFunc
 	paused          map[string]bool
 	resumeCh        map[string]chan struct{}
+	shuttingDown    bool
 	plugins         func() []models.PluginRecord
 }
 
 func NewScanManager(sessionDir string, httpClient adapters.HTTPDoer, llmAllowedHosts []string) *ScanManager {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &ScanManager{
 		sessionDir:      sessionDir,
 		httpClient:      httpClient,
 		llmAllowedHosts: append([]string(nil), llmAllowedHosts...),
 		events:          newScanEventBroker(),
+		ctx:             ctx,
+		cancel:          cancel,
 		running:         make(map[string]context.CancelFunc),
 		paused:          make(map[string]bool),
 		resumeCh:        make(map[string]chan struct{}),
@@ -43,6 +50,25 @@ func (m *ScanManager) SetPluginProvider(provider func() []models.PluginRecord) {
 }
 
 func (m *ScanManager) Start(session models.Session) {
+	ctx, cancel := context.WithCancel(m.ctx)
+	m.mu.Lock()
+	if m.shuttingDown {
+		m.mu.Unlock()
+		cancel()
+		completed := time.Now().UTC()
+		m.updateSessionStatus(session.ID, models.SessionStatusCancelled, nil, &completed)
+		m.Publish(engine.ScanEvent{
+			Type:      engine.ScanEventCancelled,
+			SessionID: session.ID,
+			Status:    string(models.SessionStatusCancelled),
+			Message:   "Scan was not started because the server is shutting down",
+			At:        completed,
+		})
+		return
+	}
+	m.running[session.ID] = cancel
+	m.wg.Add(1)
+	m.mu.Unlock()
 	m.Publish(engine.ScanEvent{
 		Type:      engine.ScanEventQueued,
 		SessionID: session.ID,
@@ -50,11 +76,8 @@ func (m *ScanManager) Start(session models.Session) {
 		Message:   "Scan queued",
 		At:        time.Now().UTC(),
 	})
-	ctx, cancel := context.WithCancel(context.Background())
-	m.mu.Lock()
-	m.running[session.ID] = cancel
-	m.mu.Unlock()
 	go func() {
+		defer m.wg.Done()
 		defer func() {
 			m.mu.Lock()
 			delete(m.running, session.ID)
@@ -80,6 +103,30 @@ func (m *ScanManager) Start(session models.Session) {
 			slog.Error("async scan failed", "session_id", session.ID, "error", err)
 		}
 	}()
+}
+
+func (m *ScanManager) Shutdown(ctx context.Context) error {
+	m.mu.Lock()
+	if !m.shuttingDown {
+		m.shuttingDown = true
+		m.cancel()
+	}
+	for _, cancel := range m.running {
+		cancel()
+	}
+	m.mu.Unlock()
+
+	done := make(chan struct{})
+	go func() {
+		m.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (m *ScanManager) runSession(ctx context.Context, store *db.Store, session models.Session) error {

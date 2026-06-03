@@ -28,6 +28,9 @@ This repo has a buildable backend with module path `github.com/pridhvi/nyx`, abs
 - Treat power-feature callback recording as privileged evidence mutation:
   require configured API-key auth and do not expose an unauthenticated local
   callback collector that can pollute PoC evidence.
+- Keep asynchronous scan goroutines owned by `ScanManager`: server shutdown
+  must stop scheduling, cancel active scan contexts, and wait for final
+  cancelled/completed status persistence before exit.
 - Keep LLM endpoints constrained by the shared base URL validator and
   `NYX_LLM_ALLOWED_HOSTS` wherever model probing, chat, or automatic analysis
   can initiate outbound requests; private, loopback, link-local, multicast,

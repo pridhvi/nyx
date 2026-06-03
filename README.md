@@ -315,6 +315,8 @@ State-changing JSON API requests (`POST`, `PATCH`, and `PUT`) must use `Content-
 
 The HTTP server uses finite read/header/idle timeouts and applies a request timeout to non-streaming routes. Scan event WebSockets remain exempt so live progress streams can stay open while scans run.
 
+On server shutdown, Nyx stops the monitor scheduler, cancels active scan contexts, and waits for scan goroutines to persist their final cancelled state before exit. Interrupted scans are marked cancelled; resumable scan replay is not currently implemented.
+
 ## Configuration
 
 Create `~/.nyx/config.yaml` for local defaults:
