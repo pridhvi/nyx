@@ -552,6 +552,15 @@ export type ScanEvent = {
   at: string;
 };
 
+export const authExpiredEvent = "nyx-auth-expired";
+
+function notifyAuthExpired(response: Response) {
+  if (response.status !== 401 || typeof window === "undefined") {
+    return;
+  }
+  window.dispatchEvent(new CustomEvent(authExpiredEvent));
+}
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
@@ -559,6 +568,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
   });
   if (!response.ok) {
+    notifyAuthExpired(response);
     const payload = await response.json().catch(() => ({ error: response.statusText }));
     throw new Error(payload.error ?? response.statusText);
   }
@@ -686,6 +696,7 @@ export async function getToolRunLog(sessionID: string, runID: string, stream: "s
     return null;
   }
   if (!response.ok) {
+    notifyAuthExpired(response);
     throw new Error(response.statusText);
   }
   return response.text();
@@ -770,6 +781,7 @@ export async function uploadPluginBinary(file: File) {
   body.set("binary", file);
   const response = await fetch("/api/plugins/upload", { method: "POST", body, credentials: "same-origin" });
   if (!response.ok) {
+    notifyAuthExpired(response);
     const payload = await response.json().catch(() => ({ error: response.statusText }));
     throw new Error(payload.error ?? response.statusText);
   }
@@ -812,6 +824,7 @@ export async function getReport(sessionID: string, format: string, mode: string)
     credentials: "same-origin",
   });
   if (!response.ok) {
+    notifyAuthExpired(response);
     throw new Error(await response.text());
   }
   return response.text();

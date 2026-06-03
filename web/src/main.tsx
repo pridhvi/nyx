@@ -1,9 +1,9 @@
-import React, { Suspense, lazy, useEffect, useState } from "react";
+import React, { Suspense, lazy, useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { Bot, Boxes, FileCode2, FileText, Menu, Moon, MoreHorizontal, Network, PackageSearch, Radar, RefreshCw, Search, Settings as SettingsIcon, Shield, Sparkles, Sun, TerminalSquare, Wrench, X } from "lucide-react";
-import { login as loginAPI } from "./api/client";
+import { authExpiredEvent, login as loginAPI } from "./api/client";
 import { scopedSessionPath } from "./sessionRoutes";
 import { SessionProvider, useSessionContext } from "./session";
 import "./styles.css";
@@ -41,6 +41,25 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<"checking" | "ready" | "required">("checking");
   const [apiKey, setAPIKey] = useState("");
   const [error, setError] = useState("");
+  const stateRef = useRef(state);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  useEffect(() => {
+    function handleAuthExpired() {
+      if (stateRef.current !== "ready") {
+        return;
+      }
+      queryClient.clear();
+      setAPIKey("");
+      setError("Session expired — please log in again");
+      setState("required");
+    }
+    window.addEventListener(authExpiredEvent, handleAuthExpired);
+    return () => window.removeEventListener(authExpiredEvent, handleAuthExpired);
+  }, []);
 
   useEffect(() => {
     let active = true;
