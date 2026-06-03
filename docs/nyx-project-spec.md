@@ -136,7 +136,7 @@ The frontend is built with `vite build` and the output `dist/` directory is embe
 
 ### 3.5 Plugin System
 
-Subprocess JSON-RPC. Each tool adapter is a standalone binary (any language). Nyx spawns the binary, writes a JSON request to stdin, reads a JSON response from stdout. This is the initial plugin contract. The `hashicorp/go-plugin` (gRPC-based) system can replace this later for performance-critical adapters.
+Subprocess JSON-RPC. Each tool adapter is a standalone binary (any language). Nyx spawns the binary, writes a JSON request to stdin, reads a JSON response from stdout. Configured plugin records store a SHA-256 digest at registration time, and Nyx re-verifies the digest immediately before execution so modified binaries fail as tool runs before a subprocess starts. This is the initial plugin contract. The `hashicorp/go-plugin` (gRPC-based) system can replace this later for performance-critical adapters.
 
 ProjectDiscovery tools (`nuclei`, `httpx`, `subfinder`, `naabu`, `dnsx`) are subprocess adapters in v1. Native Go-library adapters are intentionally deferred: they may reduce installation dependency and stdout parsing fragility, but they also add dependency weight, in-process crash/resource risk, API stability risk, and more maintenance. If revisited, `httpx` is the safest first candidate; `nuclei` and `naabu` should remain deferred until a native adapter pattern proves stable.
 
@@ -674,6 +674,7 @@ CREATE TABLE plugins (
     id         TEXT PRIMARY KEY,
     name       TEXT NOT NULL,
     binary     TEXT NOT NULL,
+    sha256     TEXT NOT NULL DEFAULT '',
     enabled    BOOLEAN NOT NULL DEFAULT TRUE,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP

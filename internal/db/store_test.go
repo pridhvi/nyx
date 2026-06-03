@@ -362,6 +362,7 @@ func TestAttackVectorLLMAndPluginPersistenceRoundTrips(t *testing.T) {
 		ID:        models.NewID(),
 		Name:      "custom-scanner",
 		Binary:    "/opt/nyx/custom-scanner",
+		SHA256:    "old-digest",
 		Enabled:   true,
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
@@ -370,6 +371,7 @@ func TestAttackVectorLLMAndPluginPersistenceRoundTrips(t *testing.T) {
 		t.Fatal(err)
 	}
 	plugin.Binary = "/opt/nyx/custom-scanner-v2"
+	plugin.SHA256 = "new-digest"
 	plugin.UpdatedAt = plugin.UpdatedAt.Add(time.Minute)
 	if err := store.UpsertPlugin(ctx, plugin); err != nil {
 		t.Fatal(err)
@@ -378,7 +380,7 @@ func TestAttackVectorLLMAndPluginPersistenceRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(plugins) != 1 || plugins[0].Binary != "/opt/nyx/custom-scanner-v2" {
+	if len(plugins) != 1 || plugins[0].Binary != "/opt/nyx/custom-scanner-v2" || plugins[0].SHA256 != "new-digest" {
 		t.Fatalf("unexpected plugins: %#v", plugins)
 	}
 	if err := store.DeletePlugin(ctx, plugin.Name); err != nil {

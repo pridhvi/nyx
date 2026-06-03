@@ -420,6 +420,9 @@ work and must be carried forward:
 - Configured plugin metadata persists in the global plugin registry under the
   Nyx state directory. Legacy session plugin rows remain readable for old
   sessions.
+- Configured plugin records store a SHA-256 digest at registration, plugin
+  uploads return the computed digest, and enabled plugin execution rechecks the
+  digest before spawning the subprocess.
 - Enabled configured plugins load into the scan runner alongside built-in
   adapters.
 - Configured plugins invoke the subprocess JSON contract and normalize returned
@@ -442,6 +445,8 @@ work and must be carried forward:
 
 - `nyx plugins list` reports built-in adapters and configured plugins.
 - Plugin binaries can be configured and invoked through the adapter contract.
+- Plugin binary digest mismatches produce failed persisted `tool_runs` before
+  execution.
 - Missing or failing plugin binaries produce persisted `tool_runs`.
 - Adapter tests prove output normalization is deterministic.
 

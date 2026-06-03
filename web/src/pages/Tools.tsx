@@ -135,7 +135,7 @@ export function Tools() {
                   <td><strong>{plugin.name}</strong><small>{plugin.homepage_url}</small></td>
                   <td>{plugin.phase}</td>
                   <td>{plugin.description || "-"}</td>
-                  <td><code>{plugin.binary}</code></td>
+                  <td><code>{plugin.binary}</code>{plugin.sha256 ? <small>SHA-256 {plugin.sha256.slice(0, 16)}...</small> : <small>SHA-256 not recorded</small>}</td>
                   <td>{plugin.enabled ? "enabled" : "disabled"}</td>
                   <td className="action-row"><button className="secondary" disabled={!authEnabled} onClick={() => updatePlugin(plugin.id, { enabled: !plugin.enabled }).then(() => {
                     queryClient.invalidateQueries({ queryKey: ["plugins"] });

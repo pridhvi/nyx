@@ -476,6 +476,7 @@ export type PluginRecord = {
   id: string;
   name: string;
   binary: string;
+  sha256?: string;
   phase: string;
   description: string;
   homepage_url: string;
@@ -772,7 +773,7 @@ export async function uploadPluginBinary(file: File) {
     const payload = await response.json().catch(() => ({ error: response.statusText }));
     throw new Error(payload.error ?? response.statusText);
   }
-  return response.json() as Promise<{ binary: string }>;
+  return response.json() as Promise<{ binary: string; sha256: string }>;
 }
 
 export function listVectors(sessionID: string) {

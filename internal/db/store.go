@@ -477,15 +477,17 @@ INSERT INTO llm_analyses (
 
 func (s *Store) UpsertPlugin(ctx context.Context, plugin models.PluginRecord) error {
 	_, err := s.db.ExecContext(ctx, `
-INSERT INTO plugins (id, name, binary, enabled, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?)
+INSERT INTO plugins (id, name, binary, sha256, enabled, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(name) DO UPDATE SET
 	binary = excluded.binary,
+	sha256 = excluded.sha256,
 	enabled = excluded.enabled,
 	updated_at = excluded.updated_at`,
 		plugin.ID,
 		plugin.Name,
 		plugin.Binary,
+		plugin.SHA256,
 		plugin.Enabled,
 		formatTime(plugin.CreatedAt),
 		formatTime(plugin.UpdatedAt),
@@ -913,7 +915,7 @@ ORDER BY created_at ASC`, sessionID)
 
 func (s *Store) ListPlugins(ctx context.Context) ([]models.PluginRecord, error) {
 	rows, err := s.db.QueryContext(ctx, `
-SELECT id, name, binary, enabled, created_at, updated_at
+SELECT id, name, binary, sha256, enabled, created_at, updated_at
 FROM plugins
 ORDER BY name ASC`)
 	if err != nil {
@@ -1468,6 +1470,7 @@ func scanPlugin(row rowScanner) (models.PluginRecord, error) {
 		&plugin.ID,
 		&plugin.Name,
 		&plugin.Binary,
+		&plugin.SHA256,
 		&plugin.Enabled,
 		&createdAt,
 		&updatedAt,

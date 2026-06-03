@@ -77,6 +77,10 @@ func runPluginsInstall(args []string) error {
 	if err := validatePluginExecutable(binary); err != nil {
 		return err
 	}
+	digest, err := adapters.PluginBinarySHA256(binary)
+	if err != nil {
+		return err
+	}
 	if !validPluginPhase(*phase) {
 		return fmt.Errorf("unsupported plugin phase %q", *phase)
 	}
@@ -85,6 +89,7 @@ func runPluginsInstall(args []string) error {
 		ID:          models.NewID(),
 		Name:        pluginName,
 		Binary:      binary,
+		SHA256:      digest,
 		Phase:       strings.TrimSpace(*phase),
 		Description: strings.TrimSpace(*description),
 		HomepageURL: strings.TrimSpace(*homepageURL),

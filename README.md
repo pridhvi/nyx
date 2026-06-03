@@ -305,6 +305,8 @@ The Docker image uses a pinned Debian 13 slim runtime digest and bundles the bas
 
 Subprocess adapters run through `exec.CommandContext(binary, args...)` with discrete arguments. Extra subprocess arguments are validated through a shared allow-list for supported tools, and persisted invalid parameters are rejected before an external tool starts.
 
+Configured plugin binaries are hash-pinned at registration. The upload API returns a SHA-256 digest, API/CLI plugin registration stores the digest on the plugin record, and Nyx re-computes the digest before execution so a changed binary produces a failed tool run instead of being spawned.
+
 ## Configuration
 
 Create `~/.nyx/config.yaml` for local defaults:

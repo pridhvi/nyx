@@ -1,6 +1,8 @@
 package api
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -119,7 +121,13 @@ func (s *Server) updateGlobalPlugin(w http.ResponseWriter, r *http.Request) {
 				writeError(w, http.StatusBadRequest, err)
 				return
 			}
+			digest, err := adapters.PluginBinarySHA256(req.Binary)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, err)
+				return
+			}
 			plugins[i].Binary = strings.TrimSpace(req.Binary)
+			plugins[i].SHA256 = digest
 		}
 		if strings.TrimSpace(req.Phase) != "" {
 			if err := validatePluginPhase(req.Phase); err != nil {
@@ -211,11 +219,12 @@ func (s *Server) uploadPluginBinary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer out.Close()
-	if _, err := io.Copy(out, file); err != nil {
+	hash := sha256.New()
+	if _, err := io.Copy(io.MultiWriter(out, hash), file); err != nil {
 		writeRequestBodyError(w, err)
 		return
 	}
-	writeJSON(w, map[string]string{"binary": path})
+	writeJSON(w, map[string]string{"binary": path, "sha256": hex.EncodeToString(hash.Sum(nil))})
 }
 
 func safePluginFilename(name string) string {
@@ -278,6 +287,10 @@ func pluginFromRequest(req pluginRequest, id string, now time.Time) (models.Plug
 	if err := validatePluginBinary(binary); err != nil {
 		return models.PluginRecord{}, err
 	}
+	digest, err := adapters.PluginBinarySHA256(binary)
+	if err != nil {
+		return models.PluginRecord{}, err
+	}
 	phase := strings.TrimSpace(req.Phase)
 	if phase == "" {
 		phase = string(adapters.PhaseVulnScan)
@@ -289,7 +302,7 @@ func pluginFromRequest(req pluginRequest, id string, now time.Time) (models.Plug
 	if req.Enabled != nil {
 		enabled = *req.Enabled
 	}
-	return models.PluginRecord{ID: id, Name: name, Binary: binary, Phase: phase, Description: strings.TrimSpace(req.Description), HomepageURL: strings.TrimSpace(req.HomepageURL), Enabled: enabled, CreatedAt: now, UpdatedAt: now}, nil
+	return models.PluginRecord{ID: id, Name: name, Binary: binary, SHA256: digest, Phase: phase, Description: strings.TrimSpace(req.Description), HomepageURL: strings.TrimSpace(req.HomepageURL), Enabled: enabled, CreatedAt: now, UpdatedAt: now}, nil
 }
 
 func validatePluginPhase(phase string) error {
@@ -324,6 +337,11 @@ func (s *Server) upsertPlugin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
+	digest, err := adapters.PluginBinarySHA256(req.Binary)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
 		name = strings.TrimSuffix(filepath.Base(req.Binary), filepath.Ext(req.Binary))
@@ -333,7 +351,7 @@ func (s *Server) upsertPlugin(w http.ResponseWriter, r *http.Request) {
 		enabled = *req.Enabled
 	}
 	now := time.Now().UTC()
-	plugin := models.PluginRecord{ID: models.NewID(), Name: name, Binary: req.Binary, Enabled: enabled, CreatedAt: now, UpdatedAt: now}
+	plugin := models.PluginRecord{ID: models.NewID(), Name: name, Binary: req.Binary, SHA256: digest, Enabled: enabled, CreatedAt: now, UpdatedAt: now}
 	if err := store.UpsertPlugin(r.Context(), plugin); err != nil {
 		writeDBError(w, err)
 		return
@@ -380,7 +398,13 @@ func (s *Server) updatePlugin(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, err)
 			return
 		}
+		digest, err := adapters.PluginBinarySHA256(binary)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
 		existing.Binary = binary
+		existing.SHA256 = digest
 	}
 	if req.Enabled != nil {
 		existing.Enabled = *req.Enabled

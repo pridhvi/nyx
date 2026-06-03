@@ -2,6 +2,8 @@ package api
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"mime/multipart"
@@ -898,6 +900,7 @@ func TestPluginUploadUsesPrivateExecutablePermissions(t *testing.T) {
 	}
 	var payload struct {
 		Binary string `json:"binary"`
+		SHA256 string `json:"sha256"`
 	}
 	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
 		t.Fatal(err)
@@ -908,6 +911,14 @@ func TestPluginUploadUsesPrivateExecutablePermissions(t *testing.T) {
 	}
 	if got := info.Mode().Perm(); got != 0o700 {
 		t.Fatalf("expected private executable upload mode 0700, got %03o", got)
+	}
+	uploaded, err := os.ReadFile(payload.Binary) // #nosec G304 -- path is returned by the upload endpoint under the test temp state dir.
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantDigest := sha256.Sum256(uploaded)
+	if payload.SHA256 != hex.EncodeToString(wantDigest[:]) {
+		t.Fatalf("expected upload sha256 %s, got %s", hex.EncodeToString(wantDigest[:]), payload.SHA256)
 	}
 	dirInfo, err := os.Stat(filepath.Dir(payload.Binary))
 	if err != nil {
