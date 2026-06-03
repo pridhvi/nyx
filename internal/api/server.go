@@ -1260,7 +1260,7 @@ func canonicalExistingDir(value string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	info, err := os.Stat(resolved)
+	info, err := os.Stat(resolved) // #nosec G703 -- resolved is produced by EvalSymlinks and constrained to source roots before directory contents are exposed.
 	if err != nil || !info.IsDir() {
 		return "", false
 	}
