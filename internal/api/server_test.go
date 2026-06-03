@@ -25,6 +25,57 @@ import (
 	"github.com/pridhvi/nyx/internal/models"
 )
 
+func TestSPASecurityHeaders(t *testing.T) {
+	handler := NewServer(Config{SessionDir: t.TempDir()}).Handler()
+
+	for _, path := range []string{"/", "/sessions/example/findings"} {
+		t.Run(path, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+			}
+			if got := rec.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+				t.Fatalf("X-Content-Type-Options = %q", got)
+			}
+			if got := rec.Header().Get("X-Frame-Options"); got != "DENY" {
+				t.Fatalf("X-Frame-Options = %q", got)
+			}
+			csp := rec.Header().Get("Content-Security-Policy")
+			for _, want := range []string{
+				"default-src 'self'",
+				"script-src 'self'",
+				"object-src 'none'",
+				"frame-ancestors 'none'",
+				"base-uri 'self'",
+			} {
+				if !strings.Contains(csp, want) {
+					t.Fatalf("Content-Security-Policy %q does not contain %q", csp, want)
+				}
+			}
+		})
+	}
+}
+
+func TestAPISecurityHeadersDoNotSetSPACSP(t *testing.T) {
+	handler := NewServer(Config{SessionDir: t.TempDir()}).Handler()
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/health", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Fatalf("X-Content-Type-Options = %q", got)
+	}
+	if got := rec.Header().Get("X-Frame-Options"); got != "DENY" {
+		t.Fatalf("X-Frame-Options = %q", got)
+	}
+	if got := rec.Header().Get("Content-Security-Policy"); got != "" {
+		t.Fatalf("API Content-Security-Policy = %q", got)
+	}
+}
+
 func TestSessionAPI(t *testing.T) {
 	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")

@@ -258,7 +258,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/burp/collaborator/setup", s.setupBurpCollaborator)
 	mux.HandleFunc("GET /api/burp/collaborator/callbacks", s.listBurpCallbacks)
 	mux.Handle("/", spaHandler())
-	return timeoutNonStreaming(s.withAuth(mux))
+	return securityHeaders(timeoutNonStreaming(s.withAuth(mux)))
 }
 
 func (s *Server) httpServer() *http.Server {
