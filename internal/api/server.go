@@ -55,7 +55,7 @@ type Server struct {
 	monitorMu    sync.Mutex
 	monitorSched *monitor.Scheduler
 	securityMu   sync.Mutex
-	authFailures map[string][]time.Time
+	authFailures map[string]authFailureState
 	authSessions map[string]time.Time
 }
 
@@ -85,7 +85,7 @@ func NewServer(cfg Config) *Server {
 	server := &Server{
 		cfg:          cfg,
 		scanManager:  NewScanManager(cfg.SessionDir, cfg.HTTPClient, cfg.LLMAllowedHosts),
-		authFailures: make(map[string][]time.Time),
+		authFailures: make(map[string]authFailureState),
 		authSessions: make(map[string]time.Time),
 	}
 	server.scanManager.SetPluginProvider(func() []models.PluginRecord {

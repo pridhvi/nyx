@@ -965,9 +965,10 @@ work and must be carried forward:
 - Added local API-key auth for API and WebSocket routes when configured, with
   API-key requirements for non-loopback binds, plugin management, API source
   scans, and LLM endpoint probing. Query-string API keys are rejected, failed
-  auth is rate-limited, the browser console uses opaque HttpOnly session
-  cookies backed by memory-only 12-hour server sessions with periodic pruning,
-  cross-origin unsafe requests and WebSockets are blocked, and optional
+  auth uses exponential backoff keyed by client and credential fingerprint, the
+  browser console uses opaque HttpOnly session cookies backed by memory-only
+  12-hour server sessions with periodic pruning, cross-origin unsafe requests
+  and WebSockets are blocked, and optional
   source-root/LLM-host allowlists can constrain privileged API inputs.
 - Expanded health output:
   - DB readiness

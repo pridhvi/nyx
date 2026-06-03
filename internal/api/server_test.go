@@ -278,6 +278,50 @@ func TestAuthSessionPruningRemovesOnlyExpiredSessions(t *testing.T) {
 	}
 }
 
+func TestAuthFailureBackoffEscalatesAndResetsOnSuccess(t *testing.T) {
+	server := NewServer(Config{SessionDir: t.TempDir(), APIKey: "secret"})
+	now := time.Now()
+	keys := []string{"client:127.0.0.1", "credential:" + authSecretFingerprint("bad-secret")}
+
+	for i := 0; i < authFailureLimit; i++ {
+		if server.authLimitedAt(now, keys...) {
+			t.Fatal("auth should not be limited before threshold is recorded")
+		}
+		server.recordAuthFailureAt(now, keys...)
+	}
+	if !server.authLimitedAt(now.Add(time.Second), keys...) {
+		t.Fatal("expected auth to be limited after threshold failures")
+	}
+	firstLockout := server.authFailures[keys[0]].LockedUntil
+	server.recordAuthFailureAt(firstLockout.Add(time.Second), keys...)
+	secondLockout := server.authFailures[keys[0]].LockedUntil
+	if !secondLockout.After(firstLockout.Add(authLockoutBase)) {
+		t.Fatalf("expected later failures to increase lockout, first=%s second=%s", firstLockout, secondLockout)
+	}
+
+	server.clearAuthFailures(keys...)
+	if server.authLimitedAt(secondLockout, keys...) {
+		t.Fatal("successful auth should clear accumulated lockout state")
+	}
+}
+
+func TestAuthFailurePruningRemovesIdleUnlockedRecords(t *testing.T) {
+	server := NewServer(Config{SessionDir: t.TempDir(), APIKey: "secret"})
+	now := time.Now()
+	server.authFailures["old"] = authFailureState{Count: 2, LastFailure: now.Add(-authFailureIdleReset - time.Second)}
+	server.authFailures["locked"] = authFailureState{Count: authFailureLimit, LastFailure: now.Add(-authFailureIdleReset - time.Second), LockedUntil: now.Add(time.Minute)}
+
+	if pruned := server.pruneStaleAuthFailures(now); pruned != 1 {
+		t.Fatalf("expected one stale auth failure record pruned, got %d", pruned)
+	}
+	if _, ok := server.authFailures["old"]; ok {
+		t.Fatal("stale unlocked auth failure record was not removed")
+	}
+	if _, ok := server.authFailures["locked"]; !ok {
+		t.Fatal("active lockout record was removed")
+	}
+}
+
 func TestStartScanRejectsUnsafeExtraArgs(t *testing.T) {
 	handler := NewServer(Config{SessionDir: t.TempDir()}).Handler()
 	body := bytes.NewBufferString(`{"target":"http://127.0.0.1:1","tools":["sqlmap"],"tool_parameters":{"sqlmap":{"extra_args":["--os-shell"]}}}`)

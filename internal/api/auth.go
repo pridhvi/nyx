@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -18,27 +20,39 @@ type authLoginRequest struct {
 	APIKey string `json:"api_key"`
 }
 
+type authFailureState struct {
+	Count       int
+	LastFailure time.Time
+	LockedUntil time.Time
+}
+
 func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 	if strings.TrimSpace(s.cfg.APIKey) == "" {
 		writeJSON(w, map[string]any{"authenticated": true, "auth_enabled": false})
 		return
 	}
-	client := clientKey(r)
-	if s.authLimited(client) {
-		writeError(w, http.StatusTooManyRequests, fmt.Errorf("too many failed authentication attempts"))
-		return
-	}
 	var req authLoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.recordAuthFailure(client)
+		keys := authLimitKeys(r, "")
+		if s.authLimited(keys...) {
+			writeError(w, http.StatusTooManyRequests, fmt.Errorf("too many failed authentication attempts"))
+			return
+		}
+		s.recordAuthFailure(keys...)
 		writeError(w, http.StatusBadRequest, fmt.Errorf("invalid login request"))
 		return
 	}
+	keys := authLimitKeys(r, req.APIKey)
+	if s.authLimited(keys...) {
+		writeError(w, http.StatusTooManyRequests, fmt.Errorf("too many failed authentication attempts"))
+		return
+	}
 	if req.APIKey != s.cfg.APIKey {
-		s.recordAuthFailure(client)
+		s.recordAuthFailure(keys...)
 		writeError(w, http.StatusUnauthorized, fmt.Errorf("invalid API key"))
 		return
 	}
+	s.clearAuthFailures(keys...)
 	token, expires := s.createAuthSession()
 	http.SetCookie(w, authSessionCookie(token, expires, s.secureCookie(r)))
 	writeJSON(w, map[string]any{"authenticated": true, "auth_enabled": true, "expires_at": expires.UTC().Format(time.RFC3339)})
@@ -74,27 +88,29 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		client := clientKey(r)
-		if s.authLimited(client) {
-			writeError(w, http.StatusTooManyRequests, fmt.Errorf("too many failed authentication attempts"))
-			return
-		}
 		token := r.Header.Get("X-Nyx-API-Key")
 		if token == "" {
 			token = strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		}
+		keys := authLimitKeys(r, token)
+		if s.authLimited(keys...) {
+			writeError(w, http.StatusTooManyRequests, fmt.Errorf("too many failed authentication attempts"))
+			return
+		}
 		if token == s.cfg.APIKey {
+			s.clearAuthFailures(keys...)
 			next.ServeHTTP(w, r)
 			return
 		}
 		if token == "" {
 			if cookie, err := r.Cookie(authSessionCookieName); err == nil && s.validAuthSession(cookie.Value) {
+				s.clearAuthFailures(keys...)
 				next.ServeHTTP(w, r)
 				return
 			}
 		}
 		if token != s.cfg.APIKey {
-			s.recordAuthFailure(client)
+			s.recordAuthFailure(keys...)
 			writeError(w, http.StatusUnauthorized, fmt.Errorf("invalid or missing API key"))
 			return
 		}
@@ -103,8 +119,10 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 }
 
 const (
-	authFailureWindow     = time.Minute
-	authFailureLimit      = 8
+	authFailureLimit      = 3
+	authFailureIdleReset  = 24 * time.Hour
+	authLockoutBase       = 30 * time.Second
+	authLockoutMax        = 30 * time.Minute
 	authSessionTTL        = 12 * time.Hour
 	authSessionCleanup    = time.Hour
 	authSessionCookieName = "nyx_session"
@@ -166,6 +184,9 @@ func (s *Server) startAuthSessionCleanup(ctx context.Context) {
 				if pruned := s.pruneExpiredAuthSessions(now); pruned > 0 {
 					slog.Debug("pruned expired browser auth sessions", "count", pruned)
 				}
+				if pruned := s.pruneStaleAuthFailures(now); pruned > 0 {
+					slog.Debug("pruned stale auth failure records", "count", pruned)
+				}
 			}
 		}
 	}()
@@ -203,33 +224,105 @@ func expiredAuthSessionCookie(secure bool) *http.Cookie {
 	}
 }
 
-func (s *Server) authLimited(client string) bool {
-	now := time.Now()
-	s.securityMu.Lock()
-	defer s.securityMu.Unlock()
-	failures := recentFailures(s.authFailures[client], now)
-	s.authFailures[client] = failures
-	return len(failures) >= authFailureLimit
+func (s *Server) authLimited(keys ...string) bool {
+	return s.authLimitedAt(time.Now(), keys...)
 }
 
-func (s *Server) recordAuthFailure(client string) {
-	now := time.Now()
+func (s *Server) authLimitedAt(now time.Time, keys ...string) bool {
 	s.securityMu.Lock()
 	defer s.securityMu.Unlock()
-	failures := recentFailures(s.authFailures[client], now)
-	failures = append(failures, now)
-	s.authFailures[client] = failures
-}
-
-func recentFailures(values []time.Time, now time.Time) []time.Time {
-	cutoff := now.Add(-authFailureWindow)
-	next := values[:0]
-	for _, value := range values {
-		if value.After(cutoff) {
-			next = append(next, value)
+	for _, key := range keys {
+		state, ok := s.authFailures[key]
+		if !ok {
+			continue
+		}
+		if authFailureExpired(state, now) {
+			delete(s.authFailures, key)
+			continue
+		}
+		if state.LockedUntil.After(now) {
+			return true
 		}
 	}
-	return next
+	return false
+}
+
+func (s *Server) recordAuthFailure(keys ...string) {
+	s.recordAuthFailureAt(time.Now(), keys...)
+}
+
+func (s *Server) recordAuthFailureAt(now time.Time, keys ...string) {
+	s.securityMu.Lock()
+	defer s.securityMu.Unlock()
+	for _, key := range keys {
+		state := s.authFailures[key]
+		if authFailureExpired(state, now) {
+			state = authFailureState{}
+		}
+		state.Count++
+		state.LastFailure = now
+		if state.Count >= authFailureLimit {
+			state.LockedUntil = now.Add(authLockoutDuration(state.Count))
+		}
+		s.authFailures[key] = state
+	}
+}
+
+func (s *Server) clearAuthFailures(keys ...string) {
+	s.securityMu.Lock()
+	defer s.securityMu.Unlock()
+	for _, key := range keys {
+		delete(s.authFailures, key)
+	}
+}
+
+func (s *Server) pruneStaleAuthFailures(now time.Time) int {
+	s.securityMu.Lock()
+	defer s.securityMu.Unlock()
+	pruned := 0
+	for key, state := range s.authFailures {
+		if authFailureExpired(state, now) {
+			delete(s.authFailures, key)
+			pruned++
+		}
+	}
+	return pruned
+}
+
+func authFailureExpired(state authFailureState, now time.Time) bool {
+	if state.LastFailure.IsZero() {
+		return true
+	}
+	return !state.LockedUntil.After(now) && now.Sub(state.LastFailure) >= authFailureIdleReset
+}
+
+func authLockoutDuration(count int) time.Duration {
+	if count < authFailureLimit {
+		return 0
+	}
+	shift := count - authFailureLimit
+	if shift > 10 {
+		shift = 10
+	}
+	duration := authLockoutBase * time.Duration(1<<shift)
+	if duration > authLockoutMax {
+		return authLockoutMax
+	}
+	return duration
+}
+
+func authLimitKeys(r *http.Request, presentedSecret string) []string {
+	client := "client:" + clientKey(r)
+	secret := strings.TrimSpace(presentedSecret)
+	if secret == "" {
+		return []string{client, client + ":missing"}
+	}
+	return []string{client, "credential:" + authSecretFingerprint(secret)}
+}
+
+func authSecretFingerprint(secret string) string {
+	sum := sha256.Sum256([]byte(secret))
+	return hex.EncodeToString(sum[:8])
 }
 
 func clientKey(r *http.Request) string {
