@@ -109,12 +109,8 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 				return
 			}
 		}
-		if token != s.cfg.APIKey {
-			s.recordAuthFailure(keys...)
-			writeError(w, http.StatusUnauthorized, fmt.Errorf("invalid or missing API key"))
-			return
-		}
-		next.ServeHTTP(w, r)
+		s.recordAuthFailure(keys...)
+		writeError(w, http.StatusUnauthorized, fmt.Errorf("invalid or missing API key"))
 	})
 }
 
