@@ -76,6 +76,33 @@ func TestAPISecurityHeadersDoNotSetSPACSP(t *testing.T) {
 	}
 }
 
+func TestHealthDoesNotExposeSessionDirectory(t *testing.T) {
+	sessionDir := t.TempDir()
+	handler := NewServer(Config{SessionDir: sessionDir}).Handler()
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/health", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), sessionDir) {
+		t.Fatalf("health response exposed session dir %q: %s", sessionDir, rec.Body.String())
+	}
+	var payload map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := payload["sessions_dir"]; ok {
+		t.Fatalf("health response includes sessions_dir: %#v", payload)
+	}
+	if payload["db_dir_ready"] != true {
+		t.Fatalf("expected db_dir_ready true, got %#v", payload["db_dir_ready"])
+	}
+	if payload["session_dir_status"] != "ready" {
+		t.Fatalf("expected session_dir_status ready, got %#v", payload["session_dir_status"])
+	}
+}
+
 func TestSessionAPI(t *testing.T) {
 	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")

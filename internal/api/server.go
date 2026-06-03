@@ -316,7 +316,6 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{
 		"status":             "ok",
 		"time":               time.Now().UTC().Format(time.RFC3339),
-		"sessions_dir":       s.cfg.SessionDir,
 		"db_dir_ready":       dirReady,
 		"auth_enabled":       s.cfg.APIKey != "",
 		"llm_configured":     os.Getenv("NYX_LLM_BASE_URL") != "",
