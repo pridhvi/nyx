@@ -649,8 +649,10 @@ func TestMonitorConfigAPIRequiresConfiguredAPIKeyAndRedactsSecrets(t *testing.T)
 func TestPowerFeatureEndpointsPersistAndGateActiveActions(t *testing.T) {
 	ctx := t.Context()
 	sessionDir := t.TempDir()
+	var credentialLoginAttempts int
 	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/login" {
+			credentialLoginAttempts++
 			_ = r.ParseForm()
 			if r.FormValue("username") == "admin" && r.FormValue("password") == "password" {
 				_, _ = w.Write([]byte("success welcome dashboard"))
@@ -744,6 +746,14 @@ func TestPowerFeatureEndpointsPersistAndGateActiveActions(t *testing.T) {
 	handler.ServeHTTP(creds, apiKeyRequest(http.MethodPost, "/api/sessions/"+session.ID+"/credentials/test", bytes.NewBufferString(`{"mode":"correlate","username":"admin","password":"secret"}`)))
 	if creds.Code != http.StatusOK || strings.Contains(creds.Body.String(), "secret") {
 		t.Fatalf("credential status=%d body=%s", creds.Code, creds.Body.String())
+	}
+	activeCredsMissing := httptest.NewRecorder()
+	handler.ServeHTTP(activeCredsMissing, apiKeyRequest(http.MethodPost, "/api/sessions/"+session.ID+"/credentials/test", bytes.NewBufferString(`{"mode":"defaults","url":"`+targetServer.URL+`/login","confirm":true,"max_attempts":2}`)))
+	if activeCredsMissing.Code != http.StatusBadRequest || !strings.Contains(activeCredsMissing.Body.String(), "explicit username and password") {
+		t.Fatalf("expected explicit credential rejection, got %d body=%s", activeCredsMissing.Code, activeCredsMissing.Body.String())
+	}
+	if credentialLoginAttempts != 0 {
+		t.Fatalf("expected no login attempts without explicit credentials, got %d", credentialLoginAttempts)
 	}
 	activeCreds := httptest.NewRecorder()
 	handler.ServeHTTP(activeCreds, apiKeyRequest(http.MethodPost, "/api/sessions/"+session.ID+"/credentials/test", bytes.NewBufferString(`{"mode":"defaults","url":"`+targetServer.URL+`/login","username":"admin","password":"password","confirm":true,"max_attempts":2}`)))

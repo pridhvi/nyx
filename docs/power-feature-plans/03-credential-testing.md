@@ -2,8 +2,10 @@
 
 Current repository state: an initial production-safe slice is implemented with
 session DB credential records, API/CLI/UI visibility, redaction by default, and
-API-key-gated test recording. Remaining depth should add fixture-safe login
-adapters, lockout-aware spraying, curated defaults, and report summaries.
+API-key-gated test recording. Active login attempts currently require explicit
+operator-supplied usernames and passwords; no built-in default credential list is
+used. Remaining depth should add fixture-safe login adapters, lockout-aware
+spraying, curated defaults behind a separate safety review, and report summaries.
 
 ## Goal And Success Criteria
 

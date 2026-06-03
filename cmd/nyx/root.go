@@ -114,7 +114,7 @@ Usage:
   nyx config init
   nyx config show
   nyx payloads validate <session-id> --payload <id> --confirm --enabled=true
-  nyx creds test <session-id> --mode defaults --url <login-url> --confirm
+  nyx creds test <session-id> --mode defaults --url <login-url> --username <user> --password <pass> --confirm
   nyx osint run <session-id> --providers github,shodan,securitytrails
   nyx ad kerberoast <session-id> --username svc-http --confirm
   nyx burp status <session-id>

@@ -369,6 +369,8 @@ Important environment variables:
 
 Power-feature modules are explicit and safe by default. Provider tokens and active validation settings are configured separately and redacted from effective config, logs, API output, and UI surfaces.
 
+Active credential checks never fall back to built-in default username/password lists. Nyx records placeholder candidates for operator review in correlate mode, but confirmed HTTP login attempts require explicit usernames and passwords supplied by the operator.
+
 See [docs/deployment.md](docs/deployment.md) for Docker, Compose, config mounts, secure cookies, and deployment notes.
 
 ## Benchmarks And Validation

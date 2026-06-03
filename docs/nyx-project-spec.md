@@ -1477,7 +1477,7 @@ nyx payloads generate <session-id> --finding <id>
 nyx payloads validate <session-id> --payload <id> --confirm --enabled=true
 nyx payloads list <session-id>
 nyx creds test <session-id> --mode correlate
-nyx creds test <session-id> --mode defaults --url <login-url> --confirm
+nyx creds test <session-id> --mode defaults --url <login-url> --username <user> --password <pass> --confirm
 nyx creds list <session-id>
 nyx osint run <session-id> --providers github,shodan,securitytrails
 nyx osint list <session-id>
@@ -1541,8 +1541,10 @@ The frontend is a React SPA embedded in the Go binary. Routes:
 - Finding-scoped payload and PoC controls require an explicit finding ID or use
   the first finding only as a convenience for local fixture checks.
 - Payload validation is limited to fixture-safe marker classes. Credential
-  testing is lockout-aware, paced, scope-checked, and stores redacted passwords
-  unless plaintext storage is explicitly enabled in config.
+  testing is lockout-aware, paced, scope-checked, requires explicit
+  operator-supplied usernames and passwords for active login attempts, and
+  stores redacted passwords unless plaintext storage is explicitly enabled in
+  config.
 
 ### 15.2 Session Detail (`/sessions/:id`)
 - Session metadata (target, mode, duration, status)

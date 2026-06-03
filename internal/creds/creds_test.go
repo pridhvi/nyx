@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -47,7 +48,7 @@ func TestRunHTTPDefaultCheckPersistsConfirmedRedactedCredential(t *testing.T) {
 
 	store, session := credentialTestStoreForTarget(t, server.URL)
 	defer store.Close()
-	results, err := Run(ctx, store, session.ID, TestRequest{Mode: "defaults", URL: server.URL, Confirm: true, MaxAttempts: 2})
+	results, err := Run(ctx, store, session.ID, TestRequest{Mode: "defaults", URL: server.URL, Username: "admin", Password: "password", Confirm: true, MaxAttempts: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,6 +60,26 @@ func TestRunHTTPDefaultCheckPersistsConfirmedRedactedCredential(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("expected confirmed redacted credential, got %#v", results)
+	}
+}
+
+func TestRunHTTPDefaultCheckRequiresExplicitCredentials(t *testing.T) {
+	ctx := context.Background()
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	store, session := credentialTestStoreForTarget(t, server.URL)
+	defer store.Close()
+	_, err := Run(ctx, store, session.ID, TestRequest{Mode: "defaults", URL: server.URL, Confirm: true, MaxAttempts: 2})
+	if err == nil || !strings.Contains(err.Error(), "explicit username and password") {
+		t.Fatalf("expected explicit credential requirement, got %v", err)
+	}
+	if called {
+		t.Fatal("credential check attempted a login without explicit credentials")
 	}
 }
 

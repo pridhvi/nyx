@@ -72,6 +72,10 @@ func Run(ctx context.Context, store *db.Store, sessionID string, req TestRequest
 }
 
 func runHTTPChecks(ctx context.Context, store *db.Store, sessionID, mode string, req TestRequest) error {
+	users, passwords := credentialCandidates(req)
+	if len(users) == 0 || len(passwords) == 0 {
+		return fmt.Errorf("active credential checks require at least one explicit username and password")
+	}
 	session, err := store.GetSession(ctx)
 	if err != nil {
 		return err
@@ -87,7 +91,6 @@ func runHTTPChecks(ctx context.Context, store *db.Store, sessionID, mode string,
 	if client == nil {
 		client = &http.Client{Timeout: 8 * time.Second}
 	}
-	users, passwords := credentialCandidates(req)
 	attemptsByUser := map[string]int{}
 	now := time.Now().UTC()
 	for _, username := range users {
@@ -138,12 +141,6 @@ func credentialCandidates(req TestRequest) ([]string, []string) {
 	}
 	if req.Password != "" {
 		passwords = append([]string{req.Password}, passwords...)
-	}
-	if len(users) == 0 {
-		users = []string{"admin", "administrator"}
-	}
-	if len(passwords) == 0 {
-		passwords = []string{"admin", "password"}
 	}
 	return dedupe(users), dedupe(passwords)
 }
