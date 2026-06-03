@@ -1406,7 +1406,8 @@ greenfield assumptions:
 The v1 roadmap above is implemented. All eight power-feature modules now have a
 deep-but-safe implementation slice: optional provider integrations degrade
 gracefully, active validation is explicit and fixture-safe, callbacks are
-correlated without exfiltration, credentials are paced and redacted by default,
+correlated without exfiltration and require API-key auth for evidence writes,
+credentials are paced and redacted by default,
 and reports/UI expose power evidence. Remaining work is provider breadth and
 Linux-tool hardening based on real operator feedback, not new required roadmap
 phases. The complete target states remain in `docs/nyx-power-features-spec.md`

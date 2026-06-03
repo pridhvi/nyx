@@ -307,6 +307,8 @@ Subprocess adapters run through `exec.CommandContext(binary, args...)` with disc
 
 Configured plugin binaries are hash-pinned at registration. The upload API returns a SHA-256 digest, API/CLI plugin registration stores the digest on the plugin record, and Nyx re-computes the digest before execution so a changed binary produces a failed tool run instead of being spawned.
 
+Power-feature callback evidence is a privileged write path. Recording a built-in callback requires configured API-key authentication so local no-key mode cannot inject fake PoC evidence.
+
 ## Configuration
 
 Create `~/.nyx/config.yaml` for local defaults:

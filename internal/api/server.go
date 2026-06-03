@@ -785,6 +785,9 @@ func (s *Server) listPowerCallbacks(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) recordPowerCallback(w http.ResponseWriter, r *http.Request) {
+	if !s.requireConfiguredAPIKey(w, "callback recording requires API key authentication") {
+		return
+	}
 	store, _, ok := s.openSession(w, r)
 	if !ok {
 		return

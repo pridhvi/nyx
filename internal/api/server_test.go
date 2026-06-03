@@ -363,6 +363,7 @@ func TestPrivilegedOperationsRequireConfiguredAPIKey(t *testing.T) {
 		{name: "source scan", method: http.MethodPost, path: "/api/scan/start", body: `{"source_path":"` + repo + `"}`},
 		{name: "plugin scan", method: http.MethodPost, path: "/api/scan/start", body: `{"target":"http://127.0.0.1:1","tools":["plugin:poc"]}`},
 		{name: "default scan with existing global plugin", method: http.MethodPost, path: "/api/scan/start", body: `{"target":"http://127.0.0.1:1"}`},
+		{name: "power callback record", method: http.MethodGet, path: "/api/sessions/session-1/callbacks/token-1", body: ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -623,6 +624,19 @@ func TestPowerFeatureEndpointsPersistAndGateActiveActions(t *testing.T) {
 	if err := store.InsertFinding(ctx, finding); err != nil {
 		t.Fatal(err)
 	}
+	callback := models.PowerCallback{
+		ID:        models.NewID(),
+		SessionID: session.ID,
+		FindingID: finding.ID,
+		Provider:  "builtin",
+		Token:     "callback-token",
+		URL:       "http://127.0.0.1/callback-token",
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+	if err := store.InsertPowerCallback(ctx, callback); err != nil {
+		t.Fatal(err)
+	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -682,6 +696,21 @@ func TestPowerFeatureEndpointsPersistAndGateActiveActions(t *testing.T) {
 	handler.ServeHTTP(burpBlocked, httptest.NewRequest(http.MethodPost, "/api/sessions/"+session.ID+"/burp/push-scope", nil))
 	if burpBlocked.Code != http.StatusUnauthorized {
 		t.Fatalf("expected auth on burp push-scope, got %d body=%s", burpBlocked.Code, burpBlocked.Body.String())
+	}
+	callbackBlocked := httptest.NewRecorder()
+	handler.ServeHTTP(callbackBlocked, httptest.NewRequest(http.MethodGet, "/api/sessions/"+session.ID+"/callbacks/"+callback.Token, nil))
+	if callbackBlocked.Code != http.StatusUnauthorized && callbackBlocked.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected auth on callback recording, got %d body=%s", callbackBlocked.Code, callbackBlocked.Body.String())
+	}
+	callbackOK := httptest.NewRecorder()
+	handler.ServeHTTP(callbackOK, apiKeyRequest(http.MethodGet, "/api/sessions/"+session.ID+"/callbacks/"+callback.Token, nil))
+	if callbackOK.Code != http.StatusOK || !strings.Contains(callbackOK.Body.String(), `"received":true`) {
+		t.Fatalf("expected callback record success, got %d body=%s", callbackOK.Code, callbackOK.Body.String())
+	}
+	callbacks := httptest.NewRecorder()
+	handler.ServeHTTP(callbacks, apiKeyRequest(http.MethodGet, "/api/sessions/"+session.ID+"/callbacks", nil))
+	if callbacks.Code != http.StatusOK || !strings.Contains(callbacks.Body.String(), `"received":true`) || !strings.Contains(callbacks.Body.String(), "127.0.0.1") {
+		t.Fatalf("expected received callback in list, got %d body=%s", callbacks.Code, callbacks.Body.String())
 	}
 }
 

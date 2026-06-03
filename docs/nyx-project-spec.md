@@ -153,7 +153,7 @@ ProjectDiscovery tools (`nuclei`, `httpx`, `subfinder`, `naabu`, `dnsx`) are sub
 - Full tool stdout/stderr is retained in `<session-id>/runs/` sidecars unless `nyx scan --lean` is used.
 - Dynamic, static audit, and combined source-aware workloads share one session database and report pipeline.
 - Continuous monitoring creates normal scan sessions, diffs targets/technologies/findings against the monitor baseline, and schedules runs only while `nyx serve` is active.
-- Power-feature modules are implemented as explicit operator actions with additive persistence for generated and validated payloads, credential attempts, OSINT records and provider statuses, AD entities/relationships/artifacts, block events, callback evidence, PoC results, and Burp XML/REST bridge state. Active/high-risk actions require configured API-key auth through the API, explicit confirmation, scope checks, and conservative non-destructive behavior.
+- Power-feature modules are implemented as explicit operator actions with additive persistence for generated and validated payloads, credential attempts, OSINT records and provider statuses, AD entities/relationships/artifacts, block events, callback evidence, PoC results, and Burp XML/REST bridge state. Active/high-risk actions and callback evidence writes require configured API-key auth through the API, explicit confirmation where applicable, scope checks, and conservative non-destructive behavior.
 - Native ProjectDiscovery library integration is deferred. Subprocess adapters remain the supported v1 path because they preserve process isolation and reduce dependency risk.
 
 ---
@@ -1400,6 +1400,8 @@ GET    /api/health                  Health check (DB connected, LLM reachable, t
 
 GET    /api/scan/{id}/events       WebSocket — real-time scan events
 ```
+
+The callback recording endpoint is a privileged evidence write path and requires configured API-key authentication; callback rows are evidence records, not an unauthenticated public OAST collector.
 
 ### WebSocket Event Format
 

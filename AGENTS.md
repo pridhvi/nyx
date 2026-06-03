@@ -25,6 +25,9 @@ This repo has a buildable backend with module path `github.com/pridhvi/nyx`, abs
 - Hash-pin configured plugin binaries with SHA-256 at registration or upload
   time, and re-verify the digest before execution so tampered plugins fail as
   tool runs before a subprocess starts.
+- Treat power-feature callback recording as privileged evidence mutation:
+  require configured API-key auth and do not expose an unauthenticated local
+  callback collector that can pollute PoC evidence.
 - Keep LLM endpoints constrained by the shared base URL validator and
   `NYX_LLM_ALLOWED_HOSTS` wherever model probing, chat, or automatic analysis
   can initiate outbound requests; private, loopback, link-local, multicast,
