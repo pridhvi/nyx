@@ -52,6 +52,7 @@ export function LLMChat() {
   const analyses = historyQuery.data ?? [];
   const messages = chatMessages(analyses);
   const visibleMessages = visibleChatMessages(messages);
+  const analystThinking = chatMutation.isPending || analyseMutation.isPending;
 
   return (
     <section className="page">
@@ -104,7 +105,15 @@ export function LLMChat() {
                   </article>
                 );
               })}
-              {visibleMessages.length === 0 ? <div className="empty-line"><Bot size={18} />No LLM history for the selected session.</div> : null}
+              {analystThinking ? (
+                <article className="message assistant pending-message" aria-live="polite">
+                  <div className="message-meta">
+                    <strong className="message-header">Assistant</strong>
+                  </div>
+                  <ReasoningDisclosure active content="" expanded={false} onToggle={() => {}} />
+                </article>
+              ) : null}
+              {visibleMessages.length === 0 && !analystThinking ? <div className="empty-line"><Bot size={18} />No LLM history for the selected session.</div> : null}
             </div>
             <form className="chat-input" onSubmit={submit}>
               <input value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Ask about the selected session" />
@@ -192,11 +201,11 @@ function StandardMessageContent({ content, expanded, onToggle }: { content: stri
   );
 }
 
-function ReasoningDisclosure({ content, expanded, onToggle }: { content: string; expanded: boolean; onToggle: () => void }) {
+function ReasoningDisclosure({ active = false, content, expanded, onToggle }: { active?: boolean; content: string; expanded: boolean; onToggle: () => void }) {
   return (
-    <div className={`reasoning-panel ${expanded ? "open" : ""}`}>
-      <button className="reasoning-toggle" type="button" onClick={onToggle}>
-        <span className="thinking-label">Thinking<span className="thinking-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span></span>
+    <div className={`reasoning-panel ${expanded ? "open" : ""} ${active ? "active" : ""}`}>
+      <button className="reasoning-toggle" type="button" onClick={onToggle} disabled={active && !content}>
+        <span className="thinking-label">Thinking{active ? <span className="thinking-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span> : null}</span>
         {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
       </button>
       {expanded ? <div className="message-content reasoning-content">{renderMarkdown(content)}</div> : null}
@@ -210,7 +219,8 @@ function ToolCallCard({ callID, expanded, name, text, onToggle }: { callID: stri
   return (
     <div className="tool-call-card">
       <div className="tool-call-header">
-        <strong>{name}</strong>
+        <strong>{toolCallLabel(name)}</strong>
+        <small>{name}</small>
         {long ? (
           <button className="message-toggle compact" type="button" onClick={onToggle} aria-controls={callID}>
             {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -218,6 +228,7 @@ function ToolCallCard({ callID, expanded, name, text, onToggle }: { callID: stri
           </button>
         ) : null}
       </div>
+      <p className="tool-call-caption">Persisted context used by the analyst, not the final answer.</p>
       <code id={callID}>{shown}</code>
     </div>
   );
@@ -229,6 +240,17 @@ export function chatMessages(analyses: LLMAnalysis[]): ChatMessage[] {
 
 export function visibleChatMessages(messages: ChatMessage[]) {
   return messages.filter((item) => item.role !== "system" && !isInternalContextMessage(item.content) && (item.content.trim() || item.tool_calls?.length));
+}
+
+export function toolCallLabel(name: string) {
+  const labels: Record<string, string> = {
+    list_findings: "Analysis context: Findings",
+    list_targets: "Analysis context: Targets",
+    list_tool_runs: "Analysis context: Tool runs",
+    list_vectors: "Analysis context: Attack paths",
+    list_cves: "Analysis context: CVEs",
+  };
+  return labels[name] ?? name.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 export function markdownBlocks(content: string) {

@@ -63,7 +63,7 @@ if ! command -v sqlite3 >/dev/null 2>&1; then
 fi
 
 mkdir -p "$output_dir"
-rm -f "$output_dir"/nyx-*.png
+rm -f "$output_dir"/nyx-*.png "$output_dir"/nyx-*.gif
 
 fixture_addr="127.0.0.1:$fixture_port"
 target="http://localhost:$fixture_port"
@@ -124,8 +124,6 @@ done
 cat >"$script_path" <<'JS'
 import { chromium } from "playwright";
 import { mkdir, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
-import { execFileSync } from "node:child_process";
 
 const baseURL = process.env.NYX_README_MEDIA_BASE_URL;
 const sessionID = process.env.NYX_README_MEDIA_SESSION_ID;
@@ -192,7 +190,7 @@ const summary = [
   "The script uses only localhost fixture data and does not require a real target, API key, or LLM endpoint.",
   "It seeds a small deterministic demo LLM history row so the Analyst screenshot is not model-dependent.",
   "",
-  "GIF generation is optional. If ImageMagick is installed as `magick` or `convert`, or Python has Pillow available, the script also writes `nyx-demo-flow.gif`.",
+  "The README uses committed PNG screenshots generated from deterministic local fixture data.",
   "",
 ].join("\n");
 await writeFile(`${outDir}/README.md`, summary);
@@ -202,40 +200,6 @@ if (consoleErrors.length) {
   throw new Error(`Console errors observed:\n${consoleErrors.join("\n")}`);
 }
 
-const frames = [
-  `${outDir}/nyx-command-center.png`,
-  `${outDir}/nyx-findings.png`,
-  `${outDir}/nyx-tool-runs.png`,
-  `${outDir}/nyx-reports.png`,
-];
-if (frames.every((frame) => existsSync(frame))) {
-  try {
-    execFileSync("magick", [...frames, "-delay", "140", "-loop", "0", `${outDir}/nyx-demo-flow.gif`], { stdio: "ignore" });
-  } catch {
-    try {
-      execFileSync("convert", [...frames, "-delay", "140", "-loop", "0", `${outDir}/nyx-demo-flow.gif`], { stdio: "ignore" });
-    } catch {
-      try {
-        execFileSync("python3", ["-c", `
-from pathlib import Path
-from PIL import Image
-out = Path(${JSON.stringify(outDir)})
-frames = [out / "nyx-command-center.png", out / "nyx-findings.png", out / "nyx-tool-runs.png", out / "nyx-reports.png"]
-images = []
-for frame in frames:
-    image = Image.open(frame).convert("P", palette=Image.Palette.ADAPTIVE, colors=96)
-    image.thumbnail((960, 640), Image.Resampling.LANCZOS)
-    canvas = Image.new("P", (960, 640), 0)
-    canvas.paste(image, ((960 - image.width) // 2, (640 - image.height) // 2))
-    images.append(canvas)
-images[0].save(out / "nyx-demo-flow.gif", save_all=True, append_images=images[1:], duration=1300, loop=0, optimize=True)
-`], { stdio: "ignore" });
-      } catch {
-        // GIF generation is optional; screenshots are the canonical README media.
-      }
-    }
-  }
-}
 JS
 
 export NYX_README_MEDIA_BASE_URL="http://127.0.0.1:$serve_port"

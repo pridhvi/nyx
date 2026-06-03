@@ -415,6 +415,65 @@ func TestSourcePathHonorsAllowlist(t *testing.T) {
 	}
 }
 
+func TestSourceBrowseEndpointsConstrainDirectoryListing(t *testing.T) {
+	root := t.TempDir()
+	child := filepath.Join(root, "repo")
+	if err := os.Mkdir(child, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "secret.txt"), []byte("do-not-expose"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	other := t.TempDir()
+	resolvedRoot, ok := canonicalExistingDir(root)
+	if !ok {
+		t.Fatal("expected test root to resolve")
+	}
+	resolvedChild, ok := canonicalExistingDir(child)
+	if !ok {
+		t.Fatal("expected test child to resolve")
+	}
+	handler := NewServer(Config{SessionDir: t.TempDir(), APIKey: "secret", SourceRoots: []string{root}}).Handler()
+
+	roots := httptest.NewRecorder()
+	handler.ServeHTTP(roots, apiKeyRequest(http.MethodGet, "/api/source-roots", nil))
+	if roots.Code != http.StatusOK {
+		t.Fatalf("expected source roots, got %d body=%s", roots.Code, roots.Body.String())
+	}
+	var rootResponse sourceRootResponse
+	if err := json.NewDecoder(roots.Body).Decode(&rootResponse); err != nil {
+		t.Fatal(err)
+	}
+	if len(rootResponse.Roots) != 1 || rootResponse.Roots[0].Path != resolvedRoot {
+		t.Fatalf("unexpected roots: %#v", rootResponse.Roots)
+	}
+
+	list := httptest.NewRecorder()
+	handler.ServeHTTP(list, apiKeyRequest(http.MethodGet, "/api/source-dirs?path="+url.QueryEscape(root), nil))
+	if list.Code != http.StatusOK {
+		t.Fatalf("expected directory listing, got %d body=%s", list.Code, list.Body.String())
+	}
+	var dirResponse sourceDirResponse
+	if err := json.NewDecoder(list.Body).Decode(&dirResponse); err != nil {
+		t.Fatal(err)
+	}
+	if dirResponse.Path != resolvedRoot || dirResponse.ParentPath != "" {
+		t.Fatalf("unexpected directory metadata: %#v", dirResponse)
+	}
+	if len(dirResponse.Directories) != 1 || dirResponse.Directories[0].Name != "repo" || dirResponse.Directories[0].Path != resolvedChild {
+		t.Fatalf("expected only child directories, got %#v", dirResponse.Directories)
+	}
+	if strings.Contains(list.Body.String(), "secret.txt") || strings.Contains(list.Body.String(), "do-not-expose") {
+		t.Fatalf("directory listing exposed file data: %s", list.Body.String())
+	}
+
+	blocked := httptest.NewRecorder()
+	handler.ServeHTTP(blocked, apiKeyRequest(http.MethodGet, "/api/source-dirs?path="+url.QueryEscape(other), nil))
+	if blocked.Code != http.StatusBadRequest {
+		t.Fatalf("expected outside-root rejection, got %d body=%s", blocked.Code, blocked.Body.String())
+	}
+}
+
 func TestCrossOriginStateChangingRequestsRejected(t *testing.T) {
 	handler := NewServer(Config{SessionDir: t.TempDir()}).Handler()
 	req := httptest.NewRequest(http.MethodPost, "/api/scan/start", strings.NewReader(`{"target":"http://127.0.0.1:1"}`))

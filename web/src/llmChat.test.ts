@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chatMessages, markdownBlocks, splitReasoningContent, visibleChatMessages } from "./pages/LLMChat";
+import { chatMessages, markdownBlocks, splitReasoningContent, toolCallLabel, visibleChatMessages } from "./pages/LLMChat";
 import type { LLMAnalysis } from "./api/client";
 
 describe("LLM chat helpers", () => {
@@ -69,5 +69,11 @@ describe("LLM chat helpers", () => {
       reasoning: "Inspect context.",
       answer: "- Final bullet",
     });
+  });
+
+  it("uses friendly labels for persisted analyst context calls", () => {
+    expect(toolCallLabel("list_findings")).toBe("Analysis context: Findings");
+    expect(toolCallLabel("list_tool_runs")).toBe("Analysis context: Tool runs");
+    expect(toolCallLabel("custom_context_probe")).toBe("Custom Context Probe");
   });
 });

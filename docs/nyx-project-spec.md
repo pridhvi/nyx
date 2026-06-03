@@ -1549,13 +1549,12 @@ The frontend is a React SPA embedded in the Go binary. Routes:
 - Tool coverage matrix (which tools ran, how many findings each produced)
 
 ### 15.3 Attack Graph (`/sessions/:id/graph`)
-- Cytoscape.js force-directed graph
-- Nodes: targets, technologies, findings, source findings, audit findings, attack vectors
-- Edges: "discovered by", "exploits", "leads to", "affects", plus labelled source/audit graph edges (`enables`, `amplifies`, `requires`, `confirms`)
-- Node colors: red = critical finding, orange = high, yellow = medium, blue = info, purple = attack vector/source
-- Click any node to see full details in a side panel
-- Filter by: severity, OWASP category, phase
-- Highlight top graph-derived paths and static + dynamic confirmations.
+- Ranked attack-vector chain panel with selected-chain details.
+- Target, finding, attack vector, and source finding data columns backed by real API data.
+- Labelled source/audit graph edges (`enables`, `amplifies`, `requires`, `confirms`) remain exposed by the API and helper code.
+- Temporary in-progress graph placeholder while the interactive canvas is reworked.
+- Filter by severity.
+- Highlight top graph-derived paths and static + dynamic confirmations through ranked chains and source/finding summaries.
 
 ### 15.4 Findings (`/sessions/:id/findings`)
 - Full findings table with all fields

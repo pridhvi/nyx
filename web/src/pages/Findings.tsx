@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { X } from "lucide-react";
 import { listFindings, updateFinding, type Finding } from "../api/client";
 import { useSessionContext } from "../session";
 import { sortLabel, useSortableRows } from "../sort";
@@ -18,6 +19,12 @@ export function Findings() {
   const [bulkSeverity, setBulkSeverity] = useState("");
   const [bulkRemediation, setBulkRemediation] = useState("");
   const [evidenceTab, setEvidenceTab] = useState<"normalized" | "raw" | "http" | "cves" | "code">("normalized");
+  const [dismissedFindingSignature, setDismissedFindingSignature] = useState("");
+  const sessionFindingsQuery = useQuery({
+    queryKey: ["findings-page-all", selected],
+    queryFn: () => listFindings(selected),
+    enabled: selected !== "",
+  });
   const findingsQuery = useQuery({
     queryKey: ["findings-page", selected, severity, origin, status],
     queryFn: () => listFindings(selected, cleanFilters({ severity, origin, status })),
@@ -36,12 +43,24 @@ export function Findings() {
     evidence: (finding: Finding) => finding.evidence_normalized || finding.evidence_raw || "",
   }), []);
   const { sortedRows: sortedFindings, sort, toggleSort } = useSortableRows<Finding, FindingSortKey>(findings, { key: "severity", direction: "desc" }, accessors);
+  const visibleFindingSignature = useMemo(() => sortedFindings.map((finding) => finding.id).join("|"), [sortedFindings]);
   const selectedCount = selectedFindingIDs.size;
   const allVisibleSelected = sortedFindings.length > 0 && sortedFindings.every((finding) => selectedFindingIDs.has(finding.id));
+  const hasStoredFindings = (sessionFindingsQuery.data ?? []).length > 0;
+  const hasVisibleFindings = sortedFindings.length > 0;
+  const hasFilters = Boolean(severity || origin || status || evidenceKind);
+  const emptyMessage = !selected
+    ? "Select a session to review findings."
+    : findingsQuery.isLoading || sessionFindingsQuery.isLoading
+      ? "Loading findings."
+      : hasStoredFindings && hasFilters
+        ? "No findings match the current filters."
+        : "No findings yet for the selected session.";
   const updateMutation = useMutation({
     mutationFn: () => updateFinding(selected, selectedFinding?.id ?? "", { severity: editSeverity, remediation: editRemediation }),
     onSuccess: (finding) => {
       setSelectedFinding(finding);
+      queryClient.invalidateQueries({ queryKey: ["findings-page-all", selected] });
       queryClient.invalidateQueries({ queryKey: ["findings-page", selected] });
       queryClient.invalidateQueries({ queryKey: ["findings", selected] });
       queryClient.invalidateQueries({ queryKey: ["session-stats", selected] });
@@ -59,6 +78,7 @@ export function Findings() {
       setSelectedFindingIDs(new Set());
       setBulkSeverity("");
       setBulkRemediation("");
+      queryClient.invalidateQueries({ queryKey: ["findings-page-all", selected] });
       queryClient.invalidateQueries({ queryKey: ["findings-page", selected] });
       queryClient.invalidateQueries({ queryKey: ["findings", selected] });
       queryClient.invalidateQueries({ queryKey: ["session-stats", selected] });
@@ -66,10 +86,16 @@ export function Findings() {
   });
 
   function openFinding(finding: Finding) {
+    setDismissedFindingSignature("");
     setSelectedFinding(finding);
     setEditSeverity(finding.severity);
     setEditRemediation(finding.remediation ?? "");
     setEvidenceTab("normalized");
+  }
+
+  function closeFindingDetails() {
+    setDismissedFindingSignature(visibleFindingSignature);
+    setSelectedFinding(null);
   }
 
   function toggleFindingSelection(findingID: string) {
@@ -97,24 +123,47 @@ export function Findings() {
   }
 
   useEffect(() => {
+    const nextFinding = defaultSelectedFinding(selectedFinding?.id, sortedFindings);
+    if (!nextFinding) {
+      if (selectedFinding) {
+        setSelectedFinding(null);
+      }
+      if (dismissedFindingSignature) {
+        setDismissedFindingSignature("");
+      }
+      return;
+    }
+    if (!selectedFinding && dismissedFindingSignature === visibleFindingSignature) {
+      return;
+    }
+    if (nextFinding.id !== selectedFinding?.id) {
+      setSelectedFinding(nextFinding);
+      setEditSeverity(nextFinding.severity);
+      setEditRemediation(nextFinding.remediation ?? "");
+      setEvidenceTab("normalized");
+    }
+  }, [dismissedFindingSignature, selectedFinding, selectedFinding?.id, sortedFindings, visibleFindingSignature]);
+
+  useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
+        setDismissedFindingSignature(visibleFindingSignature);
         setSelectedFinding(null);
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [visibleFindingSignature]);
 
   return (
     <section className="page">
       <header className="page-header">
         <div>
-          <h1>Triage</h1>
+          <h1>Findings</h1>
           <p>Review normalized findings, CVEs, remediation, and persisted evidence.</p>
         </div>
       </header>
-      <section className="filter-bar">
+      {hasStoredFindings ? <section className="filter-bar">
         <label className="compact-control">
           Severity
           <select value={severity} onChange={(event) => setSeverity(event.target.value)}>
@@ -151,8 +200,8 @@ export function Findings() {
             <option value="human-assist">Human Assist</option>
           </select>
         </label>
-      </section>
-      <section className="panel bulk-panel">
+      </section> : null}
+      {hasVisibleFindings ? <section className="panel bulk-panel">
         <div>
           <h2>Bulk Workflow</h2>
           <p>{selectedCount} selected finding{selectedCount === 1 ? "" : "s"}</p>
@@ -182,7 +231,9 @@ export function Findings() {
         </button>
         {selectedCount > 0 ? <button className="secondary" type="button" onClick={() => setSelectedFindingIDs(new Set())}>Clear</button> : null}
         {bulkUpdateMutation.error ? <p className="error-text">{bulkUpdateMutation.error.message}</p> : null}
-      </section>
+      </section> : null}
+      {!hasVisibleFindings ? <section className="panel empty-state-panel"><h2>{hasStoredFindings && hasFilters ? "No Matching Findings" : "No Findings"}</h2><p>{emptyMessage}</p></section> : null}
+      {hasVisibleFindings ? (
       <div className="split-workspace triage-workspace">
       <section className="panel">
         <div className="finding-card-list">
@@ -208,7 +259,6 @@ export function Findings() {
               </button>
             </article>
           ))}
-          {findings.length === 0 ? <div className="empty-state">No findings for the selected filters.</div> : null}
         </div>
         <div className="table-wrap">
           <table>
@@ -255,7 +305,6 @@ export function Findings() {
                   <td><code>{evidencePreview(finding)}</code></td>
                 </tr>
               ))}
-              {findings.length === 0 ? <tr><td colSpan={8}>No findings for the selected filters.</td></tr> : null}
             </tbody>
           </table>
         </div>
@@ -269,7 +318,9 @@ export function Findings() {
                 <h2>{selectedFinding.title}</h2>
                 <p>{selectedFinding.tool_id} · {selectedFinding.type} · {originLabel(findingOrigin(selectedFinding))} · {selectedFinding.url || "no URL"}</p>
               </div>
-              <button className="secondary" onClick={() => setSelectedFinding(null)}>Close</button>
+              <button className="icon-button detail-close-button" type="button" onClick={closeFindingDetails} aria-label="Close finding details">
+                <X size={16} />
+              </button>
             </div>
             <div className="finding-editor">
               <label className="compact-control">
@@ -286,7 +337,7 @@ export function Findings() {
                 Remediation
                 <textarea value={editRemediation} onChange={(event) => setEditRemediation(event.target.value)} rows={4} />
               </label>
-              <button className="primary" onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending}>
+              <button className="primary finding-save-button" onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending}>
                 {updateMutation.isPending ? "Saving" : "Save Changes"}
               </button>
             </div>
@@ -304,6 +355,7 @@ export function Findings() {
           </aside>
       ) : null}
       </div>
+      ) : null}
     </section>
   );
 }
@@ -368,6 +420,13 @@ export function findingEvidenceObject(finding: Pick<Finding, "evidence_normalize
     return null;
   }
   return null;
+}
+
+export function defaultSelectedFinding(currentID: string | undefined, visibleFindings: Finding[]) {
+  if (visibleFindings.length === 0) {
+    return null;
+  }
+  return visibleFindings.find((finding) => finding.id === currentID) ?? visibleFindings[0];
 }
 
 export function isHumanAssistFinding(finding: Pick<Finding, "evidence_normalized" | "tags" | "tool_id"> & { tags?: string[] }) {

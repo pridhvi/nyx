@@ -165,6 +165,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/health", s.health)
 	mux.HandleFunc("GET /api/tools", s.tools)
 	mux.HandleFunc("GET /api/config/effective", s.effectiveConfig)
+	mux.HandleFunc("GET /api/source-roots", s.sourceRoots)
+	mux.HandleFunc("GET /api/source-dirs", s.sourceDirs)
 	mux.HandleFunc("GET /api/scan-profiles", s.listScanProfiles)
 	mux.HandleFunc("POST /api/scan-profiles", s.createScanProfile)
 	mux.HandleFunc("DELETE /api/scan-profiles/{profile_id}", s.deleteScanProfile)
@@ -1148,6 +1150,133 @@ func (s *Server) startScan(w http.ResponseWriter, r *http.Request) {
 	}
 	s.scanManager.Start(record.Session)
 	writeJSONStatus(w, http.StatusAccepted, record)
+}
+
+type sourceRootResponse struct {
+	Roots []sourceRootRecord `json:"roots"`
+}
+
+type sourceRootRecord struct {
+	Path  string `json:"path"`
+	Label string `json:"label"`
+}
+
+type sourceDirResponse struct {
+	Path        string            `json:"path"`
+	ParentPath  string            `json:"parent_path,omitempty"`
+	Directories []sourceDirRecord `json:"directories"`
+}
+
+type sourceDirRecord struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
+}
+
+func (s *Server) sourceRoots(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, sourceRootResponse{Roots: s.availableSourceRoots()})
+}
+
+func (s *Server) sourceDirs(w http.ResponseWriter, r *http.Request) {
+	requested := strings.TrimSpace(r.URL.Query().Get("path"))
+	if requested == "" {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("path is required"))
+		return
+	}
+	resolved, root, err := s.resolveBrowsableSourceDir(requested)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	entries, err := os.ReadDir(resolved)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("source directory is not accessible: %w", err))
+		return
+	}
+	directories := make([]sourceDirRecord, 0)
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		childPath := filepath.Join(resolved, entry.Name())
+		childResolved, err := filepath.EvalSymlinks(childPath)
+		if err != nil {
+			continue
+		}
+		if !pathInsideOrEqual(root.Path, childResolved) {
+			continue
+		}
+		directories = append(directories, sourceDirRecord{Name: entry.Name(), Path: filepath.Clean(childResolved)})
+	}
+	parentPath := ""
+	parent := filepath.Dir(resolved)
+	if parent != resolved && pathInsideOrEqual(root.Path, parent) {
+		parentPath = filepath.Clean(parent)
+	}
+	writeJSON(w, sourceDirResponse{Path: filepath.Clean(resolved), ParentPath: parentPath, Directories: directories})
+}
+
+func (s *Server) availableSourceRoots() []sourceRootRecord {
+	candidates := s.cfg.SourceRoots
+	if len(candidates) == 0 {
+		if home, err := os.UserHomeDir(); err == nil {
+			candidates = append(candidates, home)
+		}
+		if cwd, err := os.Getwd(); err == nil {
+			candidates = append(candidates, cwd)
+		}
+	}
+	seen := make(map[string]bool)
+	roots := make([]sourceRootRecord, 0, len(candidates))
+	for _, candidate := range candidates {
+		resolved, ok := canonicalExistingDir(candidate)
+		if !ok || seen[resolved] {
+			continue
+		}
+		seen[resolved] = true
+		roots = append(roots, sourceRootRecord{Path: resolved, Label: sourceRootLabel(resolved)})
+	}
+	return roots
+}
+
+func (s *Server) resolveBrowsableSourceDir(value string) (string, sourceRootRecord, error) {
+	resolved, ok := canonicalExistingDir(value)
+	if !ok {
+		return "", sourceRootRecord{}, fmt.Errorf("source directory is not accessible")
+	}
+	for _, root := range s.availableSourceRoots() {
+		if pathInsideOrEqual(root.Path, resolved) {
+			return resolved, root, nil
+		}
+	}
+	return "", sourceRootRecord{}, fmt.Errorf("source directory is outside the configured roots")
+}
+
+func canonicalExistingDir(value string) (string, bool) {
+	path := strings.TrimSpace(value)
+	if path == "" {
+		return "", false
+	}
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", false
+	}
+	info, err := os.Stat(resolved)
+	if err != nil || !info.IsDir() {
+		return "", false
+	}
+	return filepath.Clean(resolved), true
+}
+
+func sourceRootLabel(path string) string {
+	if home, err := os.UserHomeDir(); err == nil && filepath.Clean(home) == path {
+		return "Home"
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		if resolved, ok := canonicalExistingDir(cwd); ok && resolved == path {
+			return "Workspace"
+		}
+	}
+	return filepath.Base(path)
 }
 
 func requiresPrivilegedScan(req startScanRequest, enabledGlobalPlugins bool) bool {

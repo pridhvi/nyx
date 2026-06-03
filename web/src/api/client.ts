@@ -488,6 +488,26 @@ export type LLMModelsResponse = {
   models: string[];
 };
 
+export type SourceRoot = {
+  path: string;
+  label: string;
+};
+
+export type SourceRootResponse = {
+  roots: SourceRoot[];
+};
+
+export type SourceDirectory = {
+  name: string;
+  path: string;
+};
+
+export type SourceDirectoryResponse = {
+  path: string;
+  parent_path?: string;
+  directories: SourceDirectory[];
+};
+
 export type EffectiveConfig = {
   database: { session_dir: string };
   server: { host: string; port: number; auth_enabled: boolean };
@@ -677,6 +697,14 @@ export function listTools(sessionID?: string) {
 
 export function effectiveConfig() {
   return api<EffectiveConfig>("/api/config/effective");
+}
+
+export function listSourceRoots() {
+  return api<SourceRootResponse>("/api/source-roots");
+}
+
+export function listSourceDirectories(path: string) {
+  return api<SourceDirectoryResponse>(`/api/source-dirs?path=${encodeURIComponent(path)}`);
 }
 
 export function listScanProfiles() {

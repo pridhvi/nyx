@@ -1,12 +1,15 @@
 import { type FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, PackagePlus, RefreshCw, Upload, XCircle } from "lucide-react";
-import { createPlugin, deletePlugin, listPlugins, listTools, updatePlugin, uploadPluginBinary, type ToolRecord } from "../api/client";
+import { createPlugin, deletePlugin, effectiveConfig, listPlugins, listTools, updatePlugin, uploadPluginBinary, type ToolRecord } from "../api/client";
+import { useSessionContext } from "../session";
 
 export function Tools() {
   const queryClient = useQueryClient();
-  const toolsQuery = useQuery({ queryKey: ["tools"], queryFn: () => listTools() });
+  const { selectedSessionID } = useSessionContext();
+  const toolsQuery = useQuery({ queryKey: ["tools", selectedSessionID], queryFn: () => listTools(selectedSessionID || undefined) });
   const pluginsQuery = useQuery({ queryKey: ["plugins"], queryFn: listPlugins });
+  const configQuery = useQuery({ queryKey: ["effective-config"], queryFn: effectiveConfig });
   const [pluginName, setPluginName] = useState("");
   const [pluginBinary, setPluginBinary] = useState("");
   const [pluginPhase, setPluginPhase] = useState("vuln_scan");
@@ -38,6 +41,7 @@ export function Tools() {
   const tools = toolsQuery.data ?? [];
   const visibleTools = tools.filter((tool) => toolFilter === "all" || (toolFilter === "ready" ? tool.installed : !tool.installed));
   const readyCount = tools.filter((tool) => tool.installed).length;
+  const authEnabled = Boolean(configQuery.data?.server.auth_enabled);
 
   return (
     <section className="page wide-page">
@@ -50,7 +54,10 @@ export function Tools() {
       </header>
       <section className="panel">
         <div className="graph-toolbar">
-          <h2>Registered Tools</h2>
+          <div>
+            <h2>Registered Tools</h2>
+            <p className="profile-description">Binary and version are shown for installed subprocess/plugin tools. Built-in checks and missing tools show <code>-</code>. Last Run is scoped to the selected session.</p>
+          </div>
           <div className="tab-row">
             <button className={toolFilter === "all" ? "active" : ""} type="button" onClick={() => setToolFilter("all")}>All {tools.length}</button>
             <button className={toolFilter === "ready" ? "active" : ""} type="button" onClick={() => setToolFilter("ready")}>Ready {readyCount}</button>
@@ -96,8 +103,11 @@ export function Tools() {
           </table>
         </div>
       </section>
-      <section className="panel">
+      <section className="panel global-plugins-panel">
         <h2>Global Plugins</h2>
+        <p className="profile-description">
+          Global plugin registration is host-privileged and requires Nyx API-key authentication to be configured. {authEnabled ? "Your browser session can authorize these actions after API-key login." : "Set NYX_API_KEY or server.api_key, then log in from the browser to manage global plugins."}
+        </p>
         <form className="scan-form plugin-form" onSubmit={submitPlugin}>
           <label>Name <span className="required-mark">Required</span><input value={pluginName} onChange={(event) => setPluginName(event.target.value)} placeholder="my-scanner" required /></label>
           <label>Phase
@@ -109,7 +119,9 @@ export function Tools() {
           <label className="secondary file-button"><Upload size={16} />Upload Binary<input type="file" onChange={(event) => event.target.files?.[0] && uploadMutation.mutate(event.target.files[0])} /></label>
           <label>Description<input value={pluginDescription} onChange={(event) => setPluginDescription(event.target.value)} placeholder="What this plugin checks" /></label>
           <label>Homepage URL<input value={pluginHomepageURL} onChange={(event) => setPluginHomepageURL(event.target.value)} placeholder="https://github.com/org/tool" /></label>
-          <button className="primary" disabled={!pluginName.trim() || !pluginBinary.trim() || createMutation.isPending}><PackagePlus size={16} />Register</button>
+          <div className="form-actions">
+            <button className="primary compact-button" disabled={!authEnabled || !pluginName.trim() || !pluginBinary.trim() || createMutation.isPending}><PackagePlus size={16} />Register</button>
+          </div>
         </form>
         {createMutation.error ? <p className="error-text">{createMutation.error.message}</p> : null}
         {uploadMutation.error ? <p className="error-text">{uploadMutation.error.message}</p> : null}
@@ -125,10 +137,10 @@ export function Tools() {
                   <td>{plugin.description || "-"}</td>
                   <td><code>{plugin.binary}</code></td>
                   <td>{plugin.enabled ? "enabled" : "disabled"}</td>
-                  <td className="action-row"><button className="secondary" onClick={() => updatePlugin(plugin.id, { enabled: !plugin.enabled }).then(() => {
+                  <td className="action-row"><button className="secondary" disabled={!authEnabled} onClick={() => updatePlugin(plugin.id, { enabled: !plugin.enabled }).then(() => {
                     queryClient.invalidateQueries({ queryKey: ["plugins"] });
                     queryClient.invalidateQueries({ queryKey: ["tools"] });
-                  })}>{plugin.enabled ? "Disable" : "Enable"}</button><button className="secondary danger" onClick={() => window.confirm("Delete this global plugin?") && deletePlugin(plugin.id).then(() => {
+                  })}>{plugin.enabled ? "Disable" : "Enable"}</button><button className="secondary danger" disabled={!authEnabled} onClick={() => window.confirm("Delete this global plugin?") && deletePlugin(plugin.id).then(() => {
                     queryClient.invalidateQueries({ queryKey: ["plugins"] });
                     queryClient.invalidateQueries({ queryKey: ["tools"] });
                   })}>Delete</button></td>

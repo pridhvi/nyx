@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type MouseEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, AlertTriangle, Pause, Play, Radar, RefreshCw, Square, TerminalSquare, Trash2 } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, Clock, Loader2, Pause, Play, Radar, RefreshCw, Square, TerminalSquare, Trash2, XCircle } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { deleteSession, getSessionStats, listFindings, listTargets, listToolRuns, listTools, pauseScan, resumeScan, scanEventsURL, stopScan, type ScanEvent, type ToolRun } from "../api/client";
 import { useSessionContext } from "../session";
+
+const severityOrder = ["critical", "high", "medium", "low", "info"] as const;
 
 const severityColors: Record<string, string> = {
   critical: "#ff3b5c",
@@ -29,6 +30,7 @@ export function Dashboard() {
   const queryClient = useQueryClient();
   const { sessions, selectedSessionID, setSelectedSessionID, refreshSessions } = useSessionContext();
   const [scanEvents, setScanEvents] = useState<ScanEvent[]>([]);
+  const [hoveredRisk, setHoveredRisk] = useState<HoveredRiskMix | null>(null);
   const selected = selectedSessionID;
   const selectedRecord = sessions.find((record) => record.session.id === selected)?.session;
   const statsQuery = useQuery({
@@ -86,12 +88,11 @@ export function Dashboard() {
     );
   }, [sessions]);
   const severityData = useMemo(() => {
-    const counts = statsQuery.data?.severity_counts ?? {};
-    return ["critical", "high", "medium", "low", "info"].map((severity) => ({
-      severity,
-      value: counts[severity] ?? 0,
-    })).filter((item) => item.value > 0);
+    return buildRiskMixData(statsQuery.data?.severity_counts);
   }, [statsQuery.data]);
+  const severityTotal = useMemo(() => severityData.reduce((total, item) => total + item.value, 0), [severityData]);
+  const severitySegments = useMemo(() => buildRiskMixSegments(severityData), [severityData]);
+  const severityLabel = useMemo(() => riskMixLabel(severityData), [severityData]);
   const priorityFindings = useMemo(() => {
     const rank: Record<string, number> = { critical: 5, high: 4, medium: 3, low: 2, info: 1 };
     return [...(findingsQuery.data ?? [])].sort((a, b) => (rank[b.severity] ?? 0) - (rank[a.severity] ?? 0)).slice(0, 8);
@@ -104,6 +105,13 @@ export function Dashboard() {
     if (activeFindingCount > 0) return ["Open triage workspace", "Review attack paths", "Generate a technical report"];
     return ["Review tool logs", "Run a broader profile", "Export the clean session record"];
   }, [activeFindingCount, selectedRecord]);
+  const handleRiskPointerMove = (event: MouseEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const segment = riskSegmentAtPoint(severitySegments, x, y, rect.width, rect.height);
+    setHoveredRisk(segment ? { segment, x, y } : null);
+  };
 
   useEffect(() => {
     if (!selected) {
@@ -208,20 +216,46 @@ export function Dashboard() {
         </section>
         <section className="panel">
           <h2>Selected Risk Mix</h2>
-          <div className="chart-panel" aria-hidden="true">
+          <div className="chart-panel risk-mix-panel">
             {severityData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={180}>
-                <PieChart>
-                  <Pie data={severityData} dataKey="value" nameKey="severity" innerRadius={48} outerRadius={74} paddingAngle={2}>
-                    {severityData.map((entry) => <Cell key={entry.severity} fill={severityColors[entry.severity]} />)}
-                  </Pie>
-                  <Tooltip contentStyle={{ background: "var(--surface)", border: "1px solid var(--border-bright)", color: "var(--text)" }} />
-                </PieChart>
-              </ResponsiveContainer>
+              <div className="risk-donut" role="img" aria-label={severityLabel} onMouseMove={handleRiskPointerMove} onMouseLeave={() => setHoveredRisk(null)}>
+                <svg className="risk-donut-svg" viewBox="0 0 148 148" aria-hidden="true">
+                  <circle className="risk-donut-track" cx="74" cy="74" r="54" />
+                  {severitySegments.map((segment) => (
+                    <circle
+                      key={segment.severity}
+                      className="risk-donut-segment"
+                      cx="74"
+                      cy="74"
+                      r="54"
+                      stroke={severityColors[segment.severity]}
+                      strokeDasharray={`${segment.length} ${segment.gap}`}
+                      strokeDashoffset={segment.offset}
+                    />
+                  ))}
+                </svg>
+                <div className="risk-donut-hole">
+                  <strong>{severityTotal}</strong>
+                  <span>findings</span>
+                </div>
+                {hoveredRisk ? (
+                  <div
+                    className="risk-tooltip"
+                    style={{
+                      "--risk-color": severityColors[hoveredRisk.segment.severity],
+                      left: hoveredRisk.x,
+                      top: hoveredRisk.y,
+                    } as CSSProperties}
+                  >
+                    <span aria-hidden="true" />
+                    {riskTooltipLabel(hoveredRisk.segment)}
+                  </div>
+                ) : null}
+              </div>
             ) : <div className="empty-line">No severity data yet.</div>}
           </div>
           <div className="severity-strip">
-            {["critical", "high", "medium", "low", "info"].map((severity) => (
+            {severityOrder.map((severity) => (
               <span key={severity}>{severity}: {statsQuery.data?.severity_counts?.[severity] ?? 0}</span>
             ))}
           </div>
@@ -278,35 +312,43 @@ export function Dashboard() {
       </div>
       <section className="panel event-panel">
         <h2>Live Progress</h2>
-        <div className="progress-tracks">
-          {progressTracks.map((track) => <span key={track.phase} className={`track ${track.state}`}>{phaseLabels[track.phase] ?? track.phase.replace("_", " ")}</span>)}
+        <div className="progress-tracks phase-chip-row">
+          {progressTracks.map((track) => <span key={track.phase} className={`track ${track.state}`}>{statusIcon(track.state)}{phaseLabels[track.phase] ?? track.phase.replace("_", " ")}</span>)}
         </div>
-        <div className="pipeline">
-          {pipeline.map(([phase, tools]) => (
-            <div className="pipeline-phase" key={phase}>
-              <div className="pipeline-phase-label">{phaseLabels[phase] ?? phase}</div>
-              <div className="pipeline-tools">
-                {tools.map((tool) => (
-                  <article className={`tool-node ${tool.state}`} key={tool.id}>
-                    <div className="tool-node-header">{tool.state === "running" ? <span className="pulse" /> : null}<strong>{tool.id}</strong></div>
-                    <small>{tool.name}</small>
-                    <span className="finding-count"><span>{tool.count}</span> findings{tool.duration ? ` · ${tool.duration}ms` : ""}</span>
-                  </article>
-                ))}
+        <div className="live-progress-grid">
+          <div className="pipeline">
+            {pipeline.map(([phase, tools]) => (
+              <div className="pipeline-phase" key={phase}>
+                <div className="pipeline-phase-label">{phaseLabels[phase] ?? phase}</div>
+                <div className="pipeline-tools">
+                  {tools.map((tool) => (
+                    <article className={`tool-progress-row ${tool.state}`} key={tool.id}>
+                      <span className="tool-progress-icon">{statusIcon(tool.state)}</span>
+                      <div>
+                        <strong>{tool.id}</strong>
+                        <small>{tool.name}</small>
+                      </div>
+                      <span className="tool-progress-meta">{tool.count} finding{tool.count === 1 ? "" : "s"}{tool.duration ? ` · ${formatDuration(tool.duration)}` : ""}</span>
+                    </article>
+                  ))}
+                </div>
               </div>
+            ))}
+            {pipeline.length === 0 ? <div className="empty-line">No tool pipeline is available for the selected session.</div> : null}
+          </div>
+          <div className="recent-events">
+            <h3>Recent Events</h3>
+            <div className="event-list">
+              {highLevelEvents.map((event) => (
+                <article key={`${event.type}-${event.at}-${event.tool_id ?? ""}-${event.finding_id ?? ""}`} className={`event-item ${eventTone(event)}`}>
+                  <span className={`event-type ${event.type}`}>{event.status === "paused" ? "paused" : event.type.replace("_", " ")}</span>
+                  <strong>{event.message ?? event.finding_title ?? event.tool_id ?? event.status ?? "Scan event"}</strong>
+                  <small>{new Date(event.at).toLocaleTimeString()}{event.tool_id ? ` · ${event.tool_id}` : ""}</small>
+                </article>
+              ))}
+              {highLevelEvents.length === 0 ? <div className="empty-line">No live events for the selected session.</div> : null}
             </div>
-          ))}
-          {pipeline.length === 0 ? <div className="empty-line">No tool pipeline is available for the selected session.</div> : null}
-        </div>
-        <div className="event-list">
-          {highLevelEvents.map((event) => (
-            <article key={`${event.type}-${event.at}-${event.tool_id ?? ""}-${event.finding_id ?? ""}`} className={`event-item ${eventTone(event)}`}>
-              <span className={`event-type ${event.type}`}>{event.status === "paused" ? "paused" : event.type.replace("_", " ")}</span>
-              <strong>{event.message ?? event.finding_title ?? event.tool_id ?? event.status ?? "Scan event"}</strong>
-              <small>{new Date(event.at).toLocaleTimeString()}{event.tool_id ? ` · ${event.tool_id}` : ""}</small>
-            </article>
-          ))}
-          {highLevelEvents.length === 0 ? <div className="empty-line">No live events for the selected session.</div> : null}
+          </div>
         </div>
       </section>
       <section className="panel terminal-feed">
@@ -317,12 +359,88 @@ export function Dashboard() {
   );
 }
 
+type RiskMixDatum = {
+  severity: string;
+  value: number;
+};
+
+type RiskMixSegment = {
+  severity: string;
+  value: number;
+  length: string;
+  gap: string;
+  offset: string;
+  startDegrees: number;
+  endDegrees: number;
+  title: string;
+};
+
+type HoveredRiskMix = {
+  segment: RiskMixSegment;
+  x: number;
+  y: number;
+};
+
+export function buildRiskMixData(counts: Record<string, number> = {}): RiskMixDatum[] {
+  return severityOrder.map((severity) => ({
+    severity,
+    value: counts[severity] ?? 0,
+  })).filter((item) => item.value > 0);
+}
+
+export function buildRiskMixSegments(data: RiskMixDatum[]): RiskMixSegment[] {
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+  if (total <= 0) return [];
+  const circumference = 2 * Math.PI * 54;
+  let cursor = 0;
+  let degreesCursor = 0;
+  return data.map((item) => {
+    const length = (item.value / total) * circumference;
+    const degrees = (item.value / total) * 360;
+    const segment = {
+      severity: item.severity,
+      value: item.value,
+      length: length.toFixed(2),
+      gap: (circumference - length).toFixed(2),
+      offset: (-cursor).toFixed(2),
+      startDegrees: degreesCursor,
+      endDegrees: degreesCursor + degrees,
+      title: `${item.severity}: ${item.value} finding${item.value === 1 ? "" : "s"}`,
+    };
+    cursor += length;
+    degreesCursor += degrees;
+    return segment;
+  });
+}
+
+export function riskTooltipLabel(segment: Pick<RiskMixSegment, "severity" | "value">) {
+  return `${segment.severity}: ${segment.value} finding${segment.value === 1 ? "" : "s"}`;
+}
+
+export function riskSegmentAtPoint(segments: RiskMixSegment[], x: number, y: number, width = 148, height = 148): RiskMixSegment | null {
+  if (segments.length === 0) return null;
+  const size = Math.min(width, height);
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const radius = Math.hypot(x - centerX, y - centerY);
+  const innerRadius = size * 0.27;
+  const outerRadius = size * 0.47;
+  if (radius < innerRadius || radius > outerRadius) return null;
+  const angle = (Math.atan2(y - centerY, x - centerX) * 180 / Math.PI + 90 + 360) % 360;
+  return segments.find((segment) => angle >= segment.startDegrees && angle < segment.endDegrees) ?? segments[segments.length - 1];
+}
+
+export function riskMixLabel(data: RiskMixDatum[]) {
+  if (data.length === 0) return "No severity data yet.";
+  return `Selected risk mix: ${data.map((item) => `${item.value} ${item.severity}`).join(", ")}.`;
+}
+
 function latestRunForTool(runs: ToolRun[], toolID: string) {
   return runs.filter((run) => run.tool_id === toolID).sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())[0];
 }
 
 function SeverityBar({ counts, total }: { counts?: Record<string, number>; total: number }) {
-  const values = ["critical", "high", "medium", "low", "info"].map((severity) => ({ severity, value: counts?.[severity] ?? 0 }));
+  const values = severityOrder.map((severity) => ({ severity, value: counts?.[severity] ?? 0 }));
   const known = values.reduce((sum, item) => sum + item.value, 0);
   if (known === 0 && total > 0) {
     return <div className="sev-bar"><span className="sev-bar-seg sev-info" style={{ flex: 1 }} /></div>;
@@ -341,4 +459,18 @@ function eventTone(event: ScanEvent) {
   if (event.type === "completed" || event.type === "tool_completed" || event.type === "phase_completed") return "success";
   if (event.type === "finding_found" || event.status === "paused") return "warning";
   return "running";
+}
+
+function statusIcon(state: string) {
+  if (state === "completed" || state === "done") return <CheckCircle2 size={14} />;
+  if (state === "running") return <Loader2 className="spin-icon" size={14} />;
+  if (state === "error" || state === "failed") return <XCircle size={14} />;
+  return <Clock size={14} />;
+}
+
+function formatDuration(durationMS: number) {
+  if (durationMS >= 1000) {
+    return `${(durationMS / 1000).toFixed(1)}s`;
+  }
+  return `${durationMS}ms`;
 }

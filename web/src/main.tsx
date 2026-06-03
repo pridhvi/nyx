@@ -92,7 +92,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     return (
       <section className="auth-screen">
         <form className="auth-panel" onSubmit={submit}>
-          <div className="brand auth-brand"><img src="/nyx-logo.png" alt="" />NYX</div>
+          <div className="brand auth-brand"><img src="/nyx-logo.png" alt="" />Nyx</div>
           <label>API Key
             <input
               autoFocus
@@ -120,6 +120,7 @@ function OperatorShell() {
   const location = useLocation();
   const scoped = (suffix: string) => scopedSessionPath(selectedSessionID, suffix);
   const selectedSession = selected?.session;
+  const commandCenterPath = selectedSessionID ? scoped("") : "/";
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -145,7 +146,7 @@ function OperatorShell() {
   return (
     <div className="shell">
       <aside className={`sidebar ${navOpen ? "open" : ""}`}>
-        <div className="brand"><img src="/nyx-logo.png" alt="" /><span>NYX</span></div>
+        <Link className="brand" to={commandCenterPath} aria-label="Go to Command Center"><img src="/nyx-logo.png" alt="" /><span>Nyx</span></Link>
         <nav aria-label="Primary">
           {navGroups.map((group) => (
             <div className="nav-section" key={group.label}>
@@ -188,7 +189,7 @@ function OperatorShell() {
             <button className="icon-button theme-toggle" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
               {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
             </button>
-            <button className="secondary" onClick={refreshSessions}><RefreshCw size={16} />Refresh</button>
+            <button className="secondary" onClick={refreshSessions} title="Refresh session list" aria-label="Refresh session list"><RefreshCw size={16} />Refresh</button>
           </div>
           {navOpen ? <button className="icon-button close-mobile-nav" aria-label="Close navigation" onClick={() => setNavOpen(false)}><X size={18} /></button> : null}
         </header>

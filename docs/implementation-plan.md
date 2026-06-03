@@ -169,7 +169,7 @@ work and must be carried forward:
   CVEs, reports, LLM history/analysis/chat, session deletion, scan profiles,
   monitor configs/runs/surface changes, payloads, credentials, OSINT, provider
   statuses, AD, block events, callbacks, PoC results, Burp XML import/export,
-  Burp REST helpers, and config callbacks,
+  Burp REST helpers, constrained source-directory browsing, and config callbacks,
   API-key-protected global plugins, API-key-protected LLM model probing,
   API-key enforcement for non-loopback serving and host-privileged API
   operations, and scan lifecycle
@@ -180,18 +180,22 @@ work and must be carried forward:
   a compatibility alias.
 - **Reporting and UI:** Markdown/HTML/SARIF/paginated-PDF report generation,
   CLI/API/UI report access, and React/Vite dark-default operator console with a
-  Nyx logo/favicon, dashboard controls and live terminal feed, responsive mobile
-  topbar actions, multi-target scan and source scan builder with a
-  non-overlapping launch review, per-tool configuration modals, profile
-  import/export, Recharts severity chart with theme-aware surfaces, simplified
-  Cytoscape attack graph views with safe edge filtering, source nodes, labelled
-  graph edge data, deduplicated ranked chains, and selected-chain focus, grouped
+  Nyx logo/favicon, dashboard controls, readable live progress rows, recent
+  events, and live terminal feed, responsive mobile topbar actions,
+  multi-target scan and source scan builder with server-side source folder
+  browsing, compact scrollable tool groups, a non-overlapping launch review,
+  per-tool configuration modals, profile import/export, Recharts severity chart
+  with theme-aware surfaces, Attack Paths ranked chains with underlying
+  target/finding/vector/source data, labelled graph edge data, and an
+  in-progress graph placeholder, grouped
   source finding summaries with filters and context expansion, sortable
-  finding/CVE tables with static/dynamic/status filters, mobile finding cards,
-  bulk finding workflow, finding evidence/edit workflow, global plugin
-  registration, monitor config/run/change review, responsive tool inventory cards, polished stdout/stderr log
-  drawers, LLM model probing, settings health panels with collapsible raw config,
-  and report pages backed by real API data. Reports include source findings,
+  finding/CVE tables with static/dynamic/status filters, empty finding states,
+  mobile finding cards, bulk finding workflow, finding evidence/edit workflow,
+  API-key-guided global plugin registration, checkbox-driven monitor
+  config/run/change review, responsive session-aware tool inventory cards,
+  polished stdout/stderr log drawers, LLM model probing, settings health panels
+  with collapsible raw config, and report pages backed by real API data with
+  explicit no-session/loading/error/empty states. Reports include source findings,
   suppressed findings, tool coverage, dependency CVEs, and cross-confirmed
   static/dynamic evidence. Built assets are embedded into
   `internal/api/web/dist`.
@@ -1112,6 +1116,8 @@ work and must be carried forward:
   - sticky launch summary with workload, targets, selected tools, selected phases,
     and validation state
   - target, name, mode, and out-of-scope controls
+  - server-side source repository picker constrained to configured/default
+    source roots
   - built-in and API-backed saved scan profiles
   - phase cards with short descriptions
   - phase-aware tool selection with status icons for built-in, installed, and
@@ -1120,6 +1126,8 @@ work and must be carried forward:
   - start guard requiring at least one runnable selected tool
   - concurrency, per-tool concurrency, timeout, delay, and rate-limit controls
   - hover help for scan mode and runtime fields
+  - hover help for seed routes, auth headers, cookie headers, auth profiles, and
+    adaptive backoff
   - LLM base URL controls, connection probing, and discovered model selection
   - per-tool configuration modals backed by API metadata and backend validation
   - target textarea for multi-target scans and section-local required-field
@@ -1130,6 +1138,8 @@ work and must be carried forward:
   - installed/missing status
   - configured binary path and version detection
   - phase, adapter kind, dependencies, install hints, and last run status
+  - session-scoped last run status with explanatory copy for built-in and
+    missing tool binary/version fields
   - global plugin registration, enable/disable, deletion, phase metadata,
     description, homepage URL, and managed binary upload
   - plugin binary validation that rejects random text, directories, missing
@@ -1145,14 +1155,14 @@ work and must be carried forward:
   leave the operator console as a blank white page.
 - Added frontend unit tests for route scoping, scan-profile payload helpers, and
   attack graph edge filtering.
-- Command Center lists sessions, stats, priority findings, next actions, and live progress.
+- Command Center lists sessions, stats, priority findings, next actions, readable live progress rows, and recent events.
 - Implemented Dashboard `/` and `/sessions/:id`:
   - ambient new-scan card and active/recent session cards with severity strips
   - selected-session stats
   - global finding stats
   - engagement name and target list visibility
   - cooperative pause/resume, cancel, and delete controls
-  - WebSocket-derived live pipeline nodes, concise high-level progress feed, and
+  - WebSocket-derived live tool progress rows, concise high-level progress feed, and
     live terminal feed
 - Implemented Session Detail `/sessions/:id` using the dashboard/detail data
   surface:
@@ -1164,12 +1174,11 @@ work and must be carried forward:
   - severity distribution chart
   - tool coverage matrix
 - Implemented Attack Graph `/sessions/:id/graph`:
-  - interactive dark-canvas Cytoscape attack path graph plus ranked vector chain
-    panel and target, finding, technology, and vector columns
-  - target, technology, finding, and attack vector nodes
-  - severity/category filters
-  - weighted severity styling, attack/finding edge styling, legend, and summary
-    counters
+  - ranked vector chain panel plus target, finding, attack vector, and source
+    columns
+  - in-progress graph placeholder while the interactive canvas is reworked
+  - severity filters
+  - summary counters
   - missing-edge filtering with an operator warning instead of route failure
 - Implemented Findings `/sessions/:id/findings`:
   - sortable findings table
@@ -1179,6 +1188,8 @@ work and must be carried forward:
   - persisted severity/remediation edits
   - severity/type/tool/OWASP/CVE/exploit filters
   - CVE matches
+  - empty-state panel instead of empty tables when no findings are available or
+    filters hide all findings
 - Implemented CVEs `/sessions/:id/cves`:
   - sortable CVE table
   - CVSS, source, patch, exploit, and description columns
@@ -1190,6 +1201,7 @@ work and must be carried forward:
   - HTML preview
   - executive/technical toggle
   - PDF and Markdown download
+  - no-session, loading, error, empty-content, and PDF download-only states
 
 ### Spec Alignment Follow-ups
 
@@ -1309,8 +1321,7 @@ work and must be carried forward:
   runs on hosts where external tools are installed.
 - README media capture is available through `make readme-media`. It starts the
   local vulnerable fixture, creates a temporary session, seeds deterministic
-  demo LLM history, captures UI screenshots under `docs/assets/readme/`, and
-  writes a compact demo GIF when a local encoder is available.
+  demo LLM history, and captures UI screenshots under `docs/assets/readme/`.
 
 ### Spec Alignment Follow-ups
 
@@ -1361,8 +1372,8 @@ greenfield assumptions:
 | 2. Design Principles | Phases 0, 3, 4, 5, 11, 12 | Implemented | Scope/evidence/normalization, DAG scheduling, deterministic vectors, constrained LLM analysis, auth, reports, and UI routes exist. |
 | 3. Tech Stack | Phases 0, 2, 12, 15, 16, 17 | Implemented | Go, SQLite, React/Vite, WebSocket, OpenAI-compatible LLM client, reports, Docker, Compose, Makefile, and GoReleaser exist. |
 | 3.1 Backend Go | Phases 0, 5 | Implemented | Current Go target is 1.26.4 or newer within the 1.26 line; scheduler exists. Native ProjectDiscovery migration is intentionally deferred. |
-| 3.2 Dependencies | Phases 0, 10, 12, 15, 17, 18 | Implemented | SQLite, stdlib `net/http`, WebSocket, Viper, go-pdf/fpdf, x/sync, slog, testify, Cytoscape, and Recharts are present; chi/sqlc/PostgreSQL are deferred architecture tracks. |
-| 3.3 Frontend | Phase 16 | Implemented | Dashboard, findings, Cytoscape graph, Recharts severity chart, LLM, and reports routes use real API data. |
+| 3.2 Dependencies | Phases 0, 10, 12, 15, 17, 18 | Implemented | SQLite, stdlib `net/http`, WebSocket, Viper, go-pdf/fpdf, x/sync, slog, testify, Cytoscape helper types, and Recharts are present; chi/sqlc/PostgreSQL are deferred architecture tracks. |
+| 3.3 Frontend | Phase 16 | Implemented | Dashboard, findings, Attack Paths ranked-chain/data view with graph placeholder, Recharts severity chart, LLM, and reports routes use real API data. |
 | 3.4 Database | Phase 2 | Implemented | Per-session SQLite, ordered migrations, and store methods cover Phase 2 persistence; optional Postgres remains later. |
 | 3.5 Plugin System | Phase 4 | Implemented | JSON contract, CLI install/list, plugin persistence, configured plugin loading, and failed tool-run degradation exist. |
 | 3.6 Packaging | Phase 17 | Implemented | Docker, Compose, Makefile, Docker smoke, deployment notes, CI build, and snapshot release exist. |
@@ -1374,10 +1385,10 @@ greenfield assumptions:
 | 9. DAG Engine | Phase 5 | Implemented | Dependency levels, same-level concurrency, semaphores, timeout/delay controls, prior-result propagation, and phase events exist. |
 | 10. LLM Integration | Phase 12 | Implemented | Optional OpenAI-compatible client, config, structured context builder, constrained tools, analyst loop, evidence truncation, persisted audit trails, vector annotations, API endpoints, CLI commands, and UI history/chat exist. |
 | 11. CVE Intelligence | Phase 10 | Implemented | Correlator, offline JSON source, Exploit-DB CSV source, cache, NVD/OSV/CIRCL/Vulners/GitHub parsers, evidence CVE extraction, persisted matches, and draft vectors exist. |
-| 12. Attack Vector Engine | Phase 11 | Implemented | Deterministic rule engine, default rules, scoring, steps, persistence integration, CVE vector merging, LLM review annotations, API exposure, and UI graph exposure exist. |
+| 12. Attack Vector Engine | Phase 11 | Implemented | Deterministic rule engine, default rules, scoring, steps, persistence integration, CVE vector merging, LLM review annotations, API exposure, and UI ranked-chain exposure exist. |
 | 13. REST API Surface | Phase 13 | Implemented | Spec endpoints for sessions, scans, findings, finding updates, vectors, CVEs, LLM, reports, health, tools, auth, monitor configs/runs/changes, power-feature records/actions, provider statuses, callbacks, Burp REST helpers, and WebSocket alias exist. |
 | 14. CLI Commands | Phase 14 | Implemented | Scan flags, monitor/payload/creds/osint/ad/poc/burp commands including safe validation/provider/credential/Burp actions, report generation, LLM commands, config init/show, plugins, sessions, serve, and version exist. |
-| 15. Web UI Pages | Phase 16 | Implemented | Dashboard, monitor route, power features workspace, session route, Cytoscape graph, Recharts severity chart, finding evidence/edit workflow, LLM, and reports pages use real API data. |
+| 15. Web UI Pages | Phase 16 | Implemented | Dashboard, monitor route, power features workspace, session route, Attack Paths ranked-chain/data view, Recharts severity chart, finding evidence/edit workflow, LLM, and reports pages use real API data. |
 | 16. Configuration File | Phase 14 | Implemented | Viper-backed `~/.nyx/config.yaml` defaults, YAML/TOML/JSON parsing, config init/show, env overrides, logging settings, tool path maps, plugin directories, CVE settings, power provider/callback/credential/validation settings with redaction, and CLI override paths exist. |
 | 17. Scope Validation | Phase 3 | Implemented | Checker, adapter boundary tests, cancellation, lifecycle status coverage, and privileged API source/LLM allowlist controls exist. |
 | 18. Error Handling & Logging | Phases 3, 4, 5 | Implemented | Tool failures persist without failing scans; structured slog configuration supports `NYX_LOG_LEVEL` and `NYX_LOG_FORMAT`, and non-fatal adapter failures are logged. |

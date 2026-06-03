@@ -1,7 +1,7 @@
-import { type ChangeEvent, type FormEvent, type ReactNode, useMemo, useState } from "react";
+import { type ChangeEvent, type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, CircleHelp, Download, Play, Save, Settings, ShieldCheck, Trash2, Upload, XCircle } from "lucide-react";
-import { createScanProfile, deleteScanProfile, listLLMModels, listScanProfiles, listTools, startScan, type StartScanRequest, type ToolRecord } from "../api/client";
+import { CheckCircle2, CircleHelp, Download, FolderOpen, Play, Save, Settings, ShieldCheck, Trash2, Upload, XCircle } from "lucide-react";
+import { createScanProfile, deleteScanProfile, listLLMModels, listScanProfiles, listSourceDirectories, listSourceRoots, listTools, startScan, type SourceRoot, type StartScanRequest, type ToolRecord } from "../api/client";
 import { allProfiles, buildCustomProfileRequest, cleanToolParameters, splitArgs, splitLines, type ScanProfile } from "../scanProfiles";
 import { useSessionContext } from "../session";
 
@@ -60,6 +60,7 @@ export function ScanBuilder() {
   const [llmStatus, setLLMStatus] = useState<"idle" | "checking" | "success" | "error">("idle");
   const [llmMessage, setLLMMessage] = useState("");
   const [configuredTool, setConfiguredTool] = useState<ToolRecord | null>(null);
+  const [sourcePickerOpen, setSourcePickerOpen] = useState(false);
 
   const selectedToolRecords = useMemo(() => tools.filter((tool) => selectedTools.includes(tool.id)), [selectedTools, tools]);
   const toolByID = useMemo(() => new Map(tools.map((tool) => [tool.id, tool])), [tools]);
@@ -277,7 +278,7 @@ export function ScanBuilder() {
           {["Scope", "Profiles", "Runtime", "LLM", "Phases", "Tools", "Launch"].map((item) => <a key={item} href={`#${item.toLowerCase()}`}>{item}</a>)}
         </aside>
         <div className="builder-main">
-        <section className="panel span-2" id="profiles">
+        <section className="panel span-2 builder-profiles" id="profiles">
           <h2>Profiles</h2>
           <div className="profile-bar">
             <label>Preset
@@ -298,12 +299,17 @@ export function ScanBuilder() {
           {createProfileMutation.error ? <p className="error-text">{createProfileMutation.error.message}</p> : null}
           {selectedProfile ? <p className="profile-description">{selectedProfile.description}</p> : null}
         </section>
-        <section className="panel" id="scope">
+        <section className="panel builder-scope" id="scope">
           <h2>Scope <span className={`origin-badge ${workloadMode === "combined" ? "both" : workloadMode === "static" ? "static" : "dynamic"}`}>{workloadMode}</span></h2>
           <div className="form-grid">
             <label className="span-2">Targets {sourcePath.trim() ? null : <Required />}<textarea value={targets} onChange={(event) => setTargets(event.target.value)} rows={4} placeholder={"https://example.com\nhttps://example.org"} required={!sourcePath.trim()} /></label>
             {targetError ? <p className="field-error span-2">{targetError}</p> : null}
-            <label className="span-2">Source Repository <input value={sourcePath} onChange={(event) => setSourcePath(event.target.value)} placeholder="/path/to/repository" /></label>
+            <label className="span-2">Source Repository
+              <span className="input-action-row">
+                <input value={sourcePath} onChange={(event) => setSourcePath(event.target.value)} placeholder="/path/to/repository" />
+                <button className="secondary compact-button" type="button" onClick={() => setSourcePickerOpen(true)}><FolderOpen size={16} />Browse</button>
+              </span>
+            </label>
             <label>Name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Engagement name" /></label>
             <label>Mode
               <span className="inline-help-control">
@@ -312,13 +318,21 @@ export function ScanBuilder() {
               </span>
             </label>
             <label>Out of Scope<textarea value={outOfScope} onChange={(event) => setOutOfScope(event.target.value)} rows={3} placeholder="one host or CIDR per line" /></label>
-            <label className="span-2">Seed Routes<textarea value={routeSeeds} onChange={(event) => setRouteSeeds(event.target.value)} rows={3} placeholder={"/admin\n/api/search?q=test\nhttps://example.com/profile?id=1"} /></label>
-            <label>Auth Headers<textarea value={authHeaders} onChange={(event) => setAuthHeaders(event.target.value)} rows={3} placeholder={"Authorization: Bearer ...\nX-Api-Key: ..."} /></label>
-            <label>Cookie Header<textarea value={authCookie} onChange={(event) => setAuthCookie(event.target.value)} rows={3} placeholder="session=...; csrftoken=..." /></label>
-            <label className="span-2">Auth Profile JSON<textarea value={authProfile} onChange={(event) => setAuthProfile(event.target.value)} rows={5} placeholder={'{"type":"form","login_url":"/login","username":"user","password":"pass","csrf_field":"csrf","validation_url":"/account"}'} /></label>
+            <HelpLabel className="span-2" label="Seed Routes" help="Optional in-scope paths or full URLs Nyx should include when validating seeded parameters such as search, id, redirect, or hash routes.">
+              <textarea value={routeSeeds} onChange={(event) => setRouteSeeds(event.target.value)} rows={3} placeholder={"/admin\n/api/search?q=test\nhttps://example.com/profile?id=1"} />
+            </HelpLabel>
+            <HelpLabel label="Auth Headers" help="Static request headers for authenticated scans. Secrets are redacted before scan arguments are persisted.">
+              <textarea value={authHeaders} onChange={(event) => setAuthHeaders(event.target.value)} rows={3} placeholder={"Authorization: Bearer ...\nX-Api-Key: ..."} />
+            </HelpLabel>
+            <HelpLabel label="Cookie Header" help="Raw Cookie header used by compatible built-in validators and subprocess adapters without storing individual cookie secrets in tool arguments.">
+              <textarea value={authCookie} onChange={(event) => setAuthCookie(event.target.value)} rows={3} placeholder="session=...; csrftoken=..." />
+            </HelpLabel>
+            <HelpLabel className="span-2" label="Auth Profile JSON" help="Optional form or JSON login profile. Nyx can login, validate the post-login marker, and refresh auth context during long scans.">
+              <textarea value={authProfile} onChange={(event) => setAuthProfile(event.target.value)} rows={5} placeholder={'{"type":"form","login_url":"/login","username":"user","password":"pass","csrf_field":"csrf","validation_url":"/account"}'} />
+            </HelpLabel>
           </div>
         </section>
-        <section className="panel" id="runtime">
+        <section className="panel builder-runtime" id="runtime">
           <h2>Runtime</h2>
           <div className="form-grid compact">
             <HelpLabel label="Concurrency" help={runtimeHelp.concurrency}><input type="number" min={1} value={concurrency} onChange={(event) => setConcurrency(Number(event.target.value))} /></HelpLabel>
@@ -335,11 +349,15 @@ export function ScanBuilder() {
               </select>
             </label>
             <label>Jitter MS<input type="number" min={0} value={jitterMS} onChange={(event) => setJitterMS(Number(event.target.value))} /></label>
-            <label>Proxy URL<input value={proxyURL} onChange={(event) => setProxyURL(event.target.value)} placeholder="http://127.0.0.1:8080" /></label>
-            <label className="checkbox-row"><input type="checkbox" checked={adaptiveBackoff} onChange={(event) => setAdaptiveBackoff(event.target.checked)} />Adaptive backoff</label>
+            <label className="runtime-proxy-field">Proxy URL<input value={proxyURL} onChange={(event) => setProxyURL(event.target.value)} placeholder="http://127.0.0.1:8080" /></label>
+            <label className="toggle-row">
+              <input type="checkbox" checked={adaptiveBackoff} onChange={(event) => setAdaptiveBackoff(event.target.checked)} />
+              <span>Adaptive backoff</span>
+              <InfoTip text="Nyx slows or backs off when compatible adapters observe block, throttling, or rate-limit signals." />
+            </label>
           </div>
         </section>
-        <section className="panel" id="llm">
+        <section className="panel builder-llm" id="llm">
           <h2>LLM</h2>
           <div className="form-grid">
             <label>Base URL<input value={llmBaseURL} onChange={(event) => setLLMBaseURL(event.target.value)} placeholder="http://localhost:11434/v1" /></label>
@@ -353,7 +371,7 @@ export function ScanBuilder() {
             {llmStatus !== "idle" ? <span className={`llm-state ${llmStatus}`}>{llmStatus === "checking" ? <span className="spinner" /> : llmStatus === "success" ? <CheckCircle2 size={16} /> : <XCircle size={16} />}{llmMessage}</span> : null}
           </div>
         </section>
-        <section className="panel span-2" id="phases">
+        <section className="panel span-2 builder-phases" id="phases">
           <h2>Phases {hasTargets ? <Required /> : null}</h2>
           <div className="phase-grid">
             {phases.map((phase) => (
@@ -365,7 +383,7 @@ export function ScanBuilder() {
           </div>
           {phaseError ? <p className="field-error">{phaseError}</p> : null}
         </section>
-        <section className="panel span-2" id="tools">
+        <section className="panel span-2 builder-tools" id="tools">
           <h2>Tools {hasTargets ? <Required /> : null}</h2>
           <div className="tool-phase-grid">
             {phases.map((phase) => (
@@ -393,7 +411,7 @@ export function ScanBuilder() {
           {toolError ? <p className="field-error">{toolError}</p> : null}
           <p className="profile-description">Selecting a tool automatically selects required dependency tools when available.</p>
         </section>
-        <section className="panel span-2 action-panel launch-panel" id="launch">
+        <section className="panel span-2 action-panel launch-panel builder-launch" id="launch">
           <div className="launch-summary">
             <span className={`origin-badge ${workloadMode === "combined" ? "both" : workloadMode === "static" ? "static" : "dynamic"}`}>{workloadMode}</span>
             <span>{parsedTargets.length} target{parsedTargets.length === 1 ? "" : "s"}</span>
@@ -416,7 +434,79 @@ export function ScanBuilder() {
           </div>
         </div>
       ) : null}
+      {sourcePickerOpen ? <SourcePicker value={sourcePath} onSelect={setSourcePath} onClose={() => setSourcePickerOpen(false)} /> : null}
     </section>
+  );
+}
+
+function SourcePicker({ value, onSelect, onClose }: { value: string; onSelect: (path: string) => void; onClose: () => void }) {
+  const rootsQuery = useQuery({ queryKey: ["source-roots"], queryFn: listSourceRoots });
+  const roots = rootsQuery.data?.roots ?? [];
+  const [currentPath, setCurrentPath] = useState(value);
+  const activeRoot = roots.find((root) => currentPath === root.path || currentPath.startsWith(`${root.path}/`)) ?? roots[0];
+  const directoriesQuery = useQuery({
+    queryKey: ["source-dirs", currentPath],
+    queryFn: () => listSourceDirectories(currentPath),
+    enabled: currentPath.trim() !== "",
+  });
+
+  useEffect(() => {
+    if (!currentPath && roots.length > 0) {
+      setCurrentPath(roots[0].path);
+    }
+  }, [currentPath, roots]);
+
+  function chooseRoot(root: SourceRoot) {
+    setCurrentPath(root.path);
+  }
+
+  function useFolder() {
+    if (directoriesQuery.data?.path) {
+      onSelect(directoriesQuery.data.path);
+      onClose();
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <div className="modal source-picker-modal">
+        <header>
+          <div>
+            <h2>Choose Source Repository</h2>
+            <p className="profile-description">Browse server-side directories exposed by Nyx source roots.</p>
+          </div>
+          <button className="icon-button" type="button" onClick={onClose}>×</button>
+        </header>
+        <label>Root
+          <select value={activeRoot?.path ?? ""} onChange={(event) => {
+            const root = roots.find((item) => item.path === event.target.value);
+            if (root) chooseRoot(root);
+          }}>
+            {roots.map((root) => <option key={root.path} value={root.path}>{root.label} · {root.path}</option>)}
+          </select>
+        </label>
+        <div className="source-picker-path">
+          <span>{directoriesQuery.data?.path ?? (currentPath || "No source roots available")}</span>
+          <button className="secondary compact-button" type="button" disabled={!directoriesQuery.data?.parent_path} onClick={() => directoriesQuery.data?.parent_path && setCurrentPath(directoriesQuery.data.parent_path)}>Parent</button>
+        </div>
+        <div className="source-dir-list">
+          {rootsQuery.isLoading || directoriesQuery.isLoading ? <p className="empty-line">Loading directories.</p> : null}
+          {directoriesQuery.error ? <p className="error-text">{directoriesQuery.error.message}</p> : null}
+          {(directoriesQuery.data?.directories ?? []).map((directory) => (
+            <button key={directory.path} type="button" onClick={() => setCurrentPath(directory.path)}>
+              <FolderOpen size={16} />
+              <span>{directory.name}</span>
+              <small>{directory.path}</small>
+            </button>
+          ))}
+          {!rootsQuery.isLoading && !directoriesQuery.isLoading && !directoriesQuery.error && (directoriesQuery.data?.directories ?? []).length === 0 ? <p className="empty-line">No child directories in this folder.</p> : null}
+        </div>
+        <footer>
+          <button className="secondary" type="button" onClick={onClose}>Cancel</button>
+          <button className="primary" type="button" disabled={!directoriesQuery.data?.path} onClick={useFolder}>Use this folder</button>
+        </footer>
+      </div>
+    </div>
   );
 }
 
@@ -436,9 +526,9 @@ function ToolParameters({ tool, values, onChange }: { tool: ToolRecord; values: 
   );
 }
 
-function HelpLabel({ label, help, children }: { label: string; help: string; children: ReactNode }) {
+function HelpLabel({ label, help, children, className = "" }: { label: string; help: string; children: ReactNode; className?: string }) {
   return (
-    <label>{label}
+    <label className={className}>{label}
       <span className="inline-help-control">
         {children}
         <InfoTip text={help} />

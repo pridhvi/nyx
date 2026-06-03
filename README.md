@@ -44,8 +44,6 @@ Nyx is not a replacement for authorization, scoping, or manual validation. It is
 
 The screenshots below are generated from the repository's local vulnerable fixture. They do not use a real target, API key, or LLM endpoint.
 
-![Nyx demo workflow](docs/assets/readme/nyx-demo-flow.gif)
-
 | Scan setup | Findings triage |
 | --- | --- |
 | ![Scan Builder](docs/assets/readme/nyx-scan-builder.png) | ![Findings](docs/assets/readme/nyx-findings.png) |
@@ -64,7 +62,7 @@ Regenerate the README media from fixture data with:
 make readme-media
 ```
 
-The generator always writes PNG screenshots under `docs/assets/readme/`. It also writes `nyx-demo-flow.gif` when ImageMagick or Python Pillow is available.
+The generator writes PNG screenshots under `docs/assets/readme/`.
 
 ## Quick Start With Docker Compose
 
@@ -144,10 +142,11 @@ Use `--lean` when you want normalized findings but do not want to retain raw sid
 1. Start `nyx serve` or Docker Compose.
 2. Log in with the configured API key.
 3. Open **Scan Builder** and enter one or more authorized targets.
-4. Select mode, phases, tools, route seeds, optional auth, runtime limits, and optional LLM settings.
-5. Start the scan and watch the session dashboard, lifecycle events, tool nodes, and terminal feed.
-6. Review **Findings**, **Tool Runs**, **Attack Paths**, **CVEs**, and **Reports**.
-7. Export Markdown, HTML, SARIF, or PDF reports.
+4. Optionally add a source repository path. The browser picker lists server-side directories from `NYX_SOURCE_ROOTS`, or from the server user's home and current working directory when no roots are configured.
+5. Select mode, phases, tools, route seeds, optional auth, runtime limits, and optional LLM settings.
+6. Start the scan and watch the session dashboard, lifecycle events, tool progress rows, and terminal feed.
+7. Review **Findings**, **Tool Runs**, **Attack Paths**, **CVEs**, and **Reports**.
+8. Export Markdown, HTML, SARIF, or PDF reports.
 
 The UI is backed by the same local session database used by the CLI. You can run a scan from the CLI, then inspect that session in the browser.
 
@@ -348,7 +347,7 @@ Important environment variables:
 | --- | --- |
 | `NYX_API_KEY` | Required when serving beyond loopback and recommended for browser/API use |
 | `NYX_SESSION_DIR` | Override local session storage |
-| `NYX_SOURCE_ROOTS` | Comma-separated allowlist for API-triggered source scans |
+| `NYX_SOURCE_ROOTS` | Comma-separated allowlist for API-triggered source scans and the Scan Builder source folder picker |
 | `NYX_LLM_ALLOWED_HOSTS` | Comma-separated allowlist for protected LLM endpoint hosts |
 | `NYX_SECURE_COOKIES` | Force the browser login cookie to carry `Secure` behind HTTPS termination |
 | `NYX_LOG_LEVEL` | `debug`, `info`, `warn`, or `error` |

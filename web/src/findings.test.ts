@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Finding } from "./api/client";
-import { findingEvidenceObject, isHumanAssistFinding } from "./pages/Findings";
+import { defaultSelectedFinding, findingEvidenceObject, isHumanAssistFinding } from "./pages/Findings";
 
 function finding(overrides: Partial<Finding>): Finding {
   return {
@@ -40,5 +40,15 @@ describe("human assist finding helpers", () => {
   it("ignores non-object and invalid normalized evidence", () => {
     expect(findingEvidenceObject(finding({ evidence_normalized: "not-json" }))).toBeNull();
     expect(findingEvidenceObject(finding({ evidence_normalized: `["human_assist"]` }))).toBeNull();
+  });
+
+  it("keeps a visible selection or falls back to the first visible finding", () => {
+    const rows = [
+      finding({ id: "first", severity: "high" }),
+      finding({ id: "second", severity: "medium" }),
+    ];
+    expect(defaultSelectedFinding("second", rows)?.id).toBe("second");
+    expect(defaultSelectedFinding("missing", rows)?.id).toBe("first");
+    expect(defaultSelectedFinding(undefined, [])).toBeNull();
   });
 });

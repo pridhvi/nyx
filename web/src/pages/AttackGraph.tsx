@@ -1,13 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import cytoscape from "cytoscape";
+import type cytoscape from "cytoscape";
 import { listAttackGraphEdges, listFindings, listSourceFindings, listTargets, listVectors, type AttackGraphEdge, type AttackVector, type Finding, type SourceFinding, type Target } from "../api/client";
 import { useSessionContext } from "../session";
 
 export function AttackGraph() {
   const { selectedSessionID: selected } = useSessionContext();
   const [severity, setSeverity] = useState("");
-  const [density, setDensity] = useState<"compact" | "readable">("readable");
   const targetsQuery = useQuery({ queryKey: ["targets", selected], queryFn: () => listTargets(selected), enabled: selected !== "" });
   const findingsQuery = useQuery({ queryKey: ["findings", selected], queryFn: () => listFindings(selected), enabled: selected !== "" });
   const vectorsQuery = useQuery({ queryKey: ["vectors", selected], queryFn: () => listVectors(selected), enabled: selected !== "" });
@@ -22,61 +21,9 @@ export function AttackGraph() {
     const edges = edgesQuery.data ?? [];
     return { targets, findings, vectors, sourceFindings, edges };
   }, [edgesQuery.data, findingsQuery.data, severity, sourceQuery.data, targetsQuery.data, vectorsQuery.data]);
-  const graphRef = useRef<HTMLDivElement | null>(null);
-  const [selectedNode, setSelectedNode] = useState<{ label: string; detail: string } | null>(null);
   const [selectedVectorID, setSelectedVectorID] = useState("");
   const rankedVectors = useMemo(() => dedupeVectors(nodes.vectors), [nodes.vectors]);
   const selectedVector = rankedVectors.find((vector) => vector.id === selectedVectorID) ?? rankedVectors[0];
-  const graphFocus = useMemo(() => {
-    if (!selectedVector) {
-      return { findings: nodes.findings, vectors: rankedVectors, sourceFindings: nodes.sourceFindings, edges: nodes.edges };
-    }
-    const findingIDs = new Set(selectedVector.prereq_finding_ids ?? []);
-    const findings = findingIDs.size > 0 ? nodes.findings.filter((finding) => findingIDs.has(finding.id)) : nodes.findings.slice(0, 6);
-    const visibleFindingNodeIDs = new Set(findings.map((finding) => `finding:${finding.id}`));
-    const visibleSourceIDs = new Set(nodes.edges.filter((edge) => visibleFindingNodeIDs.has(edge.to_id)).map((edge) => edge.from_id.replace(/^source:/, "")));
-    const sourceFindings = nodes.sourceFindings.filter((finding) => visibleSourceIDs.has(finding.id)).slice(0, 12);
-    const visibleNodeIDs = new Set([
-      ...Array.from(visibleFindingNodeIDs),
-      ...sourceFindings.map((finding) => `source:${finding.id}`),
-      `vector:${selectedVector.id}`,
-      ...nodes.targets.map((target) => `target:${target.id}`),
-    ]);
-    const edges = nodes.edges.filter((edge) => visibleNodeIDs.has(edge.from_id) && visibleNodeIDs.has(edge.to_id));
-    return { findings, vectors: [selectedVector], sourceFindings, edges };
-  }, [nodes, rankedVectors, selectedVector]);
-
-  useEffect(() => {
-    if (!graphRef.current) {
-      return;
-    }
-    const { elements } = graphElements(nodes.targets, graphFocus.findings, graphFocus.vectors, graphFocus.sourceFindings, graphFocus.edges);
-    const nodeFontSize = density === "compact" ? "8px" : "10px";
-    const nodeMin = density === "compact" ? 42 : 54;
-    const nodeMax = density === "compact" ? 68 : 88;
-    const graph = cytoscape({
-      container: graphRef.current,
-      elements,
-      layout: { name: "cose", animate: false, padding: 48, nodeRepulsion: 14000, idealEdgeLength: 170, componentSpacing: 120 },
-      style: [
-        { selector: "node", style: { label: density === "readable" ? "data(displayLabel)" : "", "font-family": "JetBrains Mono", "font-size": nodeFontSize, "font-weight": "600", color: "#f3f5ff", "text-valign": "bottom", "text-halign": "center", "text-margin-y": "10px", width: `mapData(weight, 1, 5, ${nodeMin}, ${nodeMax})`, height: `mapData(weight, 1, 5, ${nodeMin}, ${nodeMax})`, "text-wrap": "wrap", "text-max-width": "112px", "border-width": "2px", "border-color": "#2a2e47", "background-color": "#191c2b" } },
-        { selector: "node[type='target']", style: { "background-color": "#7968f2", color: "#9585f8", shape: "round-rectangle" } },
-        { selector: "node[type='tech']", style: { "background-color": "#4ca8ff", color: "#4ca8ff", shape: "ellipse" } },
-        { selector: "node[type='finding']", style: { "background-color": "data(color)", color: "data(color)", shape: "diamond" } },
-        { selector: "node[type='vector']", style: { "background-color": "#f0c040", color: "#f0c040", shape: "hexagon" } },
-        { selector: "node[type='source']", style: { "background-color": "#30d58c", color: "#30d58c", shape: "tag" } },
-        { selector: "node:selected", style: { "border-color": "#ffffff", "border-width": "5px" } },
-        { selector: "edge", style: { "font-family": "JetBrains Mono", "font-size": "9px", color: "#d8def2", "text-background-color": "#07080e", "text-background-opacity": 0.92, "text-background-padding": "3px", width: "2px", "line-color": "#69708a", "target-arrow-color": "#69708a", "target-arrow-shape": "triangle", "curve-style": "bezier", "line-style": "dotted", opacity: 0.72 } },
-        { selector: "edge:selected", style: { label: "data(label)", opacity: 1, width: "4px" } },
-        { selector: "edge[type='attack']", style: { width: "3px", "line-color": "#7968f2", "target-arrow-color": "#7968f2" } },
-      ] as any,
-    });
-    graph.on("tap", "node", (event) => {
-      const node = event.target;
-      setSelectedNode({ label: node.data("label"), detail: node.data("detail") });
-    });
-    return () => graph.destroy();
-  }, [density, graphFocus, nodes.targets]);
 
   useEffect(() => {
     if (!selectedVectorID && rankedVectors[0]) {
@@ -84,7 +31,7 @@ export function AttackGraph() {
     }
   }, [rankedVectors, selectedVectorID]);
 
-  const graphData = useMemo(() => graphElements(nodes.targets, graphFocus.findings, graphFocus.vectors, graphFocus.sourceFindings, graphFocus.edges), [graphFocus, nodes.targets]);
+  const graphData = useMemo(() => graphElements(nodes.targets, nodes.findings, rankedVectors, nodes.sourceFindings, nodes.edges), [nodes.edges, nodes.findings, nodes.sourceFindings, nodes.targets, rankedVectors]);
 
   return (
     <section className="page wide-page">
@@ -106,29 +53,12 @@ export function AttackGraph() {
         </label>
       </header>
       <div className="attack-workspace">
-      <section className="panel">
-        <div className="graph-toolbar">
-          <h2>Interactive Graph</h2>
-          <div className="tab-row">
-            <button className={density === "readable" ? "active" : ""} type="button" onClick={() => setDensity("readable")}>Readable</button>
-            <button className={density === "compact" ? "active" : ""} type="button" onClick={() => setDensity("compact")}>Compact</button>
-          </div>
-          <div className="graph-legend">
-            <span><i className="legend-target" />Target</span>
-            <span><i className="legend-tech" />Technology</span>
-            <span><i className="legend-finding" />Finding</span>
-            <span><i className="legend-vector" />Attack Vector</span>
-            <span><i className="legend-source" />Source</span>
-          </div>
+      <section className="panel attack-placeholder-panel">
+        <div className="empty-state-panel">
+          <h2>Attack path graph is in progress</h2>
+          <p>The ranked chains and underlying findings remain available here while the interactive graph view is being reworked.</p>
         </div>
-        <div className="cy-graph" ref={graphRef} />
         {graphData.skippedEdges > 0 ? <p className="graph-warning">Skipped {graphData.skippedEdges} graph edge{graphData.skippedEdges === 1 ? "" : "s"} with missing source or target data.</p> : null}
-        {selectedNode ? (
-          <div className="graph-detail">
-            <strong>{selectedNode.label}</strong>
-            <p>{selectedNode.detail}</p>
-          </div>
-        ) : null}
       </section>
       <aside className="panel vector-chain-panel">
         <h2>Ranked Chains</h2>
