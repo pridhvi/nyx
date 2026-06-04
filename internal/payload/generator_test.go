@@ -73,6 +73,35 @@ func TestValidatePayloadRequiresConfirmAndUpdatesEvidence(t *testing.T) {
 	}
 }
 
+func TestValidatePayloadRejectsOutOfScopeRedirect(t *testing.T) {
+	ctx := context.Background()
+	outOfScopeHit := 0
+	outOfScope := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		outOfScopeHit++
+		_, _ = w.Write([]byte("confirm nyx"))
+	}))
+	defer outOfScope.Close()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, outOfScope.URL, http.StatusFound)
+	}))
+	defer server.Close()
+
+	inScopeURL := strings.Replace(server.URL, "127.0.0.1", "localhost", 1)
+	store, session, finding := payloadTestStoreForTarget(t, "Reflected XSS", inScopeURL+"/search?q=x")
+	defer store.Close()
+	generated, err := Generate(ctx, store, session.ID, finding.ID, GenerateOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = Validate(ctx, store, session, generated[0].ID, ValidationOptions{Confirm: true, Enabled: true})
+	if err == nil || !strings.Contains(err.Error(), "rejected by scope") {
+		t.Fatalf("expected scoped redirect rejection, got %v", err)
+	}
+	if outOfScopeHit != 0 {
+		t.Fatalf("expected out-of-scope redirect to be blocked, got %d hits", outOfScopeHit)
+	}
+}
+
 func payloadTestStore(t *testing.T, title string) (*db.Store, models.Session, models.Finding) {
 	return payloadTestStoreForTarget(t, title, "https://example.test/?q=x")
 }

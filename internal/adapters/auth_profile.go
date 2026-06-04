@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/pridhvi/nyx/internal/models"
+	"github.com/pridhvi/nyx/internal/scopehttp"
 )
 
 type AuthResolution struct {
@@ -67,7 +68,10 @@ func ValidateSessionAuth(ctx context.Context, session models.Session, target mod
 		return fmt.Errorf("auth target rejected by scope: %s", reason)
 	}
 	headers := sessionAuthHeaders(session)
-	client := &http.Client{Timeout: 20 * time.Second}
+	client, err := scopehttp.NewClient(scope, scopehttp.Options{Timeout: 20 * time.Second})
+	if err != nil {
+		return err
+	}
 	return validateAuth(ctx, client, target, scope, profile, headers)
 }
 
@@ -87,7 +91,10 @@ func ResolveSessionAuth(ctx context.Context, session models.Session, target mode
 	if err != nil {
 		return AuthResolution{Session: session}, err
 	}
-	client := &http.Client{Timeout: 20 * time.Second, Jar: jar}
+	client, err := scopehttp.NewClient(scope, scopehttp.Options{Timeout: 20 * time.Second, Base: &http.Client{Jar: jar}})
+	if err != nil {
+		return AuthResolution{Session: session}, err
+	}
 	var headers map[string]string
 	switch kind {
 	case "form":

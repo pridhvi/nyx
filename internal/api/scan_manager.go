@@ -305,6 +305,7 @@ func runnerOptionsFromSession(session models.Session) engine.RunnerOptions {
 		PerToolConcurrency: options.PerToolConcurrency,
 		ToolDelay:          time.Duration(options.ToolDelayMS) * time.Millisecond,
 		ToolTimeout:        time.Duration(options.ToolTimeoutSeconds) * time.Second,
+		ProxyURL:           options.ProxyURL,
 	}
 }
 

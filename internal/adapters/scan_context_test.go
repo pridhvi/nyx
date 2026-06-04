@@ -189,6 +189,48 @@ func TestResolveSessionAuthFormProfile(t *testing.T) {
 	}
 }
 
+func TestResolveSessionAuthRejectsOutOfScopeValidationRedirect(t *testing.T) {
+	outOfScopeHit := 0
+	outOfScope := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		outOfScopeHit++
+		_, _ = w.Write([]byte("Account"))
+	}))
+	defer outOfScope.Close()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			http.SetCookie(w, &http.Cookie{Name: "session", Value: "ok", Path: "/"})
+			_, _ = w.Write([]byte("Welcome"))
+		case "/account":
+			http.Redirect(w, r, outOfScope.URL, http.StatusFound)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	input := authTestInput(t, strings.Replace(server.URL, "127.0.0.1", "localhost", 1))
+	input.Session.ToolParameters = map[string]map[string]any{
+		models.SessionScanOptionsKey: {
+			"auth_profile": map[string]any{
+				"type":                "form",
+				"login_url":           "/login",
+				"username":            "alice",
+				"password":            "secret",
+				"validation_url":      "/account",
+				"validation_contains": "Account",
+			},
+		},
+	}
+	_, err := ResolveSessionAuth(context.Background(), input.Session, input.Target, input.Scope)
+	if err == nil || !strings.Contains(err.Error(), "rejected by scope") {
+		t.Fatalf("expected scoped redirect rejection, got %v", err)
+	}
+	if outOfScopeHit != 0 {
+		t.Fatalf("expected out-of-scope validation redirect to be blocked, got %d hits", outOfScopeHit)
+	}
+}
+
 func TestResolveSessionAuthFormProfilePostLoginSetupPersistsCookies(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

@@ -305,6 +305,8 @@ The Docker build uses digest-pinned frontend, Go builder, and Debian 13 slim run
 
 Subprocess adapters run through `exec.CommandContext(binary, args...)` with discrete arguments. Extra subprocess arguments are validated through a shared allow-list for supported tools, persisted invalid parameters are rejected before an external tool starts, and header/cookie auth belongs in Nyx's dedicated auth fields rather than scanner argv.
 
+Built-in Go HTTP adapters use a scanner-owned client instead of process defaults. Redirects and direct dials are checked against the selected session scope, ambient `HTTP_PROXY`/`HTTPS_PROXY` settings are ignored by default, and the Scan Builder/CLI proxy option is used only when explicitly configured.
+
 Configured plugin binaries are hash-pinned at registration. The upload API returns a SHA-256 digest, API/CLI plugin registration stores the digest on the plugin record, and Nyx re-computes the digest before execution so a changed binary produces a failed tool run instead of being spawned.
 
 Power-feature callback evidence is a privileged write path. Recording a built-in callback requires configured API-key authentication so local no-key mode cannot inject fake PoC evidence. Callback event bodies are redacted before API/UI display.
@@ -314,6 +316,8 @@ Burp XML imports are constrained to the selected session's scope and skip out-of
 LLM base URLs are validated both when accepted from API/CLI input and again immediately before each OpenAI-compatible completion request. Persisted session LLM URLs therefore still have to satisfy `NYX_LLM_ALLOWED_HOSTS` at invocation time, and LLM clients re-check redirect targets plus connect-time DNS results before outbound requests.
 
 Power-feature PoC active validation re-checks the persisted finding URL against the selected session scope immediately before sending a marker request and refuses redirects that leave scope.
+
+Monitor Slack/Discord webhook URLs must be HTTPS and are rejected for local, private, link-local, multicast, unspecified, and metadata-service targets. Webhook dispatch uses a guarded client that disables ambient proxy inheritance and rejects unsafe redirect/connect destinations.
 
 State-changing JSON API requests (`POST`, `PATCH`, and `PUT`) must use `Content-Type: application/json`. Nyx rejects simple form posts and missing content types before they reach handlers; plugin binary upload and Burp XML import are explicit non-JSON exceptions.
 

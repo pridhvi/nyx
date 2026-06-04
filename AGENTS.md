@@ -23,6 +23,10 @@ This repo has a buildable backend with module path `github.com/pridhvi/nyx`, abs
 - Keep subprocess arguments validated through the shared adapter allow-list,
   reject invalid persisted parameters before invoking external tools, and keep
   auth secrets out of persisted args and live process argv.
+- Keep built-in scanner HTTP requests on the scanner-owned scoped client:
+  redirects and direct dials must remain inside the selected session scope,
+  ambient environment proxies must be disabled by default, and `proxy_url`
+  should only be honored when explicitly configured.
 - Hash-pin configured plugin binaries with SHA-256 at registration or upload
   time, and re-verify the digest before execution so tampered plugins fail as
   tool runs before a subprocess starts.
@@ -45,6 +49,10 @@ This repo has a buildable backend with module path `github.com/pridhvi/nyx`, abs
 - Keep PoC active validation scoped at the final request boundary: persisted
   finding URLs and redirect targets must still match the selected session scope
   before any marker request is sent.
+- Keep monitor webhooks egress-guarded: require HTTPS webhook URLs, reject
+  local/private/link-local/metadata destinations unless a future explicit
+  allowlist is added, and dispatch through a client that does not inherit
+  ambient proxy settings.
 - Keep effective config and health responses free of absolute local filesystem
   paths; expose readiness/configured indicators instead.
 - Keep callback event bodies and subprocess extra args from exposing bearer

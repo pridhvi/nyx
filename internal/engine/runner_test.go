@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -155,6 +156,101 @@ func TestRunnerLeanModeDropsSidecarLogs(t *testing.T) {
 	}
 	if len(entries) != 0 {
 		t.Fatalf("expected lean mode to remove sidecar logs, got %d files", len(entries))
+	}
+}
+
+func TestRunnerScopedHTTPClientRejectsOutOfScopeRedirect(t *testing.T) {
+	ctx := context.Background()
+	outOfScopeHit := atomic.Int32{}
+	outOfScope := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		outOfScopeHit.Add(1)
+		_, _ = w.Write([]byte("outside"))
+	}))
+	defer outOfScope.Close()
+	inScope := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, outOfScope.URL, http.StatusFound)
+	}))
+	defer inScope.Close()
+	inScopeURL := strings.Replace(inScope.URL, "127.0.0.1", "localhost", 1)
+	session, store := testRunnerStoreForURL(t, ctx, inScopeURL)
+	defer store.Close()
+	runner := NewRunnerWithOptions(store, []adapters.Adapter{
+		fakeRunnerAdapter{
+			id: "http-client",
+			runFunc: func(ctx context.Context, input adapters.AdapterInput) (adapters.AdapterOutput, error) {
+				req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetTestURL(input.Target), nil)
+				if err != nil {
+					return adapters.AdapterOutput{}, err
+				}
+				_, err = input.HTTPClient.Do(req)
+				stderr := ""
+				exitCode := 0
+				if err != nil {
+					stderr = err.Error()
+					exitCode = 1
+				}
+				return adapters.AdapterOutput{ToolRun: models.ToolRun{
+					ID:        models.NewID(),
+					SessionID: input.Session.ID,
+					TargetID:  input.Target.ID,
+					ToolID:    "http-client",
+					RawStderr: stderr,
+					ExitCode:  exitCode,
+					StartedAt: time.Now().UTC(),
+				}}, err
+			},
+		},
+	}, nil, RunnerOptions{GlobalConcurrency: 1, PerToolConcurrency: 1, ToolTimeout: time.Second})
+
+	if err := runner.Run(ctx, session); err != nil {
+		t.Fatal(err)
+	}
+	if outOfScopeHit.Load() != 0 {
+		t.Fatalf("expected redirect target to be blocked before request, got %d hits", outOfScopeHit.Load())
+	}
+	runs, err := store.ListToolRuns(ctx, session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 1 {
+		t.Fatalf("expected one tool run, got %#v", runs)
+	}
+	stderr, readErr := os.ReadFile(runs[0].StderrPath)
+	if readErr != nil || !strings.Contains(string(stderr), "rejected by scope") {
+		t.Fatalf("expected scoped redirect failure, got runs=%#v stderr=%q readErr=%v", runs, string(stderr), readErr)
+	}
+}
+
+func TestRunnerHTTPClientIgnoresAmbientProxyAndHonorsExplicitProxy(t *testing.T) {
+	ctx := context.Background()
+	proxyHits := atomic.Int32{}
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		proxyHits.Add(1)
+		_, _ = w.Write([]byte("proxied"))
+	}))
+	defer proxy.Close()
+	t.Setenv("HTTP_PROXY", proxy.URL)
+	t.Setenv("HTTPS_PROXY", proxy.URL)
+	t.Setenv("NO_PROXY", "")
+
+	session, store := testRunnerStoreForURL(t, ctx, "http://example.invalid")
+	defer store.Close()
+	runner := NewRunnerWithOptions(store, []adapters.Adapter{proxyProbeAdapter{}}, nil, RunnerOptions{GlobalConcurrency: 1, PerToolConcurrency: 1, ToolTimeout: 100 * time.Millisecond})
+	if err := runner.Run(ctx, session); err != nil {
+		t.Fatal(err)
+	}
+	if proxyHits.Load() != 0 {
+		t.Fatalf("expected ambient proxy to be ignored, got %d hits", proxyHits.Load())
+	}
+
+	session2, store2 := testRunnerStoreForURL(t, ctx, "http://example.invalid")
+	defer store2.Close()
+	runner = NewRunnerWithOptions(store2, []adapters.Adapter{proxyProbeAdapter{}}, nil, RunnerOptions{GlobalConcurrency: 1, PerToolConcurrency: 1, ToolTimeout: time.Second, ProxyURL: proxy.URL})
+	if err := runner.Run(ctx, session2); err != nil {
+		t.Fatal(err)
+	}
+	if proxyHits.Load() != 1 {
+		t.Fatalf("expected explicit proxy to be used once, got %d hits", proxyHits.Load())
 	}
 }
 
@@ -535,6 +631,40 @@ type fakeRunnerAdapter struct {
 	deps    []string
 	sleep   time.Duration
 	runFunc func(context.Context, adapters.AdapterInput) (adapters.AdapterOutput, error)
+}
+
+type proxyProbeAdapter struct{}
+
+func (proxyProbeAdapter) ID() string                           { return "proxy-probe" }
+func (proxyProbeAdapter) Name() string                         { return "proxy-probe" }
+func (proxyProbeAdapter) Phase() adapters.Phase                { return adapters.PhaseRecon }
+func (proxyProbeAdapter) DependsOn() []string                  { return nil }
+func (proxyProbeAdapter) ShouldRun(adapters.AdapterInput) bool { return true }
+func (proxyProbeAdapter) Run(ctx context.Context, input adapters.AdapterInput) (adapters.AdapterOutput, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetTestURL(input.Target), nil)
+	if err == nil {
+		_, err = input.HTTPClient.Do(req)
+	}
+	run := models.ToolRun{
+		ID:        models.NewID(),
+		SessionID: input.Session.ID,
+		TargetID:  input.Target.ID,
+		ToolID:    "proxy-probe",
+		StartedAt: time.Now().UTC(),
+	}
+	if err != nil {
+		run.ExitCode = 1
+		run.RawStderr = err.Error()
+	}
+	return adapters.AdapterOutput{ToolRun: run}, err
+}
+
+func targetTestURL(target models.Target) string {
+	host := target.Host
+	if target.Port > 0 {
+		host = net.JoinHostPort(target.Host, strconv.Itoa(target.Port))
+	}
+	return target.Protocol + "://" + host
 }
 
 func (a fakeRunnerAdapter) ID() string { return a.id }

@@ -128,14 +128,18 @@ work and must be carried forward:
   fingerprinting, enumeration, and vulnerability scanning. It is not a
   replacement for every future spec adapter.
 - **Runner:** Dependency-ordered runner with persisted tool runs, normalized
-  findings, global plugin loading, cancellation, and cooperative pause/resume
-  before starting the next tool. This should keep evolving incrementally into
-  the full spec DAG scheduler instead of being thrown away.
+  findings, global plugin loading, cancellation, cooperative pause/resume before
+  starting the next tool, and a scanner-owned HTTP client that keeps redirects
+  and direct dials inside session scope while ignoring ambient proxy environment
+  variables unless a scan explicitly configures `proxy_url`. This should keep
+  evolving incrementally into the full spec DAG scheduler instead of being
+  thrown away.
 - **Continuous monitoring:** `nyx monitor` and `/api/monitor/*` manage
   host-privileged recurring scan configs, immediate monitor runs, scheduler
   registration during `nyx serve`, one-run catch-up for overdue schedules on
-  startup, baseline comparison, Slack/Discord webhook notification dispatch,
-  and `surface_changes` persistence for target, technology, and finding drift.
+  startup, baseline comparison, HTTPS-only guarded Slack/Discord webhook
+  notification dispatch that rejects local/private/metadata destinations, and
+  `surface_changes` persistence for target, technology, and finding drift.
 - **Power-feature modules:** Payload generation now supports optional
   LLM-assisted payloads with deterministic fallback and safe marker validation;
   credential checks are lockout-aware, paced, scope-checked, and redacted by

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -16,6 +17,7 @@ import (
 	"github.com/pridhvi/nyx/internal/db"
 	llmintel "github.com/pridhvi/nyx/internal/llm"
 	"github.com/pridhvi/nyx/internal/models"
+	"github.com/pridhvi/nyx/internal/scopehttp"
 	"github.com/pridhvi/nyx/internal/source"
 	"github.com/pridhvi/nyx/internal/vectors"
 )
@@ -36,6 +38,7 @@ type RunnerOptions struct {
 	ToolTimeout        time.Duration
 	Lean               bool
 	LLMAllowedHosts    []string
+	ProxyURL           string
 }
 
 func DefaultSafeAdapters() []adapters.Adapter {
@@ -612,6 +615,7 @@ func (r *Runner) loadSourceFindings(ctx context.Context, session models.Session)
 func (r *Runner) runLevel(ctx context.Context, session models.Session, level []adapters.Adapter, targets []models.Target, scope *ScopeChecker, priorFindings []models.Finding, priorTechnologies []models.Technology, sourceFindings []models.SourceFinding, globalSem chan struct{}, toolSems map[string]chan struct{}) []adapterRunResult {
 	results := make(chan adapterRunResult, len(level)*max(1, len(targets)))
 	var wg sync.WaitGroup
+	httpClient := r.adapterHTTPClient(scope)
 	for _, adapter := range level {
 		adapter := adapter
 		for _, target := range targets {
@@ -625,7 +629,7 @@ func (r *Runner) runLevel(ctx context.Context, session models.Session, level []a
 				SourceFindings:    append([]models.SourceFinding(nil), sourceFindings...),
 				ToolParameters:    session.ToolParameters[adapter.ID()],
 				Scope:             scope,
-				HTTPClient:        r.httpClient,
+				HTTPClient:        httpClient,
 			}
 			if !adapter.ShouldRun(input) {
 				continue
@@ -748,6 +752,23 @@ func (r *Runner) runLevel(ctx context.Context, session models.Session, level []a
 		out = append(out, result)
 	}
 	return out
+}
+
+func (r *Runner) adapterHTTPClient(scope *ScopeChecker) adapters.HTTPDoer {
+	base, _ := r.httpClient.(*http.Client)
+	if r.httpClient != nil && base == nil {
+		return r.httpClient
+	}
+	client, err := scopehttp.NewClient(scope, scopehttp.Options{
+		Timeout:  r.options.ToolTimeout,
+		ProxyURL: r.options.ProxyURL,
+		Base:     base,
+	})
+	if err != nil {
+		slog.Warn("scanner HTTP client setup failed; using scoped client without proxy", "error", err)
+		client, _ = scopehttp.NewClient(scope, scopehttp.Options{Timeout: r.options.ToolTimeout})
+	}
+	return client
 }
 
 func invalidToolParameterOutput(session models.Session, target models.Target, adapter adapters.Adapter, err error) adapters.AdapterOutput {

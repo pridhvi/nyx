@@ -11,6 +11,7 @@ import (
 
 	"github.com/pridhvi/nyx/internal/db"
 	"github.com/pridhvi/nyx/internal/models"
+	"github.com/pridhvi/nyx/internal/scopehttp"
 )
 
 type ValidationOptions struct {
@@ -56,7 +57,11 @@ func Validate(ctx context.Context, store *db.Store, session models.Session, payl
 	}
 	client := options.Client
 	if client == nil {
-		client = &http.Client{Timeout: 8 * time.Second}
+		scopedClient, err := scopehttp.NewClient(validationScope{session: session, targets: targets}, scopehttp.Options{Timeout: 8 * time.Second})
+		if err != nil {
+			return ValidationResult{}, err
+		}
+		client = scopedClient
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
 	if err != nil {
@@ -109,6 +114,18 @@ func validationURL(finding models.Finding, payload models.Payload) (string, erro
 	return parsed.String(), nil
 }
 
+type validationScope struct {
+	session models.Session
+	targets []models.Target
+}
+
+func (s validationScope) IsInScope(raw string) (bool, string) {
+	if inScope(raw, s.session, s.targets) {
+		return true, ""
+	}
+	return false, "payload validation URL is outside session scope"
+}
+
 func validationEvidence(payload models.Payload, status int, body string) (bool, string) {
 	lower := strings.ToLower(body)
 	switch payload.PayloadType {
@@ -146,10 +163,16 @@ func firstExisting(query url.Values, names ...string) string {
 
 func inScope(raw string, session models.Session, targets []models.Target) bool {
 	parsed, err := url.Parse(raw)
-	if err != nil {
+	host := ""
+	if err == nil {
+		host = strings.ToLower(parsed.Hostname())
+	}
+	if host == "" {
+		host = scopeHost(raw)
+	}
+	if host == "" {
 		return false
 	}
-	host := strings.ToLower(parsed.Hostname())
 	for _, scope := range append([]string{session.TargetInput}, session.InScope...) {
 		if strings.EqualFold(scopeHost(scope), host) {
 			return true

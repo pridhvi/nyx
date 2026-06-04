@@ -37,6 +37,9 @@ func NormalizeConfig(config models.MonitorConfig, now time.Time) (models.Monitor
 	if config.RunnerOptions.PerToolConcurrency == 0 {
 		config.RunnerOptions.PerToolConcurrency = 1
 	}
+	if err := ValidateNotificationConfig(config.NotificationConfig); err != nil {
+		return models.MonitorConfig{}, err
+	}
 	if config.CreatedAt.IsZero() {
 		config.CreatedAt = now
 	}

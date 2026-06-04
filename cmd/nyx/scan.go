@@ -119,7 +119,13 @@ func runScan(args []string) error {
 		return err
 	}
 	defer store.Close()
-	scanErr := runScanWorkload(context.Background(), store, record.Session, engine.RunnerOptions{GlobalConcurrency: *concurrency, PerToolConcurrency: 1, Lean: *lean}, llmintel.Config{
+	engineOptions := engine.RunnerOptions{
+		GlobalConcurrency:  runnerOptions.Concurrency,
+		PerToolConcurrency: runnerOptions.PerToolConcurrency,
+		Lean:               *lean,
+		ProxyURL:           runnerOptions.ProxyURL,
+	}
+	scanErr := runScanWorkload(context.Background(), store, record.Session, engineOptions, llmintel.Config{
 		Provider:     "openai-compatible",
 		BaseURL:      selectedLLMURL,
 		APIKey:       cfg.LLM.APIKey,

@@ -104,6 +104,7 @@ func (r Runner) run(ctx context.Context, config models.MonitorConfig, run *model
 		PerToolConcurrency: config.RunnerOptions.PerToolConcurrency,
 		ToolDelay:          time.Duration(config.RunnerOptions.ToolDelayMS) * time.Millisecond,
 		ToolTimeout:        time.Duration(config.RunnerOptions.ToolTimeoutSeconds) * time.Second,
+		ProxyURL:           config.RunnerOptions.ProxyURL,
 	}
 	runner := engine.NewRunnerWithOptions(store, engine.DefaultSafeAdapters(), r.HTTPClient, options)
 	if err := runner.Run(ctx, record.Session); err != nil {
