@@ -142,7 +142,7 @@ func Status(ctx context.Context, config models.BurpConfig, client HTTPDoer) REST
 		return RESTResult{Available: false, Action: "status", Message: "Burp REST base URL is not configured"}
 	}
 	if client == nil {
-		client = &http.Client{Timeout: 5 * time.Second}
+		client = NewHTTPClient(config.AllowedHosts, 5*time.Second)
 	}
 	req, err := restRequest(ctx, config, http.MethodGet, "/v0.1/scan", nil)
 	if err != nil {
@@ -168,7 +168,7 @@ func PushScope(ctx context.Context, store *db.Store, sessionID string, config mo
 		return RESTResult{Available: false, Action: "push_scope", Message: "Burp REST base URL is not configured"}, nil
 	}
 	if client == nil {
-		client = &http.Client{Timeout: 8 * time.Second}
+		client = NewHTTPClient(config.AllowedHosts, 8*time.Second)
 	}
 	var urls []string
 	for _, target := range targets {
@@ -193,7 +193,7 @@ func PullIssues(ctx context.Context, store *db.Store, session models.Session, co
 		return models.BurpImportResult{}, RESTResult{Available: false, Action: "pull_issues", Message: "Burp REST base URL is not configured"}, nil
 	}
 	if client == nil {
-		client = &http.Client{Timeout: 8 * time.Second}
+		client = NewHTTPClient(config.AllowedHosts, 8*time.Second)
 	}
 	req, err := restRequest(ctx, config, http.MethodGet, "/v0.1/issues", nil)
 	if err != nil {

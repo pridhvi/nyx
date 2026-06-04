@@ -142,10 +142,12 @@ work and must be carried forward:
   default; OSINT records include provider status for GitHub/Shodan/passive DNS
   configuration; AD/internal-network records include safe enum, relay-risk, and
   Kerberoast request recording without cracking; PoC records can include safe
-  validation and callback correlation; callback event bodies are redacted before
-  API/UI display; Burp supports session-scoped XML import/export plus loopback
-  default REST status, scope push, and issue pull helpers with explicit
-  allowlisting for remote/private REST hosts. All modules have additive
+  validation and callback correlation while re-checking persisted finding URLs
+  and redirects against session scope before marker requests; callback event
+  bodies are redacted before API/UI display; Burp supports session-scoped XML
+  import/export plus loopback default REST status, scope push, and issue pull
+  helpers with explicit allowlisting for remote/private REST hosts and
+  redirect/connect-time DNS guardrails. All modules have additive
   models, persistence, API/CLI access, report sections, integration smoke, and
   consolidated UI visibility. Active behavior remains explicit, conservative,
   scope-checked, and API-key-gated through the API.
@@ -1237,8 +1239,9 @@ work and must be carried forward:
 ### Existing Baseline
 
 - Frontend build embeds assets into the Go binary.
-- Dockerfile builds the frontend, compiles the Go binary, and produces a Kali
-  runtime image with common optional scanner tools installed.
+- Dockerfile builds the frontend, compiles the Go binary, and produces a
+  digest-pinned Debian runtime image with common optional scanner tools
+  installed.
 - docker-compose starts Nyx and Ollama with persistent volumes.
 - Makefile covers build, dev, test, web build, lint, opt-in integration tests,
   tool-version smoke, placeholder migrations/sqlc, cleanup, and release

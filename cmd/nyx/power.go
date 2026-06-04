@@ -290,7 +290,7 @@ func runBurp(args []string) error {
 		if err := fs.Parse(args[2:]); err != nil {
 			return err
 		}
-		result := burp.Status(context.Background(), burpConfig(*baseURL, *apiKey, cfg), http.DefaultClient)
+		result := burp.Status(context.Background(), burpConfig(*baseURL, *apiKey, cfg), nil)
 		return printJSON(result)
 	case "push-scope":
 		fs := flag.NewFlagSet("burp push-scope", flag.ContinueOnError)
@@ -299,7 +299,7 @@ func runBurp(args []string) error {
 		if err := fs.Parse(args[2:]); err != nil {
 			return err
 		}
-		result, err := burp.PushScope(context.Background(), store, sessionID, burpConfig(*baseURL, *apiKey, cfg), http.DefaultClient)
+		result, err := burp.PushScope(context.Background(), store, sessionID, burpConfig(*baseURL, *apiKey, cfg), nil)
 		if err != nil {
 			return err
 		}
@@ -315,7 +315,7 @@ func runBurp(args []string) error {
 		if err != nil {
 			return err
 		}
-		imported, result, err := burp.PullIssues(context.Background(), store, session, burpConfig(*baseURL, *apiKey, cfg), http.DefaultClient)
+		imported, result, err := burp.PullIssues(context.Background(), store, session, burpConfig(*baseURL, *apiKey, cfg), nil)
 		if err != nil {
 			return err
 		}

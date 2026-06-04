@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pridhvi/nyx/internal/adapters"
 	llmintel "github.com/pridhvi/nyx/internal/llm"
 )
 
@@ -62,12 +61,7 @@ func (s *Server) llmModels(w http.ResponseWriter, r *http.Request) {
 	if apiKey != "" {
 		httpReq.Header.Set("Authorization", "Bearer "+apiKey)
 	}
-	var client interface {
-		Do(*http.Request) (*http.Response, error)
-	} = http.DefaultClient
-	if s.cfg.HTTPClient != nil {
-		client = httpClientAdapter{s.cfg.HTTPClient}
-	}
+	client := llmintel.NewHTTPClient(s.cfg.LLMAllowedHosts, 5*time.Second)
 	resp, err := client.Do(httpReq)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err)
@@ -114,14 +108,6 @@ func (s *Server) llmModels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, llmModelsResponse{Models: models})
-}
-
-type httpClientAdapter struct {
-	client adapters.HTTPDoer
-}
-
-func (a httpClientAdapter) Do(req *http.Request) (*http.Response, error) {
-	return a.client.Do(req)
 }
 
 func llmModelsURL(baseURL string) string {

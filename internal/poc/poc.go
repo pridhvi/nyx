@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/pridhvi/nyx/internal/db"
+	"github.com/pridhvi/nyx/internal/engine"
 	"github.com/pridhvi/nyx/internal/models"
 )
 
@@ -53,7 +54,7 @@ func Run(ctx context.Context, store *db.Store, sessionID, findingID string, req 
 	}
 	text := strings.ToLower(finding.Title + " " + finding.Description)
 	if req.ActiveValidationEnabled {
-		if evidence, status, code := safeValidate(ctx, req, finding, pocType); evidence != "" {
+		if evidence, status, code := safeValidate(ctx, store, sessionID, req, finding, pocType); evidence != "" {
 			result.Evidence = evidence
 			result.Status = status
 			result.ResponseCode = code
@@ -83,7 +84,7 @@ func Run(ctx context.Context, store *db.Store, sessionID, findingID string, req 
 	return result, nil
 }
 
-func safeValidate(ctx context.Context, req RunRequest, finding models.Finding, pocType string) (string, models.PoCStatus, int) {
+func safeValidate(ctx context.Context, store *db.Store, sessionID string, req RunRequest, finding models.Finding, pocType string) (string, models.PoCStatus, int) {
 	rawURL := strings.TrimSpace(finding.URL)
 	if rawURL == "" {
 		return "", "", 0
@@ -91,6 +92,9 @@ func safeValidate(ctx context.Context, req RunRequest, finding models.Finding, p
 	parsed, err := url.Parse(rawURL)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return "", "", 0
+	}
+	if ok, reason := urlInSessionScope(ctx, store, sessionID, parsed.String()); !ok {
+		return fmt.Sprintf("Active validation skipped: finding URL is outside session scope (%s).", reason), models.PoCStatusFailed, 0
 	}
 	query := parsed.Query()
 	switch pocType {
@@ -108,7 +112,7 @@ func safeValidate(ctx context.Context, req RunRequest, finding models.Finding, p
 	parsed.RawQuery = query.Encode()
 	client := req.Client
 	if client == nil {
-		client = &http.Client{Timeout: 8 * time.Second}
+		client = scopedHTTPClient(ctx, store, sessionID)
 	}
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
 	if err != nil {
@@ -132,6 +136,47 @@ func safeValidate(ctx context.Context, req RunRequest, finding models.Finding, p
 	default:
 		return fmt.Sprintf("Safe marker request completed with HTTP %d, but confirmation marker was not observed.", resp.StatusCode), models.PoCStatusInconclusive, resp.StatusCode
 	}
+}
+
+func scopedHTTPClient(ctx context.Context, store *db.Store, sessionID string) *http.Client {
+	return &http.Client{
+		Timeout: 8 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if ok, _ := urlInSessionScope(ctx, store, sessionID, req.URL.String()); !ok {
+				return http.ErrUseLastResponse
+			}
+			return nil
+		},
+	}
+}
+
+func urlInSessionScope(ctx context.Context, store *db.Store, sessionID, rawURL string) (bool, string) {
+	session, err := store.GetSession(ctx)
+	if err != nil {
+		return false, err.Error()
+	}
+	entries := append([]string{session.TargetInput}, session.InScope...)
+	targets, err := store.ListTargets(ctx, sessionID)
+	if err != nil {
+		return false, err.Error()
+	}
+	for _, target := range targets {
+		if target.Host == "" {
+			continue
+		}
+		entries = append(entries, target.Host)
+		if target.Protocol != "" {
+			if target.Port > 0 {
+				entries = append(entries, fmt.Sprintf("%s://%s:%d", target.Protocol, target.Host, target.Port))
+			}
+			entries = append(entries, fmt.Sprintf("%s://%s", target.Protocol, target.Host))
+		}
+	}
+	scope, err := engine.NewScopeChecker(entries, session.OutOfScope)
+	if err != nil {
+		return false, err.Error()
+	}
+	return scope.IsInScope(rawURL)
 }
 
 func inferType(finding models.Finding) string {

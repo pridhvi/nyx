@@ -19,7 +19,7 @@ services:
       start_period: 10s
 
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:latest@sha256:72c60eb9e115e24078864c00274dc067fff2217b105918409856031cca7a7e92
     ports:
       - "127.0.0.1:11434:11434"
     volumes:

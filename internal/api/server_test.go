@@ -107,11 +107,13 @@ func TestHealthDoesNotExposeSessionDirectory(t *testing.T) {
 func TestEffectiveConfigDoesNotExposeLocalPaths(t *testing.T) {
 	sessionDir := t.TempDir()
 	toolDir := t.TempDir()
+	pluginDir := t.TempDir()
 	cfg := appconfig.Default()
 	cfg.Database.SessionDir = sessionDir
 	cfg.CVE.OfflinePath = filepath.Join(sessionDir, "nvd.json")
 	cfg.CVE.ExploitDBPath = filepath.Join(sessionDir, "exploitdb")
 	cfg.Tools = map[string]string{"ffuf": filepath.Join(toolDir, "ffuf")}
+	cfg.Plugins = []string{filepath.Join(pluginDir, "plugin")}
 	handler := NewServer(Config{SessionDir: sessionDir, AppConfig: cfg, ToolPaths: cfg.Tools}).Handler()
 
 	rec := httptest.NewRecorder()
@@ -120,12 +122,12 @@ func TestEffectiveConfigDoesNotExposeLocalPaths(t *testing.T) {
 		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 	}
 	body := rec.Body.String()
-	for _, leaked := range []string{sessionDir, toolDir, cfg.CVE.OfflinePath, cfg.CVE.ExploitDBPath} {
+	for _, leaked := range []string{sessionDir, toolDir, pluginDir, cfg.CVE.OfflinePath, cfg.CVE.ExploitDBPath, cfg.Plugins[0]} {
 		if strings.Contains(body, leaked) {
 			t.Fatalf("effective config leaked local path %q: %s", leaked, body)
 		}
 	}
-	if !strings.Contains(body, `"session_dir_status":"ready"`) || !strings.Contains(body, `"ffuf":"configured"`) {
+	if !strings.Contains(body, `"session_dir_status":"ready"`) || !strings.Contains(body, `"ffuf":"configured"`) || !strings.Contains(body, `"plugins":["configured"]`) {
 		t.Fatalf("expected readiness/configured indicators, got %s", body)
 	}
 }

@@ -367,7 +367,7 @@ func (s *Server) effectiveConfig(w http.ResponseWriter, r *http.Request) {
 		},
 		"power":   cfg.Power.Redacted(),
 		"tools":   configuredStringMap(cfg.Tools),
-		"plugins": cfg.Plugins,
+		"plugins": configuredStringSlice(cfg.Plugins),
 		"paths": map[string]string{
 			"state_dir":         configuredStatus(s.stateDir()),
 			"scan_profiles":     configuredStatus(s.scanProfilesPath()),
@@ -390,6 +390,14 @@ func configuredStringMap(values map[string]string) map[string]string {
 	out := make(map[string]string, len(values))
 	for key, value := range values {
 		out[key] = configuredStatus(value)
+	}
+	return out
+}
+
+func configuredStringSlice(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		out = append(out, configuredStatus(value))
 	}
 	return out
 }
@@ -875,7 +883,6 @@ func (s *Server) runPoC(w http.ResponseWriter, r *http.Request) {
 	}
 	defer store.Close()
 	req.ActiveValidationEnabled = s.cfg.AppConfig.Power.ActiveValidation.Enabled
-	req.Client = s.cfg.HTTPClient
 	if req.CallbackBaseURL == "" && s.cfg.AppConfig.Power.Callbacks.Provider == "builtin" {
 		req.CallbackBaseURL = fmt.Sprintf("http://%s:%d/api/sessions/%s/callbacks", firstNonEmpty(s.cfg.Host, "127.0.0.1"), s.cfg.Port, r.PathValue("id"))
 	}
@@ -980,7 +987,7 @@ func (s *Server) pushBurpScope(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	result, err := burp.PushScope(r.Context(), store, r.PathValue("id"), config, s.cfg.HTTPClient)
+	result, err := burp.PushScope(r.Context(), store, r.PathValue("id"), config, nil)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err)
 		return
@@ -1002,7 +1009,7 @@ func (s *Server) pullBurpIssues(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	imported, result, err := burp.PullIssues(r.Context(), store, session, config, s.cfg.HTTPClient)
+	imported, result, err := burp.PullIssues(r.Context(), store, session, config, nil)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err)
 		return
@@ -1016,7 +1023,7 @@ func (s *Server) burpStatus(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	result := burp.Status(r.Context(), config, s.cfg.HTTPClient)
+	result := burp.Status(r.Context(), config, nil)
 	writeJSON(w, map[string]any{"configured": config.BaseURL != "" || config.CollaboratorProvider != "", "available": result.Available, "config": config.Redacted(), "result": result})
 }
 

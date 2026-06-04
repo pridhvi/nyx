@@ -17,8 +17,9 @@ This repo has a buildable backend with module path `github.com/pridhvi/nyx`, abs
 - Keep README screenshots generated from safe local fixture data with
   `make readme-media`; do not use live targets, real API keys, local model
   names, or customer data in committed docs media.
-- Keep container runtime bases reproducible; Docker should stay on a pinned
-  Debian stable/slim digest rather than a rolling distribution.
+- Keep container inputs reproducible; Docker builder/runtime images and Compose
+  service images should stay digest-pinned, with the runtime on pinned Debian
+  stable/slim rather than a rolling distribution.
 - Keep subprocess arguments validated through the shared adapter allow-list,
   reject invalid persisted parameters before invoking external tools, and keep
   auth secrets out of persisted args and live process argv.
@@ -35,10 +36,15 @@ This repo has a buildable backend with module path `github.com/pridhvi/nyx`, abs
   `NYX_LLM_ALLOWED_HOSTS` wherever model probing, chat, or automatic analysis
   can initiate outbound requests; private, loopback, link-local, multicast,
   unspecified, and metadata-service endpoints require an explicit allowlist
-  entry.
+  entry. LLM clients must also reject disallowed redirect targets and
+  connect-time DNS results before requests leave the process.
 - Keep Burp REST endpoints constrained to loopback unless `NYX_BURP_ALLOWED_HOSTS`
   or `power.burp.allowed_hosts` explicitly allow a remote/private host, and keep
-  Burp XML imports scoped to the selected session.
+  Burp XML imports scoped to the selected session. Burp REST clients must also
+  reject disallowed redirect targets and connect-time DNS results.
+- Keep PoC active validation scoped at the final request boundary: persisted
+  finding URLs and redirect targets must still match the selected session scope
+  before any marker request is sent.
 - Keep effective config and health responses free of absolute local filesystem
   paths; expose readiness/configured indicators instead.
 - Keep callback event bodies and subprocess extra args from exposing bearer

@@ -301,7 +301,7 @@ All external tools are optional. Missing tools are recorded as tool runs and the
 | Vulnerability | `nuclei-vuln`, `sqlmap`, `dalfox`, SSRFmap, JWT review, OAuth checks, safe XSS/SQLi/open redirect/file inclusion/command injection/upload/IDOR validators, workflow and observability assist, CSRF, weak session ID sampling, SSTI, XXE, `nikto` |
 | Static audit | Built-in route/parameter/sink extractors plus optional `semgrep`, `bandit`, `gosec`, `govulncheck`, `npm audit`, `retire.js`, `safety`, `brakeman`, `spotbugs`, `psalm`, `trufflehog`, `gitleaks`, `grype` |
 
-The Docker image uses a pinned Debian 13 slim runtime digest and bundles the baseline scanner set promised by the project: `curl`, `dig`, `ffuf`, `nikto`, `nmap`, `python3`, `sqlmap`, `whatweb`, and `whois`.
+The Docker build uses digest-pinned frontend, Go builder, and Debian 13 slim runtime images, and bundles the baseline scanner set promised by the project: `curl`, `dig`, `ffuf`, `nikto`, `nmap`, `python3`, `sqlmap`, `whatweb`, and `whois`. The Compose Ollama image is also digest-pinned while keeping the local-only port binding.
 
 Subprocess adapters run through `exec.CommandContext(binary, args...)` with discrete arguments. Extra subprocess arguments are validated through a shared allow-list for supported tools, persisted invalid parameters are rejected before an external tool starts, and header/cookie auth belongs in Nyx's dedicated auth fields rather than scanner argv.
 
@@ -309,9 +309,11 @@ Configured plugin binaries are hash-pinned at registration. The upload API retur
 
 Power-feature callback evidence is a privileged write path. Recording a built-in callback requires configured API-key authentication so local no-key mode cannot inject fake PoC evidence. Callback event bodies are redacted before API/UI display.
 
-Burp XML imports are constrained to the selected session's scope and skip out-of-scope issue hosts. Burp REST sync defaults to loopback-only endpoints; set `NYX_BURP_ALLOWED_HOSTS` or `power.burp.allowed_hosts` for an intentional remote/private Burp REST host.
+Burp XML imports are constrained to the selected session's scope and skip out-of-scope issue hosts. Burp REST sync defaults to loopback-only endpoints; set `NYX_BURP_ALLOWED_HOSTS` or `power.burp.allowed_hosts` for an intentional remote/private Burp REST host. Burp REST clients re-check redirect targets and connect-time DNS results before sending requests.
 
-LLM base URLs are validated both when accepted from API/CLI input and again immediately before each OpenAI-compatible completion request. Persisted session LLM URLs therefore still have to satisfy `NYX_LLM_ALLOWED_HOSTS` at invocation time.
+LLM base URLs are validated both when accepted from API/CLI input and again immediately before each OpenAI-compatible completion request. Persisted session LLM URLs therefore still have to satisfy `NYX_LLM_ALLOWED_HOSTS` at invocation time, and LLM clients re-check redirect targets plus connect-time DNS results before outbound requests.
+
+Power-feature PoC active validation re-checks the persisted finding URL against the selected session scope immediately before sending a marker request and refuses redirects that leave scope.
 
 State-changing JSON API requests (`POST`, `PATCH`, and `PUT`) must use `Content-Type: application/json`. Nyx rejects simple form posts and missing content types before they reach handlers; plugin binary upload and Burp XML import are explicit non-JSON exceptions.
 

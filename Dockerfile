@@ -1,11 +1,11 @@
-FROM node:20-alpine AS frontend
+FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS frontend
 WORKDIR /src/web
 COPY web/package*.json ./
 RUN npm ci
 COPY web/ ./
 RUN npm run build
 
-FROM golang:1.26.4-alpine AS backend
+FROM golang:1.26.4-alpine@sha256:f23e8b227fb4493eabe03bede4d5a32d04092da71962f1fb79b5f7d1e6c2a17f AS backend
 RUN apk add --no-cache git
 WORKDIR /src
 COPY go.mod go.sum ./

@@ -30,16 +30,17 @@ type OpenAIClient struct {
 	client *openai.Client
 }
 
-func NewClient(baseURL, apiKey string) *openai.Client {
+func NewClient(baseURL, apiKey string, allowedHosts []string) *openai.Client {
 	cfg := openai.DefaultConfig(apiKey)
 	cfg.BaseURL = baseURL
+	cfg.HTTPClient = NewHTTPClient(allowedHosts, 0)
 	return openai.NewClientWithConfig(cfg)
 }
 
 func NewOpenAIClient(config Config) *OpenAIClient {
 	return &OpenAIClient{
 		config: config,
-		client: NewClient(config.BaseURL, config.APIKey),
+		client: NewClient(config.BaseURL, config.APIKey, config.AllowedHosts),
 	}
 }
 

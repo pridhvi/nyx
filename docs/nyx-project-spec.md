@@ -142,7 +142,7 @@ ProjectDiscovery tools (`nuclei`, `httpx`, `subfinder`, `naabu`, `dnsx`) are sub
 
 ### 3.6 Packaging
 
-- **Docker:** Multi-stage build. Stage 1 builds the frontend (`node:20-alpine`). Stage 2 builds the Go binary (`golang:1.26.4-alpine`). Stage 3 runs on a pinned Debian 13 slim runtime digest with baseline external tools installed and a tool-version smoke script for bundled scanner checks.
+- **Docker:** Multi-stage build. Stage 1 builds the frontend from a digest-pinned `node:20-alpine` image. Stage 2 builds the Go binary from a digest-pinned `golang:1.26.4-alpine` image. Stage 3 runs on a pinned Debian 13 slim runtime digest with baseline external tools installed and a tool-version smoke script for bundled scanner checks.
 - **Single binary option:** `goreleaser` for cross-platform binary releases. The binary embeds the frontend. External tools (nmap etc.) must be installed separately in this mode.
 
 ### 3.7 Current V1 Architecture Notes
@@ -1334,7 +1334,7 @@ var DefaultRules = []Rule{
 
 ## 13. REST API Surface
 
-The stdlib `net/http` router exposes these endpoints. All responses are JSON. Authentication is a local API key stored in the Nyx config file. Nyx refuses non-loopback serving without an API key, and host-privileged API operations such as plugin management, API source scans, and LLM endpoint probing require API-key authentication. LLM base URLs are validated when accepted from API/CLI input and again immediately before OpenAI-compatible completion requests, so persisted session URLs must still satisfy `NYX_LLM_ALLOWED_HOSTS` at invocation time. Burp REST base URLs are loopback-only by default and remote/private hosts must be explicitly allowed with `NYX_BURP_ALLOWED_HOSTS` or `power.burp.allowed_hosts`; Burp XML imports skip hosts outside the selected session scope. Header authentication uses `X-Nyx-API-Key` or `Authorization: Bearer`; query-string API keys are rejected. Failed authentication uses exponential backoff keyed by client address and a short fingerprint of the presented credential, then clears after successful authentication or a long idle reset. Unsafe browser/API methods reject cross-origin `Origin` headers, and JSON mutation endpoints require `Content-Type: application/json` so simple form posts or missing content types cannot reach handlers; plugin upload and Burp XML import are explicit non-JSON exceptions. Session database paths require strict session IDs and absolute path containment under the configured sessions directory before filesystem access. The HTTP server uses finite read/header/idle timeouts plus a non-streaming request timeout; scan event WebSocket routes are exempt so live progress streams can remain open while scans run. Shutdown stops monitor scheduling, cancels active scan contexts, and waits for scan goroutines to persist their final cancelled state; resumable scan replay is deferred. Effective config and health responses return readiness/configured indicators instead of absolute local filesystem paths. The browser console obtains an opaque HttpOnly same-origin session cookie through the login endpoint. Browser session tokens are stored in server memory with a 12-hour TTL, pruned periodically, and intentionally invalidated on server restart. Direct TLS requests automatically receive `Secure` cookies, and HTTPS reverse-proxy deployments can force secure cookies with `NYX_SECURE_COOKIES=true` or `server.secure_cookies: true`.
+The stdlib `net/http` router exposes these endpoints. All responses are JSON. Authentication is a local API key stored in the Nyx config file. Nyx refuses non-loopback serving without an API key, and host-privileged API operations such as plugin management, API source scans, and LLM endpoint probing require API-key authentication. LLM base URLs are validated when accepted from API/CLI input and again immediately before OpenAI-compatible completion requests, so persisted session URLs must still satisfy `NYX_LLM_ALLOWED_HOSTS` at invocation time; LLM clients also reject disallowed redirect targets and connect-time DNS results. Burp REST base URLs are loopback-only by default and remote/private hosts must be explicitly allowed with `NYX_BURP_ALLOWED_HOSTS` or `power.burp.allowed_hosts`; Burp XML imports skip hosts outside the selected session scope, and Burp REST clients apply the same redirect and connect-time DNS guardrails. Power-feature PoC active validation re-checks persisted finding URLs and redirect targets against the selected session scope before marker requests are sent. Header authentication uses `X-Nyx-API-Key` or `Authorization: Bearer`; query-string API keys are rejected. Failed authentication uses exponential backoff keyed by client address and a short fingerprint of the presented credential, then clears after successful authentication or a long idle reset. Unsafe browser/API methods reject cross-origin `Origin` headers, and JSON mutation endpoints require `Content-Type: application/json` so simple form posts or missing content types cannot reach handlers; plugin upload and Burp XML import are explicit non-JSON exceptions. Session database paths require strict session IDs and absolute path containment under the configured sessions directory before filesystem access. The HTTP server uses finite read/header/idle timeouts plus a non-streaming request timeout; scan event WebSocket routes are exempt so live progress streams can remain open while scans run. Shutdown stops monitor scheduling, cancels active scan contexts, and waits for scan goroutines to persist their final cancelled state; resumable scan replay is deferred. Effective config and health responses return readiness/configured indicators instead of absolute local filesystem paths. The browser console obtains an opaque HttpOnly same-origin session cookie through the login endpoint. Browser session tokens are stored in server memory with a 12-hour TTL, pruned periodically, and intentionally invalidated on server restart. Direct TLS requests automatically receive `Secure` cookies, and HTTPS reverse-proxy deployments can force secure cookies with `NYX_SECURE_COOKIES=true` or `server.secure_cookies: true`.
 
 ```
 POST   /api/auth/login              Exchange API key for HttpOnly browser session cookie
@@ -1743,14 +1743,14 @@ Future enhancement modules are tracked separately in
 ```dockerfile
 # Dockerfile
 
-FROM node:20-alpine AS frontend
+FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS frontend
 WORKDIR /src/web
 COPY web/package*.json ./
 RUN npm ci
 COPY web/ ./
 RUN npm run build
 
-FROM golang:1.26.4-alpine AS backend
+FROM golang:1.26.4-alpine@sha256:f23e8b227fb4493eabe03bede4d5a32d04092da71962f1fb79b5f7d1e6c2a17f AS backend
 RUN apk add --no-cache git
 WORKDIR /src
 COPY go.mod go.sum ./
@@ -1790,7 +1790,7 @@ services:
       - NYX_LLM_MODEL=llama3:8b
 
   ollama:
-    image: ollama/ollama
+    image: ollama/ollama:latest@sha256:72c60eb9e115e24078864c00274dc067fff2217b105918409856031cca7a7e92
     volumes:
       - ollama-data:/root/.ollama
     ports:

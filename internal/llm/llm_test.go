@@ -51,6 +51,41 @@ func TestValidateBaseURLHonorsAllowedHosts(t *testing.T) {
 	}
 }
 
+func TestHTTPClientRejectsRedirectToDisallowedHost(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "http://10.0.0.1:11434/v1/models", http.StatusFound)
+	}))
+	defer server.Close()
+
+	client := NewHTTPClient([]string{"127.0.0.1"}, time.Second)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL+"/v1/models", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.Do(req)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil || !strings.Contains(err.Error(), "configured allowlist") {
+		t.Fatalf("expected redirect allowlist rejection, got resp=%v err=%v", resp, err)
+	}
+}
+
+func TestHTTPClientRejectsPrivateConnectWithoutAllowlist(t *testing.T) {
+	client := NewHTTPClient(nil, time.Second)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://10.0.0.1:11434/v1/models", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.Do(req)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil || !strings.Contains(err.Error(), "explicit allowlist") {
+		t.Fatalf("expected connect-time private endpoint rejection, got resp=%v err=%v", resp, err)
+	}
+}
+
 func TestOpenAIClientValidatesBaseURLAtInvocation(t *testing.T) {
 	client := NewOpenAIClient(Config{
 		Provider: "openai-compatible",

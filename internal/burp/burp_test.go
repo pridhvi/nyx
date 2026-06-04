@@ -79,6 +79,18 @@ func TestValidateBaseURLAllowsLoopbackAndRejectsRemoteWithoutAllowlist(t *testin
 	}
 }
 
+func TestStatusRejectsRedirectToPrivateHost(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "http://10.0.0.1:1337/v0.1/scan", http.StatusFound)
+	}))
+	defer server.Close()
+
+	result := Status(context.Background(), models.BurpConfig{BaseURL: server.URL}, nil)
+	if result.Available || !strings.Contains(result.Message, "explicit allowlist") {
+		t.Fatalf("expected guarded redirect rejection, got %#v", result)
+	}
+}
+
 func TestExportScopeAndFindingsUsePersistedData(t *testing.T) {
 	ctx := context.Background()
 	store, session := burpTestStore(t)
