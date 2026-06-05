@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chatMessages, markdownBlocks, splitReasoningContent, toolCallLabel, visibleChatMessages } from "./pages/LLMChat";
+import { chatMessages, splitReasoningContent, toolCallLabel, visibleChatMessages } from "./pages/LLMChat";
 import type { LLMAnalysis } from "./api/client";
 
 describe("LLM chat helpers", () => {
@@ -22,26 +22,6 @@ describe("LLM chat helpers", () => {
     const visible = visibleChatMessages(chatMessages(analyses));
     expect(visible.map((message) => message.content)).toEqual(["Summarize the session.", "**Risk:** missing headers"]);
     expect(visible[1].model).toBe("local-model");
-  });
-
-  it("groups markdown-like assistant output into headings, bullets, numbering, and paragraphs", () => {
-    expect(markdownBlocks([
-      "### Summary",
-      "",
-      "- **Risk:** missing `CSP`",
-      "- Add headers",
-      "",
-      "1. Confirm scope",
-      "2. Re-test",
-      "",
-      "Final paragraph",
-      "continues here.",
-    ].join("\n"))).toEqual([
-      { type: "heading", items: ["Summary"] },
-      { type: "ul", items: ["**Risk:** missing `CSP`", "Add headers"] },
-      { type: "ol", items: ["Confirm scope", "Re-test"] },
-      { type: "paragraph", items: ["Final paragraph continues here."] },
-    ]);
   });
 
   it("splits reasoning-prefixed output from final assistant content", () => {

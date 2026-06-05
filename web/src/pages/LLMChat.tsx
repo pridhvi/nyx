@@ -1,6 +1,8 @@
-import { type FormEvent, type ReactNode, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot, Check, ChevronDown, ChevronUp, Clipboard, Send, Sparkles } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { llmAnalyse, llmChat, llmHistory, type LLMAnalysis, type LLMMessage } from "../api/client";
 import { useSessionContext } from "../session";
 
@@ -253,49 +255,6 @@ export function toolCallLabel(name: string) {
   return labels[name] ?? name.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export function markdownBlocks(content: string) {
-  const lines = content.replace(/\r\n/g, "\n").split("\n");
-  const blocks: Array<{ type: "heading" | "paragraph" | "ul" | "ol"; items: string[] }> = [];
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i];
-    if (!line.trim()) {
-      i++;
-      continue;
-    }
-    const unordered = line.match(/^\s*[-*]\s+(.+)$/);
-    const ordered = line.match(/^\s*\d+\.\s+(.+)$/);
-    const heading = line.match(/^\s{0,3}#{1,3}\s+(.+)$/);
-    if (heading) {
-      blocks.push({ type: "heading", items: [heading[1]] });
-      i++;
-      continue;
-    }
-    if (unordered || ordered) {
-      const items: string[] = [];
-      const orderedList = Boolean(ordered);
-      while (i < lines.length) {
-        const match = orderedList ? lines[i].match(/^\s*\d+\.\s+(.+)$/) : lines[i].match(/^\s*[-*]\s+(.+)$/);
-        if (!match) {
-          break;
-        }
-        items.push(match[1]);
-        i++;
-      }
-      blocks.push({ type: orderedList ? "ol" : "ul", items });
-      continue;
-    }
-    const paragraph = [line.trim()];
-    i++;
-    while (i < lines.length && lines[i].trim() && !/^\s*([-*]|\d+\.)\s+/.test(lines[i]) && !/^\s{0,3}#{1,3}\s+/.test(lines[i])) {
-      paragraph.push(lines[i].trim());
-      i++;
-    }
-    blocks.push({ type: "paragraph", items: [paragraph.join(" ")] });
-  }
-  return blocks;
-}
-
 export function splitReasoningContent(content: string) {
   const normalized = content.replace(/\r\n/g, "\n").trimStart();
   const thinkMatch = normalized.match(/^<think>\s*([\s\S]*?)\s*<\/think>\s*([\s\S]*)$/i);
@@ -339,39 +298,7 @@ function messageLabel(role: string) {
 }
 
 function renderMarkdown(content: string) {
-  return markdownBlocks(content).map((block, index) => {
-    if (block.type === "heading") {
-      return <h3 key={index}>{renderInline(block.items[0])}</h3>;
-    }
-    if (block.type === "ul" || block.type === "ol") {
-      const children = block.items.map((item, itemIndex) => <li key={`${index}-${itemIndex}`}>{renderInline(item)}</li>);
-      return block.type === "ol" ? <ol key={index}>{children}</ol> : <ul key={index}>{children}</ul>;
-    }
-    return <p key={index}>{renderInline(block.items[0])}</p>;
-  });
-}
-
-function renderInline(text: string) {
-  const nodes: ReactNode[] = [];
-  const pattern = /(\*\*[^*]+\*\*|`[^`]+`)/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = pattern.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      nodes.push(text.slice(lastIndex, match.index));
-    }
-    const token = match[0];
-    if (token.startsWith("**")) {
-      nodes.push(<strong key={nodes.length}>{token.slice(2, -2)}</strong>);
-    } else {
-      nodes.push(<code key={nodes.length}>{token.slice(1, -1)}</code>);
-    }
-    lastIndex = pattern.lastIndex;
-  }
-  if (lastIndex < text.length) {
-    nodes.push(text.slice(lastIndex));
-  }
-  return nodes;
+  return <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>;
 }
 
 function hasReasoningOutput(message: ChatMessage) {

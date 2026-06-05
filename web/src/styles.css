@@ -1987,6 +1987,75 @@ html[data-theme="light"] .chart-panel {
   color: var(--danger);
 }
 
+.llm-recommendations {
+  background: rgba(121, 104, 242, 0.08);
+  border: 1px solid rgba(121, 104, 242, 0.22);
+  border-radius: var(--r-sm);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+  margin: 12px 0 0;
+  overflow: hidden;
+}
+
+.llm-recommendations summary {
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 700;
+  list-style-position: inside;
+  padding: 10px 12px;
+}
+
+.llm-recommendations[open] summary {
+  border-bottom: 1px solid rgba(121, 104, 242, 0.18);
+}
+
+.llm-recommendation-body {
+  display: grid;
+  gap: 10px;
+  padding: 10px 12px 12px;
+}
+
+.llm-recommendation-body table {
+  border-collapse: collapse;
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.llm-recommendation-body th,
+.llm-recommendation-body td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  padding: 6px 8px 6px 0;
+  text-align: left;
+  vertical-align: top;
+}
+
+.llm-recommendation-body th {
+  color: var(--text-2);
+  font-weight: 700;
+  min-width: 118px;
+}
+
+.llm-recommendation-body td {
+  color: var(--text);
+}
+
+.llm-recommendation-body code {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.92em;
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+
+.llm-recommendation-body p {
+  margin: 0;
+}
+
 .field-error {
   font-size: 13px;
   margin: 0;
@@ -3079,11 +3148,33 @@ html[data-theme="light"] .attack-flow-node {
 .message-content p,
 .message-content ul,
 .message-content ol,
-.message-content h3 {
+.message-content h1,
+.message-content h2,
+.message-content h3,
+.message-content h4,
+.message-content blockquote,
+.message-content pre,
+.message-content table {
   margin: 0;
 }
 
+.message-content h1,
+.message-content h2,
 .message-content h3 {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.message-content h1 {
+  font-size: 17px;
+}
+
+.message-content h2 {
+  font-size: 16px;
+}
+
+.message-content h3,
+.message-content h4 {
   color: var(--text);
   font-size: 15px;
   font-weight: 700;
@@ -3096,8 +3187,17 @@ html[data-theme="light"] .attack-flow-node {
   padding-left: 20px;
 }
 
+.message-content li > ul,
+.message-content li > ol {
+  margin-top: 7px;
+}
+
 .message-content li {
   padding-left: 2px;
+}
+
+.message-content li::marker {
+  color: var(--muted);
 }
 
 .message-content strong {
@@ -3113,6 +3213,54 @@ html[data-theme="light"] .attack-flow-node {
   font-family: var(--mono);
   font-size: 0.92em;
   padding: 1px 5px;
+}
+
+.message-content pre {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 12px;
+}
+
+.message-content pre code {
+  background: transparent;
+  border: 0;
+  display: block;
+  padding: 0;
+  white-space: pre;
+}
+
+.message-content blockquote {
+  border-left: 3px solid rgba(121, 104, 242, 0.55);
+  color: var(--muted);
+  padding-left: 12px;
+}
+
+.message-content table {
+  border-collapse: collapse;
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.message-content th,
+.message-content td {
+  border: 1px solid var(--border);
+  padding: 7px 9px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.message-content th {
+  background: rgba(121, 104, 242, 0.12);
+  color: var(--text);
+}
+
+.message-content a {
+  color: var(--accent);
+  overflow-wrap: anywhere;
 }
 
 .tool-call-card {

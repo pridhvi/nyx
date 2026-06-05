@@ -370,6 +370,21 @@ export function ScanBuilder() {
             <button className="secondary" type="button" disabled={!llmBaseURL.trim() || modelsMutation.isPending} onClick={() => modelsMutation.mutate()}>{modelsMutation.isPending ? "Checking" : "Check Connection"}</button>
             {llmStatus !== "idle" ? <span className={`llm-state ${llmStatus}`}>{llmStatus === "checking" ? <span className="spinner" /> : llmStatus === "success" ? <CheckCircle2 size={16} /> : <XCircle size={16} />}{llmMessage}</span> : null}
           </div>
+          <details className="llm-recommendations">
+            <summary>Model recommendations</summary>
+            <div className="llm-recommendation-body">
+              <table>
+                <tbody>
+                  <tr><th>Best overall</th><td><code>qwen/qwen3-30b-a3b-2507</code></td></tr>
+                  <tr><th>Default under 16B</th><td><code>ministral-3-14b-instruct-2512</code></td></tr>
+                  <tr><th>Low-resource</th><td><code>qwen/qwen3-4b-2507</code></td></tr>
+                  <tr><th>Tiny fallback</th><td><code>phi-4-mini-instruct</code></td></tr>
+                  <tr><th>Stable alternate</th><td><code>mistralai/mistral-nemo-instruct-2407</code></td></tr>
+                </tbody>
+              </table>
+              <p>Start with temperature 0.2, top_p 0.9, top_k 40, 32k context when available, and 2048-4096 max tokens. Nyx treats LLM output as advisory; active credential validation should be explicitly authorized.</p>
+            </div>
+          </details>
         </section>
         <section className="panel span-2 builder-phases" id="phases">
           <h2>Phases {hasTargets ? <Required /> : null}</h2>

@@ -256,6 +256,20 @@ llm:
   model: llama3:8b
 ```
 
+### Recommended Local Models
+
+Nyx works best with instruct models that produce clean final answers. In a local LM Studio bakeoff using 32k context, direct prompts, Nyx CLI chat, and Nyx API chat against the same fixture session, these models were the strongest practical choices:
+
+| Use case | Model |
+| --- | --- |
+| Best overall if hardware allows | `qwen/qwen3-30b-a3b-2507` |
+| Recommended default under 16B | `ministral-3-14b-instruct-2512` |
+| Best small or low-resource default | `qwen/qwen3-4b-2507` |
+| Tiny fallback | `phi-4-mini-instruct` |
+| Stable alternate | `mistralai/mistral-nemo-instruct-2407` |
+
+Recommended starting settings are temperature `0.2`, top_p `0.9`, top_k `40`, `32k` context when available, and `2048-4096` max output tokens. Prefer instruct or non-reasoning models for Nyx; reasoning-heavy models can be slower or return hidden reasoning without a useful final answer unless token limits are high.
+
 CLI examples:
 
 ```sh
@@ -268,6 +282,8 @@ CLI examples:
 ```
 
 LLM output can summarize, explain, and suggest safe follow-up checks. Deterministic findings, scope checks, CVE matches, and attack-vector rules remain authoritative.
+
+Treat model suggestions as advisory. Active validation of secrets, credentials, or exploitability should only happen when explicitly authorized and intentionally requested by the operator.
 
 For tighter deployments, set `NYX_LLM_ALLOWED_HOSTS` to allowed endpoint hosts:
 
