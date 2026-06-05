@@ -209,6 +209,9 @@ func TestAnalystPersistsConversationAndToolAuditTrail(t *testing.T) {
 func TestSystemPromptDefaultsToDefensiveCredentialGuidance(t *testing.T) {
 	required := []string{
 		"Default to defensive, non-invasive guidance",
+		"suggest realistic attack chains, impact hypotheses, and safe validation strategies",
+		"authorized security assessment work",
+		"Prefer proof strategies that avoid data access",
 		"rotating or revoking exposed credentials",
 		"Do not recommend using or validating exposed credentials",
 		"active credential validation unless the operator explicitly asks",
