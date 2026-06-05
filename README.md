@@ -145,7 +145,7 @@ Use `--lean` when you want normalized findings but do not want to retain raw sid
 4. Optionally add a source repository path. The browser picker lists server-side directories from `NYX_SOURCE_ROOTS`, or from the server user's home and current working directory when no roots are configured.
 5. Select mode, phases, and tools from the default workflow; expand Advanced only when you need route seeds, auth, runtime limits, proxy behavior, or optional LLM settings.
 6. Start the scan and watch the session dashboard, lifecycle events, tool progress rows, and terminal feed.
-7. Review **Findings**, **Tool Runs**, **CVEs**, and **Reports**. Findings use validated triage statuses: `open`, `confirmed`, `false-positive`, `suppressed`, and `wont-fix`, with desktop split triage and a mobile drawer for evidence review. **Attack Paths** is currently an in-progress workspace.
+7. Review **Findings**, **Tool Runs**, **CVEs**, and **Reports**. Findings use validated triage statuses: `open`, `confirmed`, `false-positive`, `suppressed`, and `wont-fix`, with desktop split triage, keyboard-openable rows, arrow-key evidence tabs, copyable evidence, and a mobile drawer for evidence review. **Attack Paths** is currently an in-progress workspace.
 8. Export Markdown, HTML, SARIF, or PDF reports.
 
 The UI is backed by the same local session database used by the CLI. You can run a scan from the CLI, then inspect that session in the browser.

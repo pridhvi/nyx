@@ -1200,6 +1200,8 @@ work and must be carried forward:
   - bulk severity/status/remediation workflow for selected findings
   - split finding detail workspace with decision summary and persisted evidence tabs
   - mobile finding-detail drawer with backdrop isolation
+  - keyboard-openable finding rows, Escape detail closing, arrow-key evidence tab
+    navigation, focus-visible detail panes, and copyable active evidence text
   - raw HTTP request/response evidence view
   - persisted severity/status/remediation edits
   - validated triage statuses: `open`, `confirmed`, `false-positive`,

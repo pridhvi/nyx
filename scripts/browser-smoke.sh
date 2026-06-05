@@ -144,11 +144,54 @@ if (!(await page.locator("text=Callback Evidence").isVisible())) {
   throw new Error("Power callbacks tab did not render");
 }
 await visit("findings", `/sessions/${sessionID}/findings`, "Findings");
+await page.keyboard.press("Escape");
+if (await page.locator("aside[aria-label='Finding details']").isVisible()) {
+  throw new Error("Finding detail pane did not close with Escape");
+}
+const firstFindingRow = page.getByRole("button", { name: /Open finding details for/ }).first();
+await firstFindingRow.focus();
+await page.keyboard.press("Enter");
+const detailPane = page.locator("aside[aria-label='Finding details']");
+await detailPane.waitFor({ state: "visible" });
+const activeLabel = await page.evaluate(() => document.activeElement?.getAttribute("aria-label") || "");
+if (activeLabel !== "Finding details") {
+  throw new Error(`Finding detail pane did not receive focus, active label: ${activeLabel}`);
+}
+await page.getByRole("tab", { name: "Normalized" }).focus();
+await page.keyboard.press("ArrowRight");
+const rawSelected = await page.getByRole("tab", { name: "Raw" }).getAttribute("aria-selected");
+if (rawSelected !== "true") {
+  throw new Error("Evidence tab arrow navigation did not select Raw");
+}
+await page.getByRole("button", { name: "Copy Evidence" }).click();
+try {
+  await page.getByRole("button", { name: "Copied" }).waitFor({ state: "visible", timeout: 1500 });
+} catch {
+  throw new Error("Copy Evidence button did not enter copied state");
+}
+await page.screenshot({ path: `${screenshotDir}/nyx-browser-findings-keyboard.png`, fullPage: false });
 await visit("graph", `/sessions/${sessionID}/graph`, "Attack Paths");
 await visit("reports", `/sessions/${sessionID}/report`, "Reports");
 
 await page.setViewportSize({ width: 390, height: 844 });
 await visit("mobile-power", `/sessions/${sessionID}/power`, "Power Features");
+await page.getByRole("button", { name: "Open page actions" }).click();
+if (!(await page.getByRole("button", { name: "Refresh session list" }).isVisible())) {
+  throw new Error("Mobile page actions did not open");
+}
+await page.screenshot({ path: `${screenshotDir}/nyx-browser-mobile-actions.png`, fullPage: false });
+await page.keyboard.press("Escape");
+if (await page.getByRole("button", { name: "Refresh session list" }).isVisible()) {
+  throw new Error("Mobile page actions did not close with Escape");
+}
+await page.getByRole("button", { name: "Open navigation" }).click();
+if (!(await page.getByRole("navigation", { name: "Primary" }).isVisible())) {
+  throw new Error("Mobile navigation did not open");
+}
+await page.keyboard.press("Escape");
+if (await page.getByRole("button", { name: "Close navigation" }).isVisible()) {
+  throw new Error("Mobile navigation did not close with Escape");
+}
 
 await browser.close();
 if (consoleErrors.length) {

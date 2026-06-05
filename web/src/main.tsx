@@ -158,6 +158,18 @@ function OperatorShell() {
     setActionsOpen(false);
   }, [location.pathname]);
 
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") {
+        return;
+      }
+      setNavOpen(false);
+      setActionsOpen(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   const navGroups = [
     { label: "Command", items: [{ to: scoped(""), label: "Command Center", icon: Shield, active: location.pathname === scoped("") }] },
     { label: "Build", items: [{ to: "/scan", label: "Scan Builder", icon: TerminalSquare }, { to: "/monitor", label: "Monitor", icon: Radar }, { to: scoped("/power"), label: "Power Features", icon: Sparkles }] },
@@ -209,8 +221,8 @@ function OperatorShell() {
               </>
             ) : null}
           </div>
-          <button className="icon-button mobile-actions-button" aria-label="Open page actions" aria-expanded={actionsOpen} onClick={() => setActionsOpen((open) => !open)}><MoreHorizontal size={18} /></button>
-          <div className={`topbar-actions ${actionsOpen ? "open" : ""}`}>
+          <button className="icon-button mobile-actions-button" aria-label={actionsOpen ? "Close page actions" : "Open page actions"} aria-expanded={actionsOpen} aria-controls="topbar-actions" onClick={() => setActionsOpen((open) => !open)}><MoreHorizontal size={18} /></button>
+          <div id="topbar-actions" className={`topbar-actions ${actionsOpen ? "open" : ""}`}>
             <Link className="secondary link-button topbar-action" to={selectedSessionID ? scoped("/findings") : "/scan"}>{selectedSessionID ? "Triage" : "New Scan"}</Link>
             <button
               className={`theme-toggle ${theme === "light" ? "light" : "dark"}`}

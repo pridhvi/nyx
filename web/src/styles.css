@@ -540,7 +540,8 @@ input:focus,
 select:focus,
 textarea:focus,
 button:focus-visible,
-a:focus-visible {
+a:focus-visible,
+[tabindex]:focus-visible {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-dim);
   outline: none;
@@ -891,6 +892,10 @@ tbody tr {
 tbody tr:hover,
 .selected-row {
   background: rgba(121, 104, 242, 0.08);
+}
+
+tbody tr[tabindex] {
+  outline-offset: -2px;
 }
 
 .table-sort {
@@ -2427,7 +2432,32 @@ html[data-theme="light"] .chart-panel {
 }
 
 .finding-detail-panel .tab-row {
+  margin: 0;
+}
+
+.finding-detail-panel:focus-visible {
+  box-shadow: 0 0 0 3px var(--accent-dim);
+  outline: 1px solid var(--accent);
+}
+
+.evidence-toolbar {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
   margin-top: 12px;
+}
+
+.evidence-copy-button {
+  flex: 0 0 auto;
+  min-height: 30px;
+  white-space: nowrap;
+}
+
+[role="tabpanel"]:focus-visible {
+  border-radius: var(--r-md);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+  outline: 1px solid var(--accent);
 }
 
 .evidence-grid {
@@ -3918,6 +3948,16 @@ html[data-theme="light"] .attack-flow-node {
 
   .finding-decision-summary {
     grid-template-columns: 1fr;
+  }
+
+  .evidence-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .evidence-copy-button {
+    justify-content: center;
+    width: 100%;
   }
 
   .wide-page .tool-card-list {

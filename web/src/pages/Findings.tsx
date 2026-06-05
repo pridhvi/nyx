@@ -1,10 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
+import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { X } from "lucide-react";
+import { Check, Clipboard, X } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { listFindings, updateFinding, type Finding, type FindingStatus } from "../api/client";
 import { useSessionContext } from "../session";
 import { sortLabel, useSortableRows } from "../sort";
+
+type EvidenceTabID = "normalized" | "raw" | "http" | "cves" | "code";
+
+const evidenceTabs: Array<{ id: EvidenceTabID; label: string }> = [
+  { id: "normalized", label: "Normalized" },
+  { id: "raw", label: "Raw" },
+  { id: "http", label: "HTTP" },
+  { id: "cves", label: "CVSS/CVEs" },
+  { id: "code", label: "Code" },
+];
 
 export function Findings() {
   const queryClient = useQueryClient();
@@ -23,8 +33,11 @@ export function Findings() {
   const [bulkSeverity, setBulkSeverity] = useState("");
   const [bulkStatus, setBulkStatus] = useState("");
   const [bulkRemediation, setBulkRemediation] = useState("");
-  const [evidenceTab, setEvidenceTab] = useState<"normalized" | "raw" | "http" | "cves" | "code">("normalized");
+  const [evidenceTab, setEvidenceTab] = useState<EvidenceTabID>("normalized");
   const [dismissedFindingSignature, setDismissedFindingSignature] = useState("");
+  const [copiedEvidence, setCopiedEvidence] = useState(false);
+  const detailPaneRef = useRef<HTMLElement | null>(null);
+  const shouldFocusDetailRef = useRef(false);
   const sessionFindingsQuery = useQuery({
     queryKey: ["findings-page-all", selected],
     queryFn: () => listFindings(selected),
@@ -97,11 +110,13 @@ export function Findings() {
 
   function openFinding(finding: Finding) {
     setDismissedFindingSignature("");
+    shouldFocusDetailRef.current = true;
     setSelectedFinding(finding);
     setEditSeverity(finding.severity);
     setEditStatus(finding.status ?? "open");
     setEditRemediation(finding.remediation ?? "");
     setEvidenceTab("normalized");
+    setCopiedEvidence(false);
   }
 
   function closeFindingDetails() {
@@ -133,6 +148,52 @@ export function Findings() {
     });
   }
 
+  function openFindingWithKeyboard(event: ReactKeyboardEvent, finding: Finding) {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+    event.preventDefault();
+    openFinding(finding);
+  }
+
+  function selectEvidenceTab(nextTab: typeof evidenceTab) {
+    setEvidenceTab(nextTab);
+    setCopiedEvidence(false);
+  }
+
+  function moveEvidenceTab(event: ReactKeyboardEvent<HTMLButtonElement>, tabID: typeof evidenceTab) {
+    const currentIndex = evidenceTabs.findIndex((tabItem) => tabItem.id === tabID);
+    const lastIndex = evidenceTabs.length - 1;
+    const nextIndex = event.key === "ArrowRight"
+      ? currentIndex === lastIndex ? 0 : currentIndex + 1
+      : event.key === "ArrowLeft"
+        ? currentIndex === 0 ? lastIndex : currentIndex - 1
+        : -1;
+    if (nextIndex < 0) {
+      return;
+    }
+    event.preventDefault();
+    selectEvidenceTab(evidenceTabs[nextIndex].id);
+    window.requestAnimationFrame(() => {
+      document.getElementById(evidenceTabButtonID(evidenceTabs[nextIndex].id))?.focus();
+    });
+  }
+
+  async function copyVisibleEvidence() {
+    if (!selectedFinding) {
+      return;
+    }
+    const text = detailEvidenceText(selectedFinding, evidenceTab);
+    if (navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        // Clipboard permissions can be unavailable in hardened browser contexts.
+      }
+    }
+    setCopiedEvidence(true);
+  }
+
   useEffect(() => {
     const nextFinding = defaultSelectedFinding(selectedFinding?.id, sortedFindings);
     if (!nextFinding) {
@@ -155,6 +216,14 @@ export function Findings() {
       setEvidenceTab("normalized");
     }
   }, [dismissedFindingSignature, selectedFinding, selectedFinding?.id, sortedFindings, visibleFindingSignature]);
+
+  useEffect(() => {
+    if (!selectedFinding || !shouldFocusDetailRef.current) {
+      return;
+    }
+    shouldFocusDetailRef.current = false;
+    detailPaneRef.current?.focus({ preventScroll: true });
+  }, [selectedFinding]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -307,7 +376,16 @@ export function Findings() {
             </thead>
             <tbody>
               {sortedFindings.map((finding) => (
-                <tr key={finding.id} className={`finding-row ${finding.severity} ${selectedFinding?.id === finding.id ? "selected-row" : ""}`} onClick={() => openFinding(finding)}>
+                <tr
+                  key={finding.id}
+                  className={`finding-row ${finding.severity} ${selectedFinding?.id === finding.id ? "selected-row" : ""}`}
+                  onClick={() => openFinding(finding)}
+                  onKeyDown={(event) => openFindingWithKeyboard(event, finding)}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`Open finding details for ${finding.title}`}
+                  aria-selected={selectedFinding?.id === finding.id}
+                >
                   <td onClick={(event) => event.stopPropagation()}>
                     <input
                       type="checkbox"
@@ -336,7 +414,7 @@ export function Findings() {
       {selectedFinding ? (
           <>
           <button className="finding-detail-scrim" type="button" aria-label="Close finding details" onClick={closeFindingDetails} />
-          <aside className="panel detail-pane finding-detail-panel" aria-label="Finding details">
+          <aside ref={detailPaneRef} className="panel detail-pane finding-detail-panel" aria-label="Finding details" tabIndex={-1}>
             <div className="detail-header">
               <div>
                 <span className={`severity ${selectedFinding.severity}`}>{selectedFinding.severity}</span>
@@ -392,16 +470,33 @@ export function Findings() {
               </button>
             </div>
             {updateMutation.error ? <p className="error-text">{updateMutation.error.message}</p> : null}
-            <div className="tab-row" role="tablist" aria-label="Evidence views">
-              {[
-                ["normalized", "Normalized"],
-                ["raw", "Raw"],
-                ["http", "HTTP"],
-                ["cves", "CVSS/CVEs"],
-                ["code", "Code"],
-              ].map(([id, label]) => <button key={id} className={evidenceTab === id ? "active" : ""} type="button" onClick={() => setEvidenceTab(id as typeof evidenceTab)}>{label}</button>)}
+            <div className="evidence-toolbar">
+              <div className="tab-row" role="tablist" aria-label="Evidence views">
+                {evidenceTabs.map(({ id, label }) => (
+                  <button
+                    key={id}
+                    id={evidenceTabButtonID(id)}
+                    className={evidenceTab === id ? "active" : ""}
+                    type="button"
+                    role="tab"
+                    aria-selected={evidenceTab === id}
+                    aria-controls={evidenceTabPanelID(id)}
+                    tabIndex={evidenceTab === id ? 0 : -1}
+                    onClick={() => selectEvidenceTab(id)}
+                    onKeyDown={(event) => moveEvidenceTab(event, id)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button className="secondary evidence-copy-button" type="button" onClick={() => void copyVisibleEvidence()}>
+                {copiedEvidence ? <Check size={15} /> : <Clipboard size={15} />}
+                {copiedEvidence ? "Copied" : "Copy Evidence"}
+              </button>
             </div>
-            <EvidenceTab finding={selectedFinding} tab={evidenceTab} />
+            <section id={evidenceTabPanelID(evidenceTab)} role="tabpanel" aria-labelledby={evidenceTabButtonID(evidenceTab)} tabIndex={0}>
+              <EvidenceTab finding={selectedFinding} tab={evidenceTab} />
+            </section>
           </aside>
           </>
       ) : null}
@@ -411,7 +506,7 @@ export function Findings() {
   );
 }
 
-function EvidenceTab({ finding, tab }: { finding: Finding; tab: "normalized" | "raw" | "http" | "cves" | "code" }) {
+function EvidenceTab({ finding, tab }: { finding: Finding; tab: EvidenceTabID }) {
   if (tab === "raw") return <pre>{finding.evidence_raw || "-"}</pre>;
   if (tab === "http") return <div className="evidence-grid"><article><h3>Request</h3><pre>{finding.http_evidence?.request_raw || "-"}</pre></article><article><h3>Response</h3><pre>{finding.http_evidence?.response_raw || "-"}</pre></article></div>;
   if (tab === "cves") return <pre>{`CVSS: ${finding.cvss_score || "-"}\n${(finding.cve_matches ?? []).map((cve) => `${cve.cve_id} ${cve.cvss_v3_score}`).join("\n") || "-"}`}</pre>;
@@ -459,6 +554,32 @@ function originLabel(origin: string) {
 }
 
 type EvidenceObject = Record<string, unknown>;
+
+function evidenceTabButtonID(tab: EvidenceTabID) {
+  return `finding-evidence-tab-${tab}`;
+}
+
+function evidenceTabPanelID(tab: EvidenceTabID) {
+  return `finding-evidence-panel-${tab}`;
+}
+
+function detailEvidenceText(finding: Finding, tab: EvidenceTabID) {
+  if (tab === "raw") return finding.evidence_raw || "-";
+  if (tab === "http") {
+    return [
+      "Request:",
+      finding.http_evidence?.request_raw || "-",
+      "",
+      "Response:",
+      finding.http_evidence?.response_raw || "-",
+    ].join("\n");
+  }
+  if (tab === "cves") {
+    return `CVSS: ${finding.cvss_score || "-"}\n${(finding.cve_matches ?? []).map((cve) => `${cve.cve_id} ${cve.cvss_v3_score}`).join("\n") || "-"}`;
+  }
+  if (tab === "code") return finding.code_context || finding.flow_summary || finding.notes || "-";
+  return finding.evidence_normalized || finding.evidence_raw || "-";
+}
 
 export function findingEvidenceObject(finding: Pick<Finding, "evidence_normalized">): EvidenceObject | null {
   if (!finding.evidence_normalized?.trim()) return null;
