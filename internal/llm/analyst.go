@@ -13,6 +13,8 @@ import (
 
 var ErrNotConfigured = errors.New("llm is not configured")
 
+const maxToolRounds = 4
+
 const SystemPrompt = `You are the Nyx local security analyst. Use only the structured session context and tool results provided to you. Deterministic findings, CVE matches, and attack-vector rules are authoritative; do not invent vulnerabilities, targets, CVEs, exploitability, or scan results.
 
 Your output is advisory. Default to defensive, non-invasive guidance: summarize evidence, explain risk, prioritize remediation, suggest safe scoped re-scans, recommend rotating or revoking exposed credentials, removing leaked secrets, reviewing logs, tightening configuration, or validating fixes in an authorized test environment.
@@ -54,33 +56,8 @@ func (a Analyst) AnalyzeSession(ctx context.Context, sessionID, prompt string) (
 		{Role: openai.ChatMessageRoleUser, Content: prompt},
 	}
 	totalTokens := 0
-	completion, err := a.client.Complete(ctx, ChatRequest{
-		Model:       a.config.Model,
-		Messages:    messages,
-		Tools:       ToolDefinitions(),
-		MaxTokens:   a.config.MaxTokens,
-		Temperature: a.config.Temperature,
-	})
-	if err != nil {
-		return models.LLMAnalysis{}, err
-	}
-	totalTokens += completion.TotalTokens
-	messages = append(messages, completion.Message)
-
-	toolCalls := executeToolCalls(ctx, a.store, sessionID, completion.Message.ToolCalls)
-	if len(toolCalls) > 0 {
-		for _, call := range toolCalls {
-			content := call.Result
-			if call.Error != "" {
-				content = call.Error
-			}
-			messages = append(messages, openai.ChatCompletionMessage{
-				Role:       openai.ChatMessageRoleTool,
-				Content:    content,
-				ToolCallID: call.ID,
-			})
-		}
-		final, err := a.client.Complete(ctx, ChatRequest{
+	for round := 0; round <= maxToolRounds; round++ {
+		completion, err := a.client.Complete(ctx, ChatRequest{
 			Model:       a.config.Model,
 			Messages:    messages,
 			Tools:       ToolDefinitions(),
@@ -90,8 +67,22 @@ func (a Analyst) AnalyzeSession(ctx context.Context, sessionID, prompt string) (
 		if err != nil {
 			return models.LLMAnalysis{}, err
 		}
-		totalTokens += final.TotalTokens
-		messages = append(messages, final.Message)
+		totalTokens += completion.TotalTokens
+		messages = append(messages, completion.Message)
+		if len(completion.Message.ToolCalls) == 0 {
+			break
+		}
+		toolResults := executeToolCalls(ctx, a.store, sessionID, completion.Message.ToolCalls)
+		messages = append(messages, toolResultMessages(toolResults)...)
+		if round == maxToolRounds {
+			final, err := a.finalAnswerWithoutTools(ctx, messages)
+			if err != nil {
+				return models.LLMAnalysis{}, err
+			}
+			totalTokens += final.TotalTokens
+			messages = append(messages, final.Message)
+			break
+		}
 	}
 	analysis := models.LLMAnalysis{
 		ID:            models.NewID(),
@@ -110,6 +101,20 @@ func (a Analyst) AnalyzeSession(ctx context.Context, sessionID, prompt string) (
 	}
 	_ = a.annotateAttackVectors(ctx, sessionID, sessionContext.AttackVectors, messages)
 	return analysis, nil
+}
+
+func (a Analyst) finalAnswerWithoutTools(ctx context.Context, messages []openai.ChatCompletionMessage) (ChatCompletion, error) {
+	finalMessages := append([]openai.ChatCompletionMessage{}, messages...)
+	finalMessages = append(finalMessages, openai.ChatCompletionMessage{
+		Role:    openai.ChatMessageRoleUser,
+		Content: "Tool-call budget reached. Provide the final answer from the gathered context now. Do not call tools.",
+	})
+	return a.client.Complete(ctx, ChatRequest{
+		Model:       a.config.Model,
+		Messages:    finalMessages,
+		MaxTokens:   a.config.MaxTokens,
+		Temperature: a.config.Temperature,
+	})
 }
 
 func (a Analyst) annotateAttackVectors(ctx context.Context, sessionID string, vectors []models.AttackVector, messages []openai.ChatCompletionMessage) error {
@@ -154,4 +159,20 @@ func executeToolCalls(ctx context.Context, store Store, sessionID string, calls 
 		results = append(results, result)
 	}
 	return results
+}
+
+func toolResultMessages(toolCalls []models.LLMToolCall) []openai.ChatCompletionMessage {
+	messages := make([]openai.ChatCompletionMessage, 0, len(toolCalls))
+	for _, call := range toolCalls {
+		content := call.Result
+		if call.Error != "" {
+			content = call.Error
+		}
+		messages = append(messages, openai.ChatCompletionMessage{
+			Role:       openai.ChatMessageRoleTool,
+			Content:    content,
+			ToolCallID: call.ID,
+		})
+	}
+	return messages
 }

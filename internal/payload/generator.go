@@ -41,6 +41,9 @@ func Generate(ctx context.Context, store *db.Store, sessionID, findingID string,
 	generated := llmPayloads(ctx, finding, options)
 	if len(generated) == 0 {
 		generated = deterministicPayloads(finding)
+		markPayloadSource(generated, "Deterministic fallback payload.")
+	} else {
+		markPayloadSource(generated, "LLM-generated advisory payload.")
 	}
 	if len(generated) == 0 {
 		return nil, fmt.Errorf("finding %q is not a supported payload generation target", finding.ID)
@@ -99,7 +102,7 @@ Finding JSON:
 			payload.Confidence = 0.5
 		}
 		if payload.Context == "" {
-			payload.Context = "LLM-generated advisory payload; not sent automatically."
+			payload.Context = "Not sent automatically."
 		}
 		out = append(out, payload)
 		if len(out) >= 5 {
@@ -107,6 +110,20 @@ Finding JSON:
 		}
 	}
 	return out
+}
+
+func markPayloadSource(payloads []models.Payload, prefix string) {
+	for i := range payloads {
+		context := strings.TrimSpace(payloads[i].Context)
+		switch {
+		case context == "":
+			payloads[i].Context = prefix
+		case strings.HasPrefix(context, prefix):
+			payloads[i].Context = context
+		default:
+			payloads[i].Context = prefix + " " + context
+		}
+	}
 }
 
 func findingContext(finding models.Finding) string {

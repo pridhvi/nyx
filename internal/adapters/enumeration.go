@@ -413,7 +413,7 @@ func scanSecretFindings(input AdapterInput, toolID, sourceURL, raw string) []mod
 				continue
 			}
 			seen[key] = true
-			finding := externalFinding(input, toolID, models.FindingTypeExposure, pattern.severity, "Potential secret exposed in JavaScript", fmt.Sprintf("%s pattern matched in %s.", pattern.name, sourceURL), "Confirm whether the matched value is a live secret, then revoke and remove it from public assets.", raw, map[string]any{"source_url": sourceURL, "pattern": pattern.name, "match": match}, []string{toolID, "secret", "javascript", "exposed-secret"})
+			finding := externalFinding(input, toolID, models.FindingTypeExposure, pattern.severity, "Potential secret exposed in JavaScript", fmt.Sprintf("%s pattern matched in %s.", pattern.name, sourceURL), "Treat the matched value as exposed: identify the owning system through approved records, revoke or rotate it, remove it from public assets, and review logs for suspicious use. Do not use the secret to test whether it is active unless that validation is explicitly authorized.", raw, map[string]any{"source_url": sourceURL, "pattern": pattern.name, "match": match}, []string{toolID, "secret", "javascript", "exposed-secret"})
 			finding.URL = sourceURL
 			findings = append(findings, finding)
 		}

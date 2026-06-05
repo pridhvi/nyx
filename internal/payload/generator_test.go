@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/pridhvi/nyx/internal/db"
+	llmintel "github.com/pridhvi/nyx/internal/llm"
 	"github.com/pridhvi/nyx/internal/models"
+	openai "github.com/sashabaranov/go-openai"
 )
 
 func TestGenerateReusesExistingPayloadsUnlessForced(t *testing.T) {
@@ -48,6 +50,36 @@ func TestGenerateRejectsUnsupportedFinding(t *testing.T) {
 	}
 }
 
+func TestGenerateLabelsLLMAndDeterministicPayloadSources(t *testing.T) {
+	ctx := context.Background()
+	store, session, finding := payloadTestStore(t, "Reflected XSS")
+	defer store.Close()
+
+	generated, err := Generate(ctx, store, session.ID, finding.ID, GenerateOptions{
+		Force: true,
+		LLMConfig: llmintel.Config{
+			Provider: "openai-compatible",
+			BaseURL:  "http://localhost:11434/v1",
+			Model:    "test-model",
+		},
+		LLMClient: fakePayloadCompleter{content: `[{"payload_type":"xss","payload":"<img src=x onerror=confirm(\"nyx\")>","context":"event-handler marker","confidence":0.7}]`},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(generated) != 1 || !strings.HasPrefix(generated[0].Context, "LLM-generated advisory payload.") {
+		t.Fatalf("expected LLM source label, got %#v", generated)
+	}
+
+	fallback, err := Generate(ctx, store, session.ID, finding.ID, GenerateOptions{Force: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fallback) == 0 || !strings.HasPrefix(fallback[0].Context, "Deterministic fallback payload.") {
+		t.Fatalf("expected deterministic source label, got %#v", fallback)
+	}
+}
+
 func TestValidatePayloadRequiresConfirmAndUpdatesEvidence(t *testing.T) {
 	ctx := context.Background()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -71,6 +103,17 @@ func TestValidatePayloadRequiresConfirmAndUpdatesEvidence(t *testing.T) {
 	if !result.Validated || !strings.Contains(result.Evidence, "XSS marker") {
 		t.Fatalf("expected validated marker evidence, got %#v", result)
 	}
+}
+
+type fakePayloadCompleter struct {
+	content string
+}
+
+func (f fakePayloadCompleter) Complete(ctx context.Context, request llmintel.ChatRequest) (llmintel.ChatCompletion, error) {
+	return llmintel.ChatCompletion{
+		Message:     openai.ChatCompletionMessage{Role: openai.ChatMessageRoleAssistant, Content: f.content},
+		TotalTokens: 7,
+	}, nil
 }
 
 func TestValidatePayloadRejectsOutOfScopeRedirect(t *testing.T) {

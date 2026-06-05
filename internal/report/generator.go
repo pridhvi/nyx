@@ -202,17 +202,32 @@ func buildSections(session models.Session, targets []models.Target, findings []m
 }
 
 func executiveSummary(session models.Session, findings []models.Finding, vectors []models.AttackVector, analyses []models.LLMAnalysis, stats db.SessionStats) string {
-	if len(analyses) > 0 {
-		last := analyses[len(analyses)-1]
-		for i := len(last.Messages) - 1; i >= 0; i-- {
-			if last.Messages[i].Role == "assistant" && strings.TrimSpace(last.Messages[i].Content) != "" {
-				return strings.TrimSpace(last.Messages[i].Content)
-			}
-		}
+	if narrative := reportNarrative(analyses); narrative != "" {
+		return narrative
 	}
 	return fmt.Sprintf("The %s scan of %s produced %d findings across %d targets. Severity counts: critical=%d, high=%d, medium=%d, low=%d, info=%d. Nyx generated %d deterministic attack vectors from persisted evidence.",
 		session.Mode, session.TargetInput, stats.FindingCount, stats.TargetCount,
 		stats.SeverityCounts[string(models.SeverityCritical)], stats.SeverityCounts[string(models.SeverityHigh)], stats.SeverityCounts[string(models.SeverityMedium)], stats.SeverityCounts[string(models.SeverityLow)], stats.SeverityCounts[string(models.SeverityInfo)], len(vectors))
+}
+
+func reportNarrative(analyses []models.LLMAnalysis) string {
+	for i := len(analyses) - 1; i >= 0; i-- {
+		if !reportNarrativeAnalysis(analyses[i]) {
+			continue
+		}
+		for j := len(analyses[i].Messages) - 1; j >= 0; j-- {
+			message := analyses[i].Messages[j]
+			if message.Role == "assistant" && strings.TrimSpace(message.Content) != "" {
+				return strings.TrimSpace(message.Content)
+			}
+		}
+	}
+	return ""
+}
+
+func reportNarrativeAnalysis(analysis models.LLMAnalysis) bool {
+	summary := strings.ToLower(strings.TrimSpace(analysis.PromptSummary))
+	return strings.HasPrefix(summary, "review the completed scan")
 }
 
 func scopeMethodology(session models.Session, targets []models.Target, runs []models.ToolRun) string {

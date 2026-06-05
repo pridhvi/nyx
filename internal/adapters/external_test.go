@@ -428,6 +428,9 @@ func TestScanSecretFindings(t *testing.T) {
 	if findings[0].ToolID != "js-secret-scan" || findings[0].URL != "https://example.com/app.js" {
 		t.Fatalf("unexpected finding: %#v", findings[0])
 	}
+	if strings.Contains(strings.ToLower(findings[0].Remediation), "confirm whether") || !strings.Contains(findings[0].Remediation, "Do not use the secret") {
+		t.Fatalf("expected remediation to avoid active secret validation, got %q", findings[0].Remediation)
+	}
 }
 
 func TestParseCORSFindings(t *testing.T) {

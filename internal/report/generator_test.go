@@ -123,6 +123,34 @@ func TestGenerateMarkdownHTMLAndPDFReports(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	if err := store.InsertLLMAnalysis(ctx, models.LLMAnalysis{
+		ID:            models.NewID(),
+		SessionID:     session.ID,
+		ModelID:       "test-model",
+		PromptSummary: "Should I use the exposed token to check whether it works?",
+		Messages: []models.LLMMessage{{
+			Role:    "assistant",
+			Content: "Narrow chat response that should not become the report summary.",
+		}},
+		TotalTokens: 8,
+		CreatedAt:   time.Now().UTC().Add(time.Second),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.InsertLLMAnalysis(ctx, models.LLMAnalysis{
+		ID:            models.NewID(),
+		SessionID:     session.ID,
+		ModelID:       "test-model",
+		PromptSummary: "Review the completed scan. Summarize the highest-confidence risks, relevant CVEs, deterministic attack vectors, and safe follow-up checks.",
+		Messages: []models.LLMMessage{{
+			Role:    "assistant",
+			Content: "Full-session LLM narrative for the report.",
+		}},
+		TotalTokens: 12,
+		CreatedAt:   time.Now().UTC(),
+	}); err != nil {
+		t.Fatal(err)
+	}
 	for _, format := range []models.ReportFormat{models.ReportFormatMarkdown, models.ReportFormatHTML, models.ReportFormatPDF, models.ReportFormatSARIF} {
 		artifact, err := Generate(ctx, store, Options{Format: format, Mode: models.ReportModeTechnical})
 		if err != nil {
@@ -140,6 +168,9 @@ func TestGenerateMarkdownHTMLAndPDFReports(t *testing.T) {
 				if !strings.Contains(body, expected) {
 					t.Fatalf("expected markdown report to contain %q, got %s", expected, body)
 				}
+			}
+			if !strings.Contains(body, "Full-session LLM narrative for the report.") || strings.Contains(body, "Narrow chat response") {
+				t.Fatalf("expected report to use only full-session LLM narrative, got %s", body)
 			}
 		}
 		if format == models.ReportFormatHTML {

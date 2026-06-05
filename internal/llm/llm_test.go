@@ -206,6 +206,128 @@ func TestAnalystPersistsConversationAndToolAuditTrail(t *testing.T) {
 	}
 }
 
+func TestAnalystHandlesMultipleToolRoundsBeforeFinalAnswer(t *testing.T) {
+	ctx := context.Background()
+	session, store := testLLMStore(t, ctx)
+	client := &fakeCompleter{responses: []ChatCompletion{
+		{
+			Message: openai.ChatCompletionMessage{
+				Role: openai.ChatMessageRoleAssistant,
+				ToolCalls: []openai.ToolCall{{
+					ID:   "call-1",
+					Type: openai.ToolTypeFunction,
+					Function: openai.FunctionCall{
+						Name:      "get_session_findings",
+						Arguments: `{"severity":"high"}`,
+					},
+				}},
+			},
+			TotalTokens: 4,
+		},
+		{
+			Message: openai.ChatCompletionMessage{
+				Role: openai.ChatMessageRoleAssistant,
+				ToolCalls: []openai.ToolCall{{
+					ID:   "call-2",
+					Type: openai.ToolTypeFunction,
+					Function: openai.FunctionCall{
+						Name:      "search_cves_for_technology",
+						Arguments: `{"technology":"OpenSSL"}`,
+					},
+				}},
+			},
+			TotalTokens: 5,
+		},
+		{
+			Message:     openai.ChatCompletionMessage{Role: openai.ChatMessageRoleAssistant, Content: "Final answer after two tool rounds."},
+			TotalTokens: 6,
+		},
+	}}
+
+	analysis, err := NewAnalyst(store, client, Config{
+		Provider:    "openai-compatible",
+		BaseURL:     "http://localhost:11434/v1",
+		Model:       "llama3:8b",
+		MaxTokens:   256,
+		Temperature: 0.1,
+	}).AnalyzeSession(ctx, session.ID, "Use tools as needed.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(client.requests) != 3 {
+		t.Fatalf("expected three model requests, got %d", len(client.requests))
+	}
+	if analysis.TotalTokens != 15 {
+		t.Fatalf("expected token accounting across rounds, got %d", analysis.TotalTokens)
+	}
+	toolResultCount := 0
+	for _, message := range analysis.Messages {
+		for _, call := range message.ToolCalls {
+			if call.Name == "tool_result" {
+				toolResultCount++
+			}
+		}
+	}
+	if toolResultCount != 2 {
+		t.Fatalf("expected two persisted tool results, got %d in %#v", toolResultCount, analysis.Messages)
+	}
+	vectors, err := store.ListAttackVectors(ctx, session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(vectors) != 1 || !vectors[0].LLMReviewed || vectors[0].LLMNotes != "Final answer after two tool rounds." {
+		t.Fatalf("expected final answer to annotate vector, got %#v", vectors)
+	}
+}
+
+func TestAnalystForcesFinalAnswerAfterToolRoundLimit(t *testing.T) {
+	ctx := context.Background()
+	session, store := testLLMStore(t, ctx)
+	var responses []ChatCompletion
+	for i := 0; i <= maxToolRounds; i++ {
+		responses = append(responses, ChatCompletion{
+			Message: openai.ChatCompletionMessage{
+				Role: openai.ChatMessageRoleAssistant,
+				ToolCalls: []openai.ToolCall{{
+					ID:   "call-limit",
+					Type: openai.ToolTypeFunction,
+					Function: openai.FunctionCall{
+						Name:      "get_session_findings",
+						Arguments: `{}`,
+					},
+				}},
+			},
+			TotalTokens: 1,
+		})
+	}
+	responses = append(responses, ChatCompletion{
+		Message:     openai.ChatCompletionMessage{Role: openai.ChatMessageRoleAssistant, Content: "Final answer without tools."},
+		TotalTokens: 2,
+	})
+	client := &fakeCompleter{responses: responses}
+
+	analysis, err := NewAnalyst(store, client, Config{
+		Provider:    "openai-compatible",
+		BaseURL:     "http://localhost:11434/v1",
+		Model:       "llama3:8b",
+		MaxTokens:   256,
+		Temperature: 0.1,
+	}).AnalyzeSession(ctx, session.ID, "Do not stop calling tools.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lastRequest := client.requests[len(client.requests)-1]
+	if len(lastRequest.Tools) != 0 {
+		t.Fatalf("expected final fallback request to disable tools, got %#v", lastRequest.Tools)
+	}
+	if !strings.Contains(lastRequest.Messages[len(lastRequest.Messages)-1].Content, "Do not call tools") {
+		t.Fatalf("expected final fallback instruction, got %#v", lastRequest.Messages[len(lastRequest.Messages)-1])
+	}
+	if got := analysis.Messages[len(analysis.Messages)-1].Content; got != "Final answer without tools." {
+		t.Fatalf("expected persisted final answer, got %q", got)
+	}
+}
+
 func TestSystemPromptDefaultsToDefensiveCredentialGuidance(t *testing.T) {
 	required := []string{
 		"Default to defensive, non-invasive guidance",
