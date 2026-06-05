@@ -144,7 +144,14 @@ function OperatorShell() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("nyx-theme", theme);
+    window.dispatchEvent(new CustomEvent("nyx-theme-change", { detail: theme }));
   }, [theme]);
+
+  function toggleTheme() {
+    const nextTheme = theme === "dark" ? "light" : "dark";
+    localStorage.setItem("nyx-theme", nextTheme);
+    setTheme(nextTheme);
+  }
 
   useEffect(() => {
     setNavOpen(false);
@@ -211,7 +218,7 @@ function OperatorShell() {
               role="switch"
               aria-checked={theme === "light"}
               aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              onClick={toggleTheme}
             >
               <span className="theme-toggle-icon moon"><Moon size={16} /></span>
               <span className="theme-toggle-track" aria-hidden="true">

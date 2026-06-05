@@ -226,12 +226,12 @@ export function Dashboard() {
       <div className="command-layout">
         <section className="new-scan-card">
           <div>
-            <h2>{selectedRecord ? "Active Engagement" : "Start a Scoped Run"}</h2>
-            <p>{selectedRecord ? selectedRecord.target_input || selectedRecord.source_path || "Selected session" : "Build a dynamic, static, or combined scan with explicit scope boundaries and optional local LLM analysis."}</p>
+            <h2>{selectedRecord ? "Selected Outcome" : "Start a Scoped Run"}</h2>
+            <p>{selectedRecord ? `${selectedRecord.status} · ${selectedRecord.target_input || selectedRecord.source_path || "Selected session"}` : "Build a dynamic, static, or combined scan with explicit scope boundaries and optional local LLM analysis."}</p>
           </div>
           <div className="finding-count-display">{activeFindingCount}</div>
-          <p>findings in the selected engagement</p>
-          <Link className="primary link-button" to="/scan"><Radar size={16} />New Scan</Link>
+          <p>{activeFindingCount > 0 ? "findings need triage before this engagement is clean" : "no findings recorded for the selected engagement"}</p>
+          <Link className="primary link-button" to={activeFindingCount > 0 && selected ? `/sessions/${selected}/findings` : "/scan"}><Radar size={16} />{activeFindingCount > 0 ? "Open Triage" : "New Scan"}</Link>
         </section>
         <section className="panel">
           <h2>Next Actions</h2>
@@ -323,7 +323,10 @@ export function Dashboard() {
           </div>
         </section>
         <section className="panel">
-          <h2>Priority Findings</h2>
+          <div className="panel-heading-row">
+            <h2>Priority Findings</h2>
+            {selected && activeFindingCount > 0 ? <Link to={`/sessions/${selected}/findings`}>View all</Link> : null}
+          </div>
           <div className="target-strip">
             {(targetsQuery.data ?? []).slice(0, 6).map((target) => <span key={target.id}>{target.protocol}://{target.host}{target.port ? `:${target.port}` : ""}</span>)}
           </div>
@@ -335,7 +338,7 @@ export function Dashboard() {
                 <small>{finding.tool_id} · {finding.url}</small>
               </article>
             ))}
-            {(findingsQuery.data ?? []).length === 0 ? <div className="empty-line">No findings for the selected session.</div> : null}
+            {(findingsQuery.data ?? []).length === 0 ? <div className="empty-line">No findings for the selected session. Run a broader profile or open tool logs if this was unexpected.</div> : null}
           </div>
         </section>
       </div>

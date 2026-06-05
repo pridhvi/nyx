@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { listSourceFindings } from "../api/client";
 import { useSessionContext } from "../session";
 
@@ -66,6 +67,13 @@ export function Source() {
           </article>
         ))}
       </section>
+      {findings.length === 0 ? (
+        <section className="panel empty-state-panel">
+          <h2>No Source Evidence</h2>
+          <p>Source evidence appears after a static audit or combined source-aware scan. Add a source repository in Scan Builder to populate routes, sinks, secrets, and static/dynamic confirmations.</p>
+          <Link className="primary link-button" to="/scan">Open Scan Builder</Link>
+        </section>
+      ) : null}
       <section className="panel">
         <div className="table-wrap">
           <table>

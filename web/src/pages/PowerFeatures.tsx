@@ -108,6 +108,13 @@ export function PowerFeatures() {
     mutationFn: () => pullBurpIssues(selectedSessionID),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["findings", selectedSessionID] }),
   });
+  const featureStatus = [
+    { label: "Payloads", value: payloadsQuery.data?.length ?? 0, detail: "generated candidates" },
+    { label: "Credentials", value: credentialsQuery.data?.length ?? 0, detail: "stored records" },
+    { label: "Callbacks", value: callbacksQuery.data?.length ?? 0, detail: "evidence events" },
+    { label: "PoC", value: pocQuery.data?.length ?? 0, detail: "proof records" },
+    { label: "Providers", value: providersQuery.data?.length ?? 0, detail: "passive statuses" },
+  ];
 
   return (
     <section className="page power-page">
@@ -121,6 +128,15 @@ export function PowerFeatures() {
       <div className="target-strip">
         {tabs.map((item) => <button key={item} className={tab === item ? "primary" : "secondary"} onClick={() => setTab(item)}>{featureCopy[item].label}</button>)}
       </div>
+      <section className="power-summary-grid" aria-label="Power feature status">
+        {featureStatus.map((item) => (
+          <article key={item.label}>
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+            <small>{item.detail}</small>
+          </article>
+        ))}
+      </section>
       <section className="panel safety-panel">
         <div className="safety-heading">
           <h2><ShieldAlert size={18} />Safety Controls</h2>

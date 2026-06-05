@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { listCVEs, type CVEMatch } from "../api/client";
 import { useSessionContext } from "../session";
 import { sortLabel, useSortableRows } from "../sort";
@@ -26,6 +27,13 @@ export function CVEs() {
           <p>Correlated CVE intelligence, exploit signals, patch status, and references.</p>
         </div>
       </header>
+      {cves.length === 0 ? (
+        <section className="panel empty-state-panel">
+          <h2>No CVEs Correlated</h2>
+          <p>CVE rows appear when scanner evidence, source package metadata, or technology fingerprints include package and version context. Run fingerprinting, source audit, or CVE-enabled profiles to enrich this view.</p>
+          <Link className="primary link-button" to="/scan">Build CVE-Aware Scan</Link>
+        </section>
+      ) : null}
       <section className="panel">
         <div className="table-wrap">
           <table>

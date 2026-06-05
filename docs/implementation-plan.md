@@ -1126,7 +1126,9 @@ work and must be carried forward:
   and route recovery that drives command center, findings, tools, runs, graph,
   CVEs, LLM, and report pages.
 - Implemented Scan Builder `/scan`:
-  - dense section rail for scope, profiles, runtime, LLM, phases, tools, and launch
+  - progressive section rail for scope, profiles, phases, tools, advanced
+    runtime/LLM controls, and launch
+  - launch-readiness summary for scope, profile, phase, and runnable-tool state
   - sticky launch summary with workload, targets, selected tools, selected phases,
     and validation state
   - target, name, mode, and out-of-scope controls
@@ -1148,7 +1150,8 @@ work and must be carried forward:
     validation
   - custom scan profile JSON import/export
 - Implemented Tools `/tools` and `/sessions/:id/tools`:
-  - structured tool inventory
+  - grouped readiness summary and card-first structured tool inventory
+  - raw inventory table disclosure for troubleshooting
   - installed/missing status
   - configured binary path and version detection
   - phase, adapter kind, dependencies, install hints, and last run status
@@ -1162,7 +1165,8 @@ work and must be carried forward:
   - per-session tool run table
   - stdout/stderr/raw argument slide-in log drawer with compact log tabs
 - Implemented Settings `/settings` for storage, server, tool, plugin, LLM,
-  frontend, and CVE visibility without exposing API-key values.
+  frontend, and CVE visibility without exposing API-key values, including live
+  current-theme reporting.
 - Added lazy-loaded route chunks for graph, chart, report, LLM, findings, tools,
   runs, CVEs, settings, and scan-builder surfaces.
 - Added route-level error recovery so transient route chunk failures do not
@@ -1171,7 +1175,7 @@ work and must be carried forward:
   attack graph edge filtering.
 - Command Center lists sessions, stats, priority findings, next actions, readable live progress rows, and recent events.
 - Implemented Dashboard `/` and `/sessions/:id`:
-  - ambient new-scan card and active/recent session cards with severity strips
+  - selected-outcome triage card and active/recent session cards with severity strips
   - selected-session stats
   - global finding stats
   - engagement name and target list visibility
@@ -1194,7 +1198,8 @@ work and must be carried forward:
 - Implemented Findings `/sessions/:id/findings`:
   - sortable findings table
   - bulk severity/status/remediation workflow for selected findings
-  - split finding detail workspace with persisted evidence tabs
+  - split finding detail workspace with decision summary and persisted evidence tabs
+  - mobile finding-detail drawer with backdrop isolation
   - raw HTTP request/response evidence view
   - persisted severity/status/remediation edits
   - validated triage statuses: `open`, `confirmed`, `false-positive`,
@@ -1210,8 +1215,9 @@ work and must be carried forward:
   - split conversation/history layout
   - visible LLM tool-call cards
   - suggested prompt chips
+  - actionable empty state for missing analyst history and configuration
 - Implemented Reports `/sessions/:id/report`:
-  - HTML preview
+  - framed HTML preview with report status toolbar
   - executive/technical toggle
   - PDF and Markdown download
   - no-session, loading, error, empty-content, and PDF download-only states

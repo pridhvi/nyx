@@ -8,6 +8,8 @@ This repo has a buildable backend with module path `github.com/pridhvi/nyx`, abs
 
 ## Engineering Priorities
 
+Recent UI/UX polish added progressive Scan Builder readiness, collapsible advanced runtime/LLM controls, grouped tool inventory with raw-table disclosure, dashboard outcome triage, actionable Source/CVE/LLM empty states, inline monitor validation, Power Features status summaries, framed report previews, live theme reporting, and mobile drawer-based finding details.
+
 - Scope validation is a security boundary. Every adapter that makes network requests must validate target host/IP first.
 - Normalize all tool output into `internal/models.Finding`.
 - Persist raw evidence. Store full tool stdout/stderr as sidecar logs unless `nyx scan --lean` is used; keep HTTP request/response evidence in SQLite.

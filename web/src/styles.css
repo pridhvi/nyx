@@ -855,15 +855,15 @@ table {
 th,
 td {
   border-bottom: 1px solid var(--border);
-  font-size: 12.5px;
-  padding: 8px 9px;
+  font-size: 13px;
+  padding: 10px 11px;
   text-align: left;
   vertical-align: top;
 }
 
 th {
   color: var(--faint);
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 700;
   text-transform: uppercase;
   white-space: nowrap;
@@ -1280,6 +1280,16 @@ html[data-theme="light"] .chart-panel {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.power-page > .target-strip {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.power-page > .target-strip button {
+  flex: 0 0 auto;
 }
 
 .target-strip span,
@@ -1820,6 +1830,7 @@ html[data-theme="light"] .chart-panel {
   display: grid;
   gap: 14px;
   grid-template-areas:
+    "overview overview"
     "profiles profiles"
     "scope runtime"
     "scope llm"
@@ -1828,6 +1839,10 @@ html[data-theme="light"] .chart-panel {
     "launch launch";
   grid-template-columns: minmax(0, 1fr) minmax(320px, 0.85fr);
   min-width: 0;
+}
+
+.builder-overview {
+  grid-area: overview;
 }
 
 .builder-main > .panel {
@@ -1862,6 +1877,71 @@ html[data-theme="light"] .chart-panel {
   grid-area: launch;
 }
 
+.builder-readiness-grid,
+.tool-summary-grid,
+.power-summary-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.builder-readiness-grid span,
+.tool-summary-grid article,
+.power-summary-grid article {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  display: grid;
+  gap: 4px;
+  min-height: 62px;
+  padding: 10px;
+}
+
+.builder-readiness-grid span {
+  color: var(--muted);
+}
+
+.builder-readiness-grid span.ready {
+  border-color: rgba(48, 213, 140, 0.24);
+}
+
+.builder-readiness-grid span.blocked {
+  border-color: rgba(255, 59, 92, 0.34);
+}
+
+.builder-readiness-grid strong,
+.tool-summary-grid strong,
+.power-summary-grid strong {
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 18px;
+}
+
+.advanced-section {
+  display: grid;
+  gap: 12px;
+}
+
+.advanced-section summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.advanced-section summary span {
+  display: grid;
+  gap: 3px;
+}
+
+.advanced-section summary small,
+.tool-summary-grid small,
+.power-summary-grid small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .builder-runtime .form-grid.compact {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
@@ -1885,7 +1965,8 @@ html[data-theme="light"] .chart-panel {
 
 .launch-panel {
   align-items: center;
-  position: static;
+  bottom: 14px;
+  position: sticky;
   z-index: 10;
 }
 
@@ -2203,6 +2284,17 @@ html[data-theme="light"] .chart-panel {
   text-align: center;
 }
 
+.empty-state-panel p {
+  color: var(--muted);
+  margin: 0 auto;
+  max-width: 620px;
+}
+
+.empty-state-panel .link-button {
+  justify-self: center;
+  margin-top: 8px;
+}
+
 .dense-toolbar,
 .filter-bar {
   align-items: end;
@@ -2228,6 +2320,10 @@ html[data-theme="light"] .chart-panel {
   overflow: auto;
   position: sticky;
   top: calc(var(--topbar-height) + 12px);
+}
+
+.finding-detail-scrim {
+  display: none;
 }
 
 .tab-row {
@@ -2290,6 +2386,34 @@ html[data-theme="light"] .chart-panel {
   gap: 14px;
   margin-bottom: 14px;
   padding-bottom: 14px;
+}
+
+.finding-decision-summary {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.finding-decision-summary article {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+}
+
+.finding-decision-summary span {
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.finding-decision-summary strong {
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .finding-save-button {
@@ -2376,6 +2500,17 @@ html[data-theme="light"] .chart-panel {
 .finding-card-list,
 .tool-card-list {
   display: none;
+}
+
+.wide-page .tool-card-list {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  margin-top: 12px;
+}
+
+.raw-inventory {
+  margin-top: 14px;
 }
 
 .finding-card,
@@ -2489,6 +2624,23 @@ html[data-theme="light"] .chart-panel {
   font-size: 12px;
 }
 
+.tool-summary-grid,
+.power-summary-grid {
+  margin-top: 12px;
+}
+
+.tool-summary-grid article span,
+.power-summary-grid article span {
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.power-summary-grid {
+  margin-top: 0;
+}
+
 .source-group-grid {
   display: grid;
   gap: 10px;
@@ -2562,6 +2714,20 @@ html[data-theme="light"] .chart-panel {
   display: flex;
   gap: 16px;
   justify-content: space-between;
+}
+
+.panel-heading-row {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.panel-heading-row a {
+  color: var(--accent-2);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
 }
 
 .attack-paths-page {
@@ -2966,6 +3132,10 @@ html[data-theme="light"] .attack-flow-node {
   padding: 0;
 }
 
+.chat-empty-state {
+  min-height: 360px;
+}
+
 .chat-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
@@ -3318,6 +3488,20 @@ html[data-theme="light"] .attack-flow-node {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.form-hint {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+.form-hint.ready {
+  color: var(--low);
+}
+
+.form-hint.blocked {
+  color: var(--warning);
+}
+
 .settings-grid.compact-health {
   gap: 8px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3361,11 +3545,35 @@ html[data-theme="light"] .attack-flow-node {
 }
 
 .report-preview {
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface-2) 75%, var(--bg));
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
   min-height: 720px;
-  overflow: hidden;
+  overflow: auto;
+  padding: 20px;
+}
+
+.report-toolbar {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  min-height: auto;
+  padding: 12px 14px;
+}
+
+.report-toolbar > div {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.report-toolbar p {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
 }
 
 .report-state {
@@ -3386,6 +3594,8 @@ html[data-theme="light"] .attack-flow-node {
 .report-preview iframe {
   background: white;
   border: 0;
+  border-radius: var(--r-md);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.18);
   height: 760px;
   width: 100%;
 }
@@ -3593,8 +3803,8 @@ html[data-theme="light"] .attack-flow-node {
     display: none;
     gap: 8px;
     grid-column: 1 / -1;
-    grid-template-columns: 1fr;
-    padding: 10px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 8px;
   }
 
   .topbar-actions.open {
@@ -3604,10 +3814,12 @@ html[data-theme="light"] .attack-flow-node {
   .topbar-actions .secondary,
   .topbar-actions .link-button,
   .topbar-actions .icon-button {
+    min-height: 36px;
     width: 100%;
   }
 
   .topbar-actions .theme-toggle {
+    grid-column: auto;
     justify-content: center;
     width: 100%;
   }
@@ -3633,6 +3845,7 @@ html[data-theme="light"] .attack-flow-node {
 
   .builder-main {
     grid-template-areas:
+      "overview"
       "profiles"
       "scope"
       "runtime"
@@ -3640,6 +3853,10 @@ html[data-theme="light"] .attack-flow-node {
       "phases"
       "tools"
       "launch";
+  }
+
+  .launch-panel {
+    bottom: 8px;
   }
 
   .runtime-proxy-field {
@@ -3679,16 +3896,35 @@ html[data-theme="light"] .attack-flow-node {
   }
 
   .triage-workspace .detail-pane {
-    border-radius: 0;
-    inset: 0;
-    max-height: none;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    bottom: 0;
+    left: 0;
+    max-height: calc(100vh - var(--topbar-height) - 12px);
     overflow: auto;
     position: fixed;
-    z-index: 60;
+    right: 0;
+    top: auto;
+    z-index: 70;
   }
 
-  .filter-bar,
-  .launch-panel {
+  .finding-detail-scrim {
+    background: rgba(0, 0, 0, 0.58);
+    border: 0;
+    display: block;
+    inset: 0;
+    position: fixed;
+    z-index: 65;
+  }
+
+  .finding-decision-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .wide-page .tool-card-list {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-bar {
     position: static;
   }
 
@@ -3717,6 +3953,11 @@ html[data-theme="light"] .attack-flow-node {
 
   .report-preview {
     min-height: 70vh;
+  }
+
+  .report-toolbar {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .report-preview iframe,

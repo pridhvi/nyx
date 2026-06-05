@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot, Check, ChevronDown, ChevronUp, Clipboard, Send, Sparkles } from "lucide-react";
+import { Link } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { llmAnalyse, llmChat, llmHistory, type LLMAnalysis, type LLMMessage } from "../api/client";
@@ -115,7 +116,14 @@ export function LLMChat() {
                   <ReasoningDisclosure active content="" expanded={false} onToggle={() => {}} />
                 </article>
               ) : null}
-              {visibleMessages.length === 0 && !analystThinking ? <div className="empty-line"><Bot size={18} />No LLM history for the selected session.</div> : null}
+              {visibleMessages.length === 0 && !analystThinking ? (
+                <div className="empty-state-panel chat-empty-state">
+                  <Bot size={22} />
+                  <h2>No Analyst History</h2>
+                  <p>Run Analyse after configuring an allowed local or OpenAI-compatible endpoint, or ask a scoped question about the selected session.</p>
+                  <Link className="secondary link-button" to="/settings">Check LLM Configuration</Link>
+                </div>
+              ) : null}
             </div>
             <form className="chat-input" onSubmit={submit}>
               <input value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Ask about the selected session" />

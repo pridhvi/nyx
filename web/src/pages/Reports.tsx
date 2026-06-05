@@ -42,6 +42,14 @@ export function Reports() {
           <a className={`primary link-button ${selected ? "" : "disabled"}`} href={downloadURL} aria-disabled={!selected}><Download size={16} />Download</a>
         </div>
       </header>
+      <section className="report-toolbar panel">
+        <div>
+          <span className="badge">{mode}</span>
+          <span className="badge">{format.toUpperCase()}</span>
+          <strong>{selected ? "Preview is rendered from stored session evidence" : "Select a session to render a preview"}</strong>
+        </div>
+        <p>HTML previews are sandboxed. PDF is generated as a download-only artifact.</p>
+      </section>
       <div className="report-preview">
         {!selected ? <ReportState title="No Session Selected" message="Choose or create a session before generating a report." /> : null}
         {selected && format === "pdf" ? <ReportState title="PDF Preview Is Download-Only" message="PDF output is generated as a binary file. Use Download to save the report." /> : null}

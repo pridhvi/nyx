@@ -81,6 +81,14 @@ export function Monitor() {
     },
   });
   const groupedChanges = useMemo(() => groupChanges(changesQuery.data ?? []), [changesQuery.data]);
+  const canCreateMonitor = Boolean(form.target_input.trim()) && form.enabled_phases.length > 0 && form.alert_on.length > 0 && !createMutation.isPending;
+  const monitorBlocker = !form.target_input.trim()
+    ? "Target is required."
+    : form.enabled_phases.length === 0
+      ? "Select at least one phase."
+      : form.alert_on.length === 0
+        ? "Select at least one alert condition."
+        : "Ready to create recurring monitor.";
 
   return (
     <section className="page">
@@ -108,6 +116,7 @@ export function Monitor() {
               <select value={form.schedule} onChange={(event) => setForm({ ...form, schedule: event.target.value })}>
                 {scheduleOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
+              <small>{schedulePreview(form.schedule)}</small>
             </label>
             <label>Custom Cron
               <input value={form.schedule.startsWith("@") ? "" : form.schedule} onChange={(event) => setForm({ ...form, schedule: event.target.value || "@daily" })} placeholder="0 2 * * *" />
@@ -134,7 +143,8 @@ export function Monitor() {
                 ))}
               </div>
             </fieldset>
-            <button className="primary" type="submit" disabled={createMutation.isPending || !form.target_input.trim()}>
+            <p className={`form-hint ${canCreateMonitor ? "ready" : "blocked"}`}>{monitorBlocker}</p>
+            <button className="primary" type="submit" disabled={!canCreateMonitor}>
               <Bell size={16} />Create Monitor
             </button>
             {createMutation.error ? <p className="form-error">{createMutation.error.message}</p> : null}
@@ -219,4 +229,11 @@ export function toggleValue(values: string[], value: string) {
 function groupChanges(changes: SurfaceChange[]) {
   const rank: Record<string, number> = { critical: 5, high: 4, medium: 3, low: 2, info: 1 };
   return [...changes].sort((a, b) => (rank[b.severity] ?? 0) - (rank[a.severity] ?? 0));
+}
+
+function schedulePreview(schedule: string) {
+  if (schedule === "@hourly") return "Runs once per hour while nyx serve is active.";
+  if (schedule === "@daily") return "Runs once per day while nyx serve is active.";
+  if (schedule === "@weekly") return "Runs once per week while nyx serve is active.";
+  return `Custom cron: ${schedule || "@daily"}`;
 }

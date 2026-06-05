@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { effectiveConfig, listPlugins, listTools } from "../api/client";
 
@@ -5,10 +6,26 @@ export function Settings() {
   const configQuery = useQuery({ queryKey: ["effective-config"], queryFn: effectiveConfig });
   const toolsQuery = useQuery({ queryKey: ["tools"], queryFn: () => listTools() });
   const pluginsQuery = useQuery({ queryKey: ["plugins"], queryFn: listPlugins });
+  const [uiTheme, setUITheme] = useState(() => localStorage.getItem("nyx-theme") ?? document.documentElement.dataset.theme ?? "dark");
   const cfg = configQuery.data;
   const tools = toolsQuery.data ?? [];
   const installed = tools.filter((tool) => tool.installed).length;
   const missing = tools.length - installed;
+
+  useEffect(() => {
+    function syncTheme(event?: Event) {
+      const detail = event instanceof CustomEvent && typeof event.detail === "string" ? event.detail : "";
+      setUITheme(detail || localStorage.getItem("nyx-theme") || document.documentElement.dataset.theme || "dark");
+    }
+    window.addEventListener("nyx-theme-change", syncTheme);
+    window.addEventListener("storage", syncTheme);
+    syncTheme();
+    return () => {
+      window.removeEventListener("nyx-theme-change", syncTheme);
+      window.removeEventListener("storage", syncTheme);
+    };
+  }, []);
+
   return (
     <section className="page">
       <header className="page-header">
@@ -55,7 +72,7 @@ export function Settings() {
         </section>
         <section className="panel">
           <h2>Frontend</h2>
-          <dl><dt>Theme</dt><dd>{localStorage.getItem("nyx-theme") ?? "dark"}</dd><dt>Assets</dt><dd>embedded in Go binary when built</dd><dt>Platform</dt><dd>{cfg?.runtime.goos}/{cfg?.runtime.goarch}</dd></dl>
+          <dl><dt>Current UI Theme</dt><dd>{uiTheme}</dd><dt>Assets</dt><dd>embedded in Go binary when built</dd><dt>Platform</dt><dd>{cfg?.runtime.goos}/{cfg?.runtime.goarch}</dd></dl>
         </section>
         <section className="panel">
           <h2>CVE</h2>

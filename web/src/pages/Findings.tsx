@@ -334,6 +334,8 @@ export function Findings() {
         </div>
       </section>
       {selectedFinding ? (
+          <>
+          <button className="finding-detail-scrim" type="button" aria-label="Close finding details" onClick={closeFindingDetails} />
           <aside className="panel detail-pane finding-detail-panel" aria-label="Finding details">
             <div className="detail-header">
               <div>
@@ -346,6 +348,20 @@ export function Findings() {
                 <X size={16} />
               </button>
             </div>
+            <section className="finding-decision-summary" aria-label="Finding decision summary">
+              <article>
+                <span>Why it matters</span>
+                <strong>{findingImpact(selectedFinding)}</strong>
+              </article>
+              <article>
+                <span>Evidence strength</span>
+                <strong>{evidenceStrength(selectedFinding)}</strong>
+              </article>
+              <article>
+                <span>Next action</span>
+                <strong>{primaryFindingAction(selectedFinding)}</strong>
+              </article>
+            </section>
             <div className="finding-editor">
               <label className="compact-control">
                 Severity
@@ -387,6 +403,7 @@ export function Findings() {
             </div>
             <EvidenceTab finding={selectedFinding} tab={evidenceTab} />
           </aside>
+          </>
       ) : null}
       </div>
       ) : null}
@@ -482,6 +499,42 @@ function evidencePreview(finding: Finding) {
   const source = typeof evidence.source === "string" ? evidence.source : "";
   const url = typeof evidence.url === "string" ? evidence.url : finding.url;
   return [source, indicators, url].filter(Boolean).join(" · ") || JSON.stringify(evidence);
+}
+
+function findingImpact(finding: Finding) {
+  if (finding.severity === "critical" || finding.severity === "high") {
+    return "Prioritize owner review and remediation before broader tuning.";
+  }
+  if (isHumanAssistFinding(finding)) {
+    return "Needs human confirmation before it should drive active validation.";
+  }
+  if (finding.type === "misconfiguration") {
+    return "Configuration drift or missing control may increase attack surface.";
+  }
+  return "Review evidence, confirm ownership, and decide whether to track.";
+}
+
+function evidenceStrength(finding: Finding) {
+  if (finding.http_evidence?.response_raw || finding.evidence_normalized) {
+    return "Persisted evidence available";
+  }
+  if (finding.evidence_raw) {
+    return "Raw scanner evidence available";
+  }
+  return "Evidence is limited";
+}
+
+function primaryFindingAction(finding: Finding) {
+  if (finding.status === "confirmed") {
+    return "Track remediation and keep evidence attached.";
+  }
+  if (finding.severity === "critical" || finding.severity === "high") {
+    return "Confirm scope, assign owner, and remediate.";
+  }
+  if (isHumanAssistFinding(finding)) {
+    return "Manually review before any active follow-up.";
+  }
+  return "Triage status and capture remediation notes.";
 }
 
 function humanizeEvidenceKey(key: string) {

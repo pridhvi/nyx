@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, PackagePlus, RefreshCw, Upload, XCircle } from "lucide-react";
 import { createPlugin, deletePlugin, effectiveConfig, listPlugins, listTools, updatePlugin, uploadPluginBinary, type ToolRecord } from "../api/client";
@@ -41,6 +41,13 @@ export function Tools() {
   const tools = toolsQuery.data ?? [];
   const visibleTools = tools.filter((tool) => toolFilter === "all" || (toolFilter === "ready" ? tool.installed : !tool.installed));
   const readyCount = tools.filter((tool) => tool.installed).length;
+  const toolGroups = useMemo(() => [
+    { label: "Ready", value: readyCount, detail: "installed or built in" },
+    { label: "Missing", value: tools.length - readyCount, detail: "optional subprocess tools" },
+    { label: "Built-in", value: tools.filter((tool) => tool.kind === "builtin_http").length, detail: "no binary needed" },
+    { label: "Subprocess", value: tools.filter((tool) => tool.kind === "subprocess").length, detail: "external adapters" },
+    { label: "Ran in Session", value: tools.filter((tool) => tool.last_run).length, detail: "selected-session evidence" },
+  ], [readyCount, tools]);
   const authEnabled = Boolean(configQuery.data?.server.auth_enabled);
 
   return (
@@ -56,13 +63,22 @@ export function Tools() {
         <div className="graph-toolbar">
           <div>
             <h2>Registered Tools</h2>
-            <p className="profile-description">Binary and version are shown for installed subprocess/plugin tools. Built-in checks and missing tools show <code>-</code>. Last Run is scoped to the selected session.</p>
+            <p className="profile-description">Grouped readiness comes first; raw binary, version, dependency, and last-run details are available below for troubleshooting.</p>
           </div>
           <div className="tab-row">
             <button className={toolFilter === "all" ? "active" : ""} type="button" onClick={() => setToolFilter("all")}>All {tools.length}</button>
             <button className={toolFilter === "ready" ? "active" : ""} type="button" onClick={() => setToolFilter("ready")}>Ready {readyCount}</button>
             <button className={toolFilter === "missing" ? "active" : ""} type="button" onClick={() => setToolFilter("missing")}>Missing {tools.length - readyCount}</button>
           </div>
+        </div>
+        <div className="tool-summary-grid">
+          {toolGroups.map((group) => (
+            <article key={group.label}>
+              <span>{group.label}</span>
+              <strong>{group.value}</strong>
+              <small>{group.detail}</small>
+            </article>
+          ))}
         </div>
         <div className="tool-card-list">
           {visibleTools.map((tool) => (
@@ -83,25 +99,28 @@ export function Tools() {
           ))}
           {visibleTools.length === 0 ? <div className="empty-state">No tools match this filter.</div> : null}
         </div>
-        <div className="table-wrap">
-          <table>
-            <thead><tr><th>Status</th><th>Tool</th><th>Phase</th><th>Kind</th><th>Binary</th><th>Version</th><th>Last Run</th></tr></thead>
-            <tbody>
-              {visibleTools.map((tool) => (
-                <tr key={tool.id}>
-                  <td><span className={`status ${tool.installed ? "completed" : "failed"} icon-status`}>{tool.installed ? <CheckCircle2 size={14} /> : <XCircle size={14} />}{tool.installed ? "ready" : "missing"}</span></td>
-                  <td><strong>{tool.id}</strong><small>{tool.name}</small><small>{tool.depends_on.length ? `depends: ${tool.depends_on.join(", ")}` : tool.install_hint}</small></td>
-                  <td>{tool.phase}</td>
-                  <td>{kindLabel(tool)}</td>
-                  <td><code>{tool.binary_path || "-"}</code></td>
-                  <td>{tool.version || "-"}</td>
-                  <td>{tool.last_run ? <span className={`status ${tool.last_run.exit_code === 0 ? "completed" : "failed"}`}>{tool.last_run.exit_code === 0 ? "ok" : `exit ${tool.last_run.exit_code}`}</span> : "-"}</td>
-                </tr>
-              ))}
-              {visibleTools.length === 0 ? <tr><td colSpan={7}>No tools match this filter.</td></tr> : null}
-            </tbody>
-          </table>
-        </div>
+        <details className="raw-config raw-inventory">
+          <summary>Raw inventory table</summary>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Status</th><th>Tool</th><th>Phase</th><th>Kind</th><th>Binary</th><th>Version</th><th>Last Run</th></tr></thead>
+              <tbody>
+                {visibleTools.map((tool) => (
+                  <tr key={tool.id}>
+                    <td><span className={`status ${tool.installed ? "completed" : "failed"} icon-status`}>{tool.installed ? <CheckCircle2 size={14} /> : <XCircle size={14} />}{tool.installed ? "ready" : "missing"}</span></td>
+                    <td><strong>{tool.id}</strong><small>{tool.name}</small><small>{tool.depends_on.length ? `depends: ${tool.depends_on.join(", ")}` : tool.install_hint}</small></td>
+                    <td>{tool.phase}</td>
+                    <td>{kindLabel(tool)}</td>
+                    <td><code>{tool.binary_path || "-"}</code></td>
+                    <td>{tool.version || "-"}</td>
+                    <td>{tool.last_run ? <span className={`status ${tool.last_run.exit_code === 0 ? "completed" : "failed"}`}>{tool.last_run.exit_code === 0 ? "ok" : `exit ${tool.last_run.exit_code}`}</span> : "-"}</td>
+                  </tr>
+                ))}
+                {visibleTools.length === 0 ? <tr><td colSpan={7}>No tools match this filter.</td></tr> : null}
+              </tbody>
+            </table>
+          </div>
+        </details>
       </section>
       <section className="panel global-plugins-panel">
         <h2>Global Plugins</h2>

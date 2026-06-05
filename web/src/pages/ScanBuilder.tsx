@@ -264,20 +264,40 @@ export function ScanBuilder() {
   const selectedProfile = profiles.find((profile) => profile.id === selectedProfileID);
   const canStart = canStartBase && !mutation.isPending;
   const llmModels = modelsMutation.data?.models ?? [];
+  const readyChecks = [
+    { label: "Scope", value: targetError ? "Needs target or source" : `${parsedTargets.length} target${parsedTargets.length === 1 ? "" : "s"}${hasSource ? " + source" : ""}`, ready: !targetError },
+    { label: "Profile", value: selectedProfile ? selectedProfile.name : "Custom settings", ready: true },
+    { label: "Phases", value: `${selectedPhases.length} selected`, ready: !phaseError },
+    { label: "Tools", value: `${installedSelectedTools.length} runnable`, ready: !toolError },
+  ];
 
   return (
     <section className="page wide-page">
       <header className="page-header">
         <div>
           <h1>Scan Builder</h1>
-          <p>Configure scope, phases, tools, runtime options, and per-scan parameters.</p>
+          <p>Define scope first, choose the runnable checks, then launch with advanced options only when needed.</p>
         </div>
       </header>
       <form className="builder-workspace" onSubmit={submit}>
         <aside className="builder-rail" aria-label="Scan builder sections">
-          {["Scope", "Profiles", "Runtime", "LLM", "Phases", "Tools", "Launch"].map((item) => <a key={item} href={`#${item.toLowerCase()}`}>{item}</a>)}
+          {["Scope", "Profiles", "Phases", "Tools", "Advanced", "Launch"].map((item) => <a key={item} href={`#${item.toLowerCase()}`}>{item}</a>)}
         </aside>
         <div className="builder-main">
+        <section className="panel span-2 builder-overview">
+          <div>
+            <h2>Launch Readiness</h2>
+            <p className="profile-description">The default path is scope, profile, phases, tools, and review. Runtime, auth, proxy, and LLM settings are available under Advanced.</p>
+          </div>
+          <div className="builder-readiness-grid">
+            {readyChecks.map((check) => (
+              <span key={check.label} className={check.ready ? "ready" : "blocked"}>
+                {check.label}
+                <strong>{check.value}</strong>
+              </span>
+            ))}
+          </div>
+        </section>
         <section className="panel span-2 builder-profiles" id="profiles">
           <h2>Profiles</h2>
           <div className="profile-bar">
@@ -332,8 +352,8 @@ export function ScanBuilder() {
             </HelpLabel>
           </div>
         </section>
-        <section className="panel builder-runtime" id="runtime">
-          <h2>Runtime</h2>
+        <details className="panel builder-runtime advanced-section" id="advanced">
+          <summary><span><strong>Advanced Runtime</strong><small>Concurrency, pacing, proxy, evasion, and backoff controls.</small></span></summary>
           <div className="form-grid compact">
             <HelpLabel label="Concurrency" help={runtimeHelp.concurrency}><input type="number" min={1} value={concurrency} onChange={(event) => setConcurrency(Number(event.target.value))} /></HelpLabel>
             <HelpLabel label="Per Tool" help={runtimeHelp.perToolConcurrency}><input type="number" min={1} value={perToolConcurrency} onChange={(event) => setPerToolConcurrency(Number(event.target.value))} /></HelpLabel>
@@ -356,9 +376,9 @@ export function ScanBuilder() {
               <InfoTip text="Nyx slows or backs off when compatible adapters observe block, throttling, or rate-limit signals." />
             </label>
           </div>
-        </section>
-        <section className="panel builder-llm" id="llm">
-          <h2>LLM</h2>
+        </details>
+        <details className="panel builder-llm advanced-section">
+          <summary><span><strong>LLM Analysis</strong><small>Optional local or allowed OpenAI-compatible analyst endpoint.</small></span></summary>
           <div className="form-grid">
             <label>Base URL<input value={llmBaseURL} onChange={(event) => setLLMBaseURL(event.target.value)} placeholder="http://localhost:11434/v1" /></label>
             <label>Model
@@ -385,7 +405,7 @@ export function ScanBuilder() {
               <p>Start with temperature 0.2, top_p 0.9, top_k 40, 32k context when available, and 2048-4096 max tokens. Nyx treats LLM output as advisory; active credential validation should be explicitly authorized.</p>
             </div>
           </details>
-        </section>
+        </details>
         <section className="panel span-2 builder-phases" id="phases">
           <h2>Phases {hasTargets ? <Required /> : null}</h2>
           <div className="phase-grid">
