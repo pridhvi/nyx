@@ -1,6 +1,6 @@
 import { type FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, PackagePlus, RefreshCw, Upload, XCircle } from "lucide-react";
+import { CheckCircle2, CircleDashed, List, PackagePlus, RefreshCw, SquareStack, Upload, XCircle } from "lucide-react";
 import { createPlugin, deletePlugin, effectiveConfig, listPlugins, listTools, updatePlugin, uploadPluginBinary, type ToolRecord } from "../api/client";
 import { useSessionContext } from "../session";
 
@@ -16,6 +16,8 @@ export function Tools() {
   const [pluginDescription, setPluginDescription] = useState("");
   const [pluginHomepageURL, setPluginHomepageURL] = useState("");
   const [toolFilter, setToolFilter] = useState("all");
+  const [viewMode, setViewMode] = useState<"table" | "cards">("table");
+  const [selectedToolID, setSelectedToolID] = useState("");
   const createMutation = useMutation({
     mutationFn: () => createPlugin({ name: pluginName, binary: pluginBinary, phase: pluginPhase, description: pluginDescription, homepage_url: pluginHomepageURL, enabled: true }),
     onSuccess: () => {
@@ -40,6 +42,7 @@ export function Tools() {
   }
   const tools = toolsQuery.data ?? [];
   const visibleTools = tools.filter((tool) => toolFilter === "all" || (toolFilter === "ready" ? tool.installed : !tool.installed));
+  const selectedTool = tools.find((tool) => tool.id === selectedToolID) ?? visibleTools[0];
   const readyCount = tools.filter((tool) => tool.installed).length;
   const toolGroups = useMemo(() => [
     { label: "Ready", value: readyCount, detail: "installed or built in" },
@@ -80,25 +83,43 @@ export function Tools() {
             </article>
           ))}
         </div>
-        <div className="tool-card-list">
-          {visibleTools.map((tool) => (
-            <article key={tool.id} className={`tool-inventory-card ${tool.installed ? "ready" : "missing"}`}>
-              <div>
-                <span className={`status ${tool.installed ? "completed" : "failed"} icon-status`}>{tool.installed ? <CheckCircle2 size={14} /> : <XCircle size={14} />}{tool.installed ? "ready" : "missing"}</span>
-                <strong>{tool.id}</strong>
-                <small>{tool.name}</small>
-              </div>
-              <dl>
-                <dt>Phase</dt><dd>{tool.phase}</dd>
-                <dt>Kind</dt><dd>{kindLabel(tool)}</dd>
-                <dt>Binary</dt><dd><code>{tool.binary_path || "-"}</code></dd>
-                <dt>Version</dt><dd>{tool.version || "-"}</dd>
-              </dl>
-              {tool.depends_on.length ? <p>Depends on {tool.depends_on.join(", ")}</p> : tool.install_hint ? <p>{tool.install_hint}</p> : null}
-            </article>
-          ))}
-          {visibleTools.length === 0 ? <div className="empty-state">No tools match this filter.</div> : null}
+        <div className="tool-view-toolbar">
+          <strong>{viewMode === "table" ? "Compact Table" : "Tool Cards"}</strong>
+          <div className="tab-row" aria-label="Tool inventory view mode">
+            <button className={viewMode === "table" ? "active" : ""} type="button" onClick={() => setViewMode("table")}><List size={14} />Table</button>
+            <button className={viewMode === "cards" ? "active" : ""} type="button" onClick={() => setViewMode("cards")}><SquareStack size={14} />Cards</button>
+          </div>
         </div>
+        {viewMode === "table" ? (
+          <div className="tool-inventory-workspace">
+            <div className="table-wrap compact-tool-table">
+              <table>
+                <thead><tr><th>Status</th><th>Tool</th><th>Phase</th><th>Version</th><th>Path</th><th>Last Run</th></tr></thead>
+                <tbody>
+                  {visibleTools.map((tool) => (
+                    <tr key={tool.id} className={selectedTool?.id === tool.id ? "selected-row" : ""}>
+                      <td><ToolStatusBadge tool={tool} /></td>
+                      <td><button className="table-link-button" onClick={() => setSelectedToolID(tool.id)}><strong>{tool.id}</strong><small>{tool.name}</small></button></td>
+                      <td>{phaseLabel(tool.phase)}</td>
+                      <td>{tool.version || "-"}</td>
+                      <td><code>{tool.binary_path || (tool.kind === "builtin_http" ? "built in" : "-")}</code></td>
+                      <td>{tool.last_run ? <span className={`status ${tool.last_run.exit_code === 0 ? "completed" : "failed"}`}>{tool.last_run.exit_code === 0 ? "ok" : `exit ${tool.last_run.exit_code}`}</span> : "-"}</td>
+                    </tr>
+                  ))}
+                  {visibleTools.length === 0 ? <tr><td colSpan={6}>No tools match this filter.</td></tr> : null}
+                </tbody>
+              </table>
+            </div>
+            <ToolDetailPanel tool={selectedTool} />
+          </div>
+        ) : (
+          <div className="tool-card-list">
+            {visibleTools.map((tool) => (
+              <ToolCard key={tool.id} tool={tool} onSelect={() => setSelectedToolID(tool.id)} selected={selectedTool?.id === tool.id} />
+            ))}
+            {visibleTools.length === 0 ? <div className="empty-state">No tools match this filter.</div> : null}
+          </div>
+        )}
         <details className="raw-config raw-inventory">
           <summary>Raw inventory table</summary>
           <div className="table-wrap">
@@ -174,6 +195,81 @@ export function Tools() {
   );
 }
 
+function ToolStatusBadge({ tool }: { tool: ToolRecord }) {
+  const state = toolInstallState(tool);
+  if (state === "ready") {
+    return <span className="status completed icon-status"><CheckCircle2 size={14} />ready</span>;
+  }
+  if (state === "optional") {
+    return <span className="status paused icon-status"><CircleDashed size={14} />optional</span>;
+  }
+  return <span className="status failed icon-status"><XCircle size={14} />missing</span>;
+}
+
+function ToolDetailPanel({ tool }: { tool: ToolRecord | undefined }) {
+  if (!tool) {
+    return <aside className="tool-detail-panel empty-state">Select a tool to inspect details.</aside>;
+  }
+  return (
+    <aside className={`tool-detail-panel ${tool.installed ? "ready" : "missing"}`} aria-label="Tool Details">
+      <div>
+        <ToolStatusBadge tool={tool} />
+        <h2>Tool Details</h2>
+      </div>
+      <h3>{tool.id}</h3>
+      <p>{tool.description || tool.name}</p>
+      <dl>
+        <dt>Name</dt><dd>{tool.name}</dd>
+        <dt>Phase</dt><dd>{phaseLabel(tool.phase)}</dd>
+        <dt>Kind</dt><dd>{kindLabel(tool)}</dd>
+        <dt>Version</dt><dd>{tool.version || "-"}</dd>
+        <dt>Path</dt><dd><code>{tool.binary_path || (tool.kind === "builtin_http" ? "built in" : "-")}</code></dd>
+        <dt>Dependencies</dt><dd>{tool.depends_on.length ? tool.depends_on.join(", ") : "none"}</dd>
+      </dl>
+      {tool.install_hint ? <p className="tool-install-hint">{tool.install_hint}</p> : null}
+      {tool.homepage_url ? <a href={tool.homepage_url} target="_blank" rel="noreferrer">Open homepage</a> : null}
+    </aside>
+  );
+}
+
+function ToolCard({ tool, selected, onSelect }: { tool: ToolRecord; selected: boolean; onSelect: () => void }) {
+  return (
+    <article className={`tool-inventory-card ${tool.installed ? "ready" : "missing"} ${selected ? "selected" : ""}`}>
+      <div>
+        <ToolStatusBadge tool={tool} />
+        <strong>{tool.id}</strong>
+        <small>{tool.name}</small>
+      </div>
+      <dl>
+        <dt>Phase</dt><dd>{phaseLabel(tool.phase)}</dd>
+        <dt>Kind</dt><dd>{kindLabel(tool)}</dd>
+        <dt>Binary</dt><dd><code>{tool.binary_path || "-"}</code></dd>
+        <dt>Version</dt><dd>{tool.version || "-"}</dd>
+      </dl>
+      {tool.depends_on.length ? <p>Depends on {tool.depends_on.join(", ")}</p> : tool.install_hint ? <p>{tool.install_hint}</p> : null}
+      <button className="secondary" type="button" onClick={onSelect}>Show Details</button>
+    </article>
+  );
+}
+
+export function toolInstallState(tool: ToolRecord) {
+  if (tool.installed) {
+    return "ready";
+  }
+  return tool.default_enabled ? "missing" : "optional";
+}
+
+export function compactToolRows(tools: ToolRecord[]) {
+  return tools.map((tool) => ({
+    id: tool.id,
+    name: tool.name,
+    phase: phaseLabel(tool.phase),
+    version: tool.version || "-",
+    path: tool.binary_path || (tool.kind === "builtin_http" ? "built in" : "-"),
+    status: toolInstallState(tool),
+  }));
+}
+
 function kindLabel(tool: ToolRecord) {
   if (tool.kind === "builtin_http") {
     return "built in";
@@ -182,4 +278,15 @@ function kindLabel(tool: ToolRecord) {
     return "subprocess";
   }
   return "plugin";
+}
+
+function phaseLabel(phase: string) {
+  const labels: Record<string, string> = {
+    recon: "Recon",
+    fingerprint: "Fingerprint",
+    enumerate: "Enumeration",
+    vuln_scan: "Vulnerability",
+    audit: "Static audit",
+  };
+  return labels[phase] ?? phase;
 }

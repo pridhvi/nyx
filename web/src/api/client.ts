@@ -73,12 +73,16 @@ export type CVEMatch = {
   technology_id?: string;
   package_name?: string;
   package_version?: string;
+  affected_version?: string;
+  fixed_version?: string;
   cve_id: string;
   cvss_v3_score: number;
+  cvss_v3_vector?: string;
   description: string;
   patch_available: boolean;
   exploit_available: boolean;
   source: string;
+  confidence_score?: number;
   references?: string[];
 };
 
@@ -111,6 +115,17 @@ export type Finding = {
   status?: FindingStatus;
   notes?: string;
   tags?: string[];
+  triage_events?: TriageEvent[];
+  created_at: string;
+};
+
+export type TriageEvent = {
+  id: string;
+  finding_id: string;
+  field: string;
+  old_value: string;
+  new_value: string;
+  actor: string;
   created_at: string;
 };
 
@@ -795,6 +810,10 @@ export function runMonitorConfig(configID: string) {
   return api<{ run: MonitorRun; changes: SurfaceChange[] }>(`/api/monitor/configs/${configID}/run`, { method: "POST", body: "{}" });
 }
 
+export function resetMonitorBaseline(configID: string, runID: string) {
+  return api<MonitorConfig>(`/api/monitor/configs/${configID}/baseline`, { method: "POST", body: JSON.stringify({ run_id: runID }) });
+}
+
 export function listMonitorRuns(configID?: string) {
   const suffix = configID ? `?config_id=${encodeURIComponent(configID)}` : "";
   return api<MonitorRun[]>(`/api/monitor/runs${suffix}`);
@@ -867,8 +886,24 @@ export function listLLMModels(baseURL: string) {
   return api<LLMModelsResponse>("/api/llm/models", { method: "POST", body: JSON.stringify({ base_url: baseURL }) });
 }
 
-export async function getReport(sessionID: string, format: string, mode: string) {
-  const response = await fetch(`/api/sessions/${sessionID}/report?format=${encodeURIComponent(format)}&mode=${encodeURIComponent(mode)}`, {
+export type ReportRequestOptions = {
+  include_suppressed?: boolean;
+  executive_summary?: string;
+};
+
+export function reportURL(sessionID: string, format: string, mode: string, options: ReportRequestOptions = {}) {
+  const params = new URLSearchParams({ format, mode });
+  if (options.include_suppressed !== undefined) {
+    params.set("include_suppressed", String(options.include_suppressed));
+  }
+  if (options.executive_summary?.trim()) {
+    params.set("executive_summary", options.executive_summary.trim());
+  }
+  return `/api/sessions/${sessionID}/report?${params.toString()}`;
+}
+
+export async function getReport(sessionID: string, format: string, mode: string, options: ReportRequestOptions = {}) {
+  const response = await fetch(reportURL(sessionID, format, mode, options), {
     credentials: "same-origin",
   });
   if (!response.ok) {

@@ -21,6 +21,7 @@ const (
 	SurfaceChangeNewTechnology   SurfaceChangeType = "new_technology"
 	SurfaceChangeEndpointChanged SurfaceChangeType = "endpoint_changed"
 	SurfaceChangeNewFinding      SurfaceChangeType = "new_finding"
+	SurfaceChangeSeverityChanged SurfaceChangeType = "finding_severity_changed"
 	SurfaceChangeResolvedFinding SurfaceChangeType = "resolved_finding"
 )
 

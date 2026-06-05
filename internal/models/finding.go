@@ -55,7 +55,18 @@ type Finding struct {
 	HTTPEvidence       *HTTPEvidence `json:"http_evidence,omitempty"`
 	Tags               []string      `json:"tags"`
 	CVEMatches         []CVEMatch    `json:"cve_matches,omitempty"`
+	TriageEvents       []TriageEvent `json:"triage_events,omitempty"`
 	CreatedAt          time.Time     `json:"created_at"`
+}
+
+type TriageEvent struct {
+	ID        string    `json:"id"`
+	FindingID string    `json:"finding_id"`
+	Field     string    `json:"field"`
+	OldValue  string    `json:"old_value"`
+	NewValue  string    `json:"new_value"`
+	Actor     string    `json:"actor"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type HTTPEvidence struct {

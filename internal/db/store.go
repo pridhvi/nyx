@@ -347,6 +347,95 @@ func (s *Store) UpdateFinding(ctx context.Context, findingID string, severity mo
 	return nil
 }
 
+func (s *Store) UpdateFindingWithAudit(ctx context.Context, sessionID, findingID string, severity models.Severity, remediation string, status models.FindingStatus, actor string) error {
+	before, err := s.GetFinding(ctx, sessionID, findingID)
+	if err != nil {
+		return err
+	}
+	if err := s.UpdateFinding(ctx, findingID, severity, remediation, status); err != nil {
+		return err
+	}
+	actor = firstNonEmpty(strings.TrimSpace(actor), "operator")
+	events := triageEventsForUpdate(before, severity, remediation, status, actor)
+	for _, event := range events {
+		if err := s.InsertTriageEvent(ctx, event); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func triageEventsForUpdate(before models.Finding, severity models.Severity, remediation string, status models.FindingStatus, actor string) []models.TriageEvent {
+	now := time.Now().UTC()
+	var events []models.TriageEvent
+	add := func(field, oldValue, newValue string) {
+		if oldValue == newValue {
+			return
+		}
+		events = append(events, models.TriageEvent{
+			ID:        models.NewID(),
+			FindingID: before.ID,
+			Field:     field,
+			OldValue:  oldValue,
+			NewValue:  newValue,
+			Actor:     actor,
+			CreatedAt: now,
+		})
+	}
+	if severity != "" {
+		add("severity", string(before.Severity), string(severity))
+	}
+	if remediation != "" {
+		add("remediation", before.Remediation, remediation)
+	}
+	if status != "" {
+		add("status", string(before.Status), string(status))
+	}
+	return events
+}
+
+func (s *Store) InsertTriageEvent(ctx context.Context, event models.TriageEvent) error {
+	if event.ID == "" {
+		event.ID = models.NewID()
+	}
+	if event.CreatedAt.IsZero() {
+		event.CreatedAt = time.Now().UTC()
+	}
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO finding_triage_events (id, finding_id, field, old_value, new_value, actor, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		event.ID,
+		event.FindingID,
+		event.Field,
+		event.OldValue,
+		event.NewValue,
+		firstNonEmpty(event.Actor, "operator"),
+		formatTime(event.CreatedAt),
+	)
+	return err
+}
+
+func (s *Store) ListTriageEventsByFinding(ctx context.Context, findingID string) ([]models.TriageEvent, error) {
+	rows, err := s.db.QueryContext(ctx, `
+SELECT id, finding_id, field, old_value, new_value, actor, created_at
+FROM finding_triage_events
+WHERE finding_id = ?
+ORDER BY created_at DESC`, findingID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var events []models.TriageEvent
+	for rows.Next() {
+		event, err := scanTriageEvent(rows)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, event)
+	}
+	return events, rows.Err()
+}
+
 func (s *Store) UpdateFindingAuditFields(ctx context.Context, finding models.Finding) error {
 	result, err := s.db.ExecContext(ctx, `
 UPDATE findings
@@ -721,6 +810,10 @@ WHERE session_id = ?`
 			finding.HTTPEvidence = &evidence
 		}
 		finding.CVEMatches, err = s.ListCVEMatchesByFinding(ctx, finding.ID)
+		if err != nil {
+			return nil, err
+		}
+		finding.TriageEvents, err = s.ListTriageEventsByFinding(ctx, finding.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -1345,6 +1438,29 @@ func scanFinding(row rowScanner) (models.Finding, error) {
 	}
 	finding.CreatedAt = created
 	return finding, nil
+}
+
+func scanTriageEvent(row rowScanner) (models.TriageEvent, error) {
+	var event models.TriageEvent
+	var createdAt string
+	err := row.Scan(
+		&event.ID,
+		&event.FindingID,
+		&event.Field,
+		&event.OldValue,
+		&event.NewValue,
+		&event.Actor,
+		&createdAt,
+	)
+	if err != nil {
+		return models.TriageEvent{}, err
+	}
+	created, err := parseTime(createdAt)
+	if err != nil {
+		return models.TriageEvent{}, err
+	}
+	event.CreatedAt = created
+	return event, nil
 }
 
 func normalizeFindingStatus(status string) models.FindingStatus {

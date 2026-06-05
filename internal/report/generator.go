@@ -15,8 +15,10 @@ import (
 )
 
 type Options struct {
-	Format models.ReportFormat
-	Mode   models.ReportMode
+	Format            models.ReportFormat
+	Mode              models.ReportMode
+	IncludeSuppressed bool
+	ExecutiveSummary  string
 }
 
 type Artifact struct {
@@ -99,7 +101,7 @@ func Generate(ctx context.Context, store Store, options Options) (Artifact, erro
 	if err != nil {
 		return Artifact{}, err
 	}
-	sections := buildSections(session, targets, findings, sourceFindings, graphEdges, cves, vectors, runs, analyses, stats, options.Mode, power)
+	sections := buildSections(session, targets, findings, sourceFindings, graphEdges, cves, vectors, runs, analyses, stats, options.Mode, power, options.IncludeSuppressed, options.ExecutiveSummary)
 	summary := sections[0].Content
 	if options.Format == models.ReportFormatSARIF {
 		if body, err := json.Marshal(activeFindings(findings)); err == nil {
@@ -114,7 +116,7 @@ func Generate(ctx context.Context, store Store, options Options) (Artifact, erro
 		Mode:            options.Mode,
 		Summary:         summary,
 		Sections:        sections,
-		FindingIDs:      findingIDs(findings),
+		FindingIDs:      findingIDs(includedFindings(findings, options.IncludeSuppressed)),
 		CVEMatchIDs:     cveIDs(cves),
 		AttackVectorIDs: vectorIDs(vectors),
 		GeneratedBy:     "nyx",
@@ -178,23 +180,33 @@ func collectPowerEvidence(ctx context.Context, store Store, sessionID string) (p
 	return out, nil
 }
 
-func buildSections(session models.Session, targets []models.Target, findings []models.Finding, sourceFindings []models.SourceFinding, graphEdges []models.AttackGraphEdge, cves []models.CVEMatch, vectors []models.AttackVector, runs []models.ToolRun, analyses []models.LLMAnalysis, stats db.SessionStats, mode models.ReportMode, power powerEvidence) []models.ReportSection {
+func buildSections(session models.Session, targets []models.Target, findings []models.Finding, sourceFindings []models.SourceFinding, graphEdges []models.AttackGraphEdge, cves []models.CVEMatch, vectors []models.AttackVector, runs []models.ToolRun, analyses []models.LLMAnalysis, stats db.SessionStats, mode models.ReportMode, power powerEvidence, includeSuppressed bool, customExecutiveSummary string) []models.ReportSection {
 	active := activeFindings(findings)
 	highs, lows := splitFindings(active)
+	crossConfirmedFindings := active
+	if includeSuppressed {
+		crossConfirmedFindings = findings
+	}
+	executive := executiveSummary(session, active, vectors, analyses, stats)
+	if strings.TrimSpace(customExecutiveSummary) != "" {
+		executive = strings.TrimSpace(customExecutiveSummary) + "\n\n" + executive
+	}
 	sections := []models.ReportSection{
-		{ID: models.ReportSectionExecutiveSummary, Title: "Executive Summary", Content: executiveSummary(session, active, vectors, analyses, stats), Position: 1},
+		{ID: models.ReportSectionExecutiveSummary, Title: "Executive Summary", Content: executive, Position: 1},
 		{ID: models.ReportSectionScopeMethodology, Title: "Scope and Methodology", Content: scopeMethodology(session, targets, runs), Position: 2},
 		{ID: models.ReportSectionSourceFindings, Title: "Static Source Findings", Content: sourceFindingsMarkdown(sourceFindings), Position: 3},
 		{ID: models.ReportSectionHighFindings, Title: "Critical and High Findings", Content: findingsMarkdown(highs, true), Position: 4},
 		{ID: models.ReportSectionLowerFindings, Title: "Medium, Low, and Informational Findings", Content: findingsMarkdown(lows, mode == models.ReportModeTechnical), Position: 5},
-		{ID: models.ReportSectionCrossConfirmed, Title: "Cross-Confirmed Findings", Content: crossConfirmedMarkdown(findings, sourceFindings, graphEdges), Position: 6},
+		{ID: models.ReportSectionCrossConfirmed, Title: "Cross-Confirmed Findings", Content: crossConfirmedMarkdown(crossConfirmedFindings, sourceFindings, graphEdges), Position: 6},
 		{ID: models.ReportSectionAttackVectors, Title: "Attack Vectors", Content: vectorsMarkdown(vectors), Position: 7},
 		{ID: models.ReportSectionCVEMatches, Title: "Dependency and CVE Matches", Content: cvesMarkdown(cves), Position: 8},
 		{ID: models.ReportSectionPowerFeatures, Title: "Power Feature Evidence", Content: powerEvidenceMarkdown(power), Position: 9},
 		{ID: models.ReportSectionToolCoverage, Title: "Tool Coverage", Content: toolCoverageMarkdown(runs), Position: 10},
-		{ID: models.ReportSectionSuppressed, Title: "Suppressed and Dismissed Findings", Content: suppressedFindingsMarkdown(findings), Position: 11},
-		{ID: models.ReportSectionRemediation, Title: "Remediation Roadmap", Content: remediationMarkdown(active, cves), Position: 12},
 	}
+	if includeSuppressed {
+		sections = append(sections, models.ReportSection{ID: models.ReportSectionSuppressed, Title: "Suppressed and Dismissed Findings", Content: suppressedFindingsMarkdown(findings), Position: 11})
+	}
+	sections = append(sections, models.ReportSection{ID: models.ReportSectionRemediation, Title: "Remediation Roadmap", Content: remediationMarkdown(active, cves), Position: 12})
 	if mode == models.ReportModeTechnical {
 		sections = append(sections, models.ReportSection{ID: models.ReportSectionRawEvidence, Title: "Raw Tool Output Appendix", Content: rawEvidenceMarkdown(active, runs), Position: 13})
 	}
@@ -466,6 +478,13 @@ func activeFindings(findings []models.Finding) []models.Finding {
 		out = append(out, finding)
 	}
 	return out
+}
+
+func includedFindings(findings []models.Finding, includeSuppressed bool) []models.Finding {
+	if includeSuppressed {
+		return append([]models.Finding(nil), findings...)
+	}
+	return activeFindings(findings)
 }
 
 func remediationMarkdown(findings []models.Finding, cves []models.CVEMatch) string {

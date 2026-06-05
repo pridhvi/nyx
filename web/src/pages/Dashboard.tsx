@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type CSSProperties, type MouseEvent } fro
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity, AlertTriangle, CheckCircle2, Clock, Loader2, Pause, Play, Radar, Square, TerminalSquare, Trash2, XCircle } from "lucide-react";
 import { Link } from "react-router-dom";
-import { deleteSession, getScanStatus, getSessionStats, listFindings, listTargets, listToolRuns, listTools, pauseScan, resumeScan, scanEventsURL, stopScan, type ScanEvent, type ToolRun } from "../api/client";
+import { deleteSession, getScanStatus, getSessionStats, listFindings, listMonitorConfigs, listMonitorRunChanges, listMonitorRuns, listTargets, listToolRuns, listTools, pauseScan, resumeScan, scanEventsURL, stopScan, type ScanEvent, type ToolRun } from "../api/client";
 import { useSessionContext } from "../session";
 
 const severityOrder = ["critical", "high", "medium", "low", "info"] as const;
@@ -93,6 +93,32 @@ export function Dashboard() {
       { active: 0, findings: 0 },
     );
   }, [sessions]);
+  const lastCompletedSession = useMemo(() => {
+    return sessions
+      .map((record) => record.session)
+      .filter((session) => session.status === "completed")
+      .sort((a, b) => new Date(b.completed_at ?? b.started_at ?? b.created_at).getTime() - new Date(a.completed_at ?? a.started_at ?? a.created_at).getTime())[0];
+  }, [sessions]);
+  const lastCompletedStatsQuery = useQuery({
+    queryKey: ["session-stats", lastCompletedSession?.id],
+    queryFn: () => getSessionStats(lastCompletedSession?.id ?? ""),
+    enabled: Boolean(lastCompletedSession?.id),
+    refetchInterval: 5000,
+  });
+  const monitorConfigsQuery = useQuery({ queryKey: ["monitor-configs"], queryFn: listMonitorConfigs, refetchInterval: 10000 });
+  const monitorRunsQuery = useQuery({ queryKey: ["monitor-runs"], queryFn: () => listMonitorRuns(), refetchInterval: 10000 });
+  const latestMonitorRun = useMemo(() => {
+    return [...(monitorRunsQuery.data ?? [])].sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())[0];
+  }, [monitorRunsQuery.data]);
+  const monitorChangesQuery = useQuery({
+    queryKey: ["monitor-changes", latestMonitorRun?.id],
+    queryFn: () => listMonitorRunChanges(latestMonitorRun?.id ?? ""),
+    enabled: Boolean(latestMonitorRun?.id),
+    refetchInterval: 10000,
+  });
+  const newMonitorFindings = useMemo(() => {
+    return (monitorChangesQuery.data ?? []).filter((change) => change.change_type === "new_finding" || (change.finding_id && change.change_type.includes("finding"))).length;
+  }, [monitorChangesQuery.data]);
   const severityData = useMemo(() => {
     return buildRiskMixData(statsQuery.data?.severity_counts);
   }, [statsQuery.data]);
@@ -104,6 +130,7 @@ export function Dashboard() {
     return [...(findingsQuery.data ?? [])].sort((a, b) => (rank[b.severity] ?? 0) - (rank[a.severity] ?? 0)).slice(0, 8);
   }, [findingsQuery.data]);
   const status = scanStatusQuery.data?.status ?? selectedRecord?.status ?? "";
+  const isActiveScan = status === "running" || status === "pending" || status === "paused";
   const activeFindingCount = findingsQuery.data?.length ?? scanStatusQuery.data?.finding_count ?? selectedRecord?.finding_count ?? 0;
   const nextActions = useMemo(() => {
     if (!selectedRecord) return ["Start a scoped scan", "Review tool readiness", "Configure local LLM if desired"];
@@ -212,7 +239,7 @@ export function Dashboard() {
           <p>{selectedRecord ? `${selectedRecord.name || "Untitled engagement"} · ${selectedRecord.workload_mode ?? "dynamic"} workload · ${selectedRecord.target_count} target${selectedRecord.target_count === 1 ? "" : "s"}` : "Start scoped scans, monitor findings, and review attack paths."}</p>
         </div>
         <div className="action-row">
-          <Link className="primary link-button" to="/scan"><TerminalSquare size={16} />New Scan</Link>
+          <Link className="primary link-button" to="/scan"><TerminalSquare size={16} />Quick Scan</Link>
           {selected ? (
             <>
               {status === "running" ? <button className="secondary" onClick={() => pauseMutation.mutate()}><Pause size={16} />Pause</button> : null}
@@ -224,14 +251,28 @@ export function Dashboard() {
         </div>
       </header>
       <div className="command-layout">
-        <section className="new-scan-card">
+        <section className="last-scan-card">
           <div>
-            <h2>{selectedRecord ? "Selected Outcome" : "Start a Scoped Run"}</h2>
-            <p>{selectedRecord ? `${selectedRecord.status} · ${selectedRecord.target_input || selectedRecord.source_path || "Selected session"}` : "Build a dynamic, static, or combined scan with explicit scope boundaries and optional local LLM analysis."}</p>
+            <span className="card-kicker">Last Completed Scan</span>
+            <h2>{lastCompletedSession ? lastCompletedSession.name || lastCompletedSession.target_input || lastCompletedSession.source_path || "Untitled engagement" : "No Completed Scan Yet"}</h2>
+            <p>{lastCompletedSession ? `${formatTimestamp(lastCompletedSession.completed_at ?? lastCompletedSession.started_at ?? lastCompletedSession.created_at)} · ${lastCompletedSession.workload_mode ?? "dynamic"} workload` : "Start a scoped run to populate the dashboard with completed scan history."}</p>
           </div>
-          <div className="finding-count-display">{activeFindingCount}</div>
-          <p>{activeFindingCount > 0 ? "findings need triage before this engagement is clean" : "no findings recorded for the selected engagement"}</p>
-          <Link className="primary link-button" to={activeFindingCount > 0 && selected ? `/sessions/${selected}/findings` : "/scan"}><Radar size={16} />{activeFindingCount > 0 ? "Open Triage" : "New Scan"}</Link>
+          <div className="last-scan-summary">
+            <div className="finding-count-display">{lastCompletedStatsQuery.data?.finding_count ?? lastCompletedSession?.finding_count ?? 0}</div>
+            <div className="severity-stack" aria-label="Last completed scan severity counts">
+              {severityOrder.map((severity) => (
+                <span key={severity} className={`severity-count ${severity}`}>{severity}<strong>{lastCompletedStatsQuery.data?.severity_counts?.[severity] ?? 0}</strong></span>
+              ))}
+            </div>
+          </div>
+          <div className="monitor-delta-line">
+            <span>{(monitorConfigsQuery.data ?? []).filter((config) => config.enabled).length} active monitor{(monitorConfigsQuery.data ?? []).filter((config) => config.enabled).length === 1 ? "" : "s"}</span>
+            <strong>{latestMonitorRun ? `${newMonitorFindings} new finding${newMonitorFindings === 1 ? "" : "s"} in latest monitor run` : "No monitor baseline yet"}</strong>
+          </div>
+          <div className="action-row">
+            <Link className="primary link-button" to="/scan"><Radar size={16} />Quick Scan</Link>
+            {lastCompletedSession ? <Link className="secondary link-button" to={`/sessions/${lastCompletedSession.id}/findings`}>Review Last Findings</Link> : null}
+          </div>
         </section>
         <section className="panel">
           <h2>Next Actions</h2>
@@ -343,31 +384,17 @@ export function Dashboard() {
         </section>
       </div>
       <section className="panel event-panel">
-        <h2>Live Progress</h2>
-        <div className="progress-tracks phase-chip-row">
-          {progressTracks.map((track) => <span key={track.phase} className={`track ${track.state}`}>{statusIcon(track.state)}{phaseLabels[track.phase] ?? track.phase.replace("_", " ")}</span>)}
+        <div className="panel-heading-row">
+          <div>
+            <h2>{isActiveScan ? "Live Phase Progress" : "Latest Phase Progress"}</h2>
+            <p className="profile-description">Phase state is primary. Tool-level rows and terminal output are available below for debugging.</p>
+          </div>
+          <span className={`status ${status || "pending"}`}>{status || "no session"}</span>
+        </div>
+        <div className="phase-progress-grid">
+          {progressTracks.map((track) => <PhaseProgressCard key={track.phase} track={track} />)}
         </div>
         <div className="live-progress-grid">
-          <div className="pipeline">
-            {pipeline.map(([phase, tools]) => (
-              <div className="pipeline-phase" key={phase}>
-                <div className="pipeline-phase-label">{phaseLabels[phase] ?? phase}</div>
-                <div className="pipeline-tools">
-                  {tools.map((tool) => (
-                    <article className={`tool-progress-row ${tool.state}`} key={tool.id}>
-                      <span className="tool-progress-icon">{statusIcon(tool.state)}</span>
-                      <div>
-                        <strong>{tool.id}</strong>
-                        <small>{tool.name}</small>
-                      </div>
-                      <span className="tool-progress-meta">{tool.count} finding{tool.count === 1 ? "" : "s"}{tool.duration ? ` · ${formatDuration(tool.duration)}` : ""}</span>
-                    </article>
-                  ))}
-                </div>
-              </div>
-            ))}
-            {pipeline.length === 0 ? <div className="empty-line">No tool pipeline is available for the selected session.</div> : null}
-          </div>
           <div className="recent-events">
             <h3>Recent Events</h3>
             <div className="event-list">
@@ -381,12 +408,35 @@ export function Dashboard() {
               {highLevelEvents.length === 0 ? <div className="empty-line">No live events for the selected session.</div> : null}
             </div>
           </div>
+          <details className="debug-disclosure">
+            <summary>Tool pipeline details</summary>
+            <div className="pipeline">
+              {pipeline.map(([phase, tools]) => (
+                <div className="pipeline-phase" key={phase}>
+                  <div className="pipeline-phase-label">{phaseLabels[phase] ?? phase}</div>
+                  <div className="pipeline-tools">
+                    {tools.map((tool) => (
+                      <article className={`tool-progress-row ${tool.state}`} key={tool.id}>
+                        <span className="tool-progress-icon">{statusIcon(tool.state)}</span>
+                        <div>
+                          <strong>{tool.id}</strong>
+                          <small>{tool.name}</small>
+                        </div>
+                        <span className="tool-progress-meta">{tool.count} finding{tool.count === 1 ? "" : "s"}{tool.duration ? ` · ${formatDuration(tool.duration)}` : ""}</span>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {pipeline.length === 0 ? <div className="empty-line">No tool pipeline is available for the selected session.</div> : null}
+            </div>
+          </details>
         </div>
       </section>
-      <section className="panel terminal-feed">
-        <h2>Live Terminal Feed</h2>
+      <details className="panel terminal-feed debug-disclosure" open={isActiveScan || undefined}>
+        <summary>Live Terminal Feed</summary>
         <pre>{terminalLines.length > 0 ? terminalLines.join("\n") : "No terminal output for the selected session yet."}</pre>
-      </section>
+      </details>
     </section>
   );
 }
@@ -519,11 +569,34 @@ function eventTone(event: ScanEvent) {
   return "running";
 }
 
+function PhaseProgressCard({ track }: { track: { phase: string; state: string } }) {
+  const stateLabel = track.state === "completed" || track.state === "done"
+    ? "done"
+    : track.state === "failed" || track.state === "error"
+      ? "failed"
+      : track.state === "running"
+        ? "running"
+        : "queued";
+  return (
+    <article className={`phase-progress-card ${stateLabel}`}>
+      <span className="phase-progress-icon">{statusIcon(track.state)}</span>
+      <div>
+        <strong>{phaseLabels[track.phase] ?? track.phase.replace("_", " ")}</strong>
+        <small>{stateLabel}</small>
+      </div>
+    </article>
+  );
+}
+
 function statusIcon(state: string) {
   if (state === "completed" || state === "done") return <CheckCircle2 size={14} />;
   if (state === "running") return <Loader2 className="spin-icon" size={14} />;
   if (state === "error" || state === "failed") return <XCircle size={14} />;
   return <Clock size={14} />;
+}
+
+function formatTimestamp(value: string) {
+  return new Date(value).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
 function formatDuration(durationMS: number) {

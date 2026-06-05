@@ -26,6 +26,20 @@ const runtimeHelp: Record<string, string> = {
   rateLimit: "Operator label persisted with the run; adapters can use it as a policy hint.",
 };
 
+const activeValidatorTools = new Set([
+  "reflected-xss-check",
+  "sqli-check",
+  "open-redirect-check",
+  "upload-check",
+  "idor-check",
+  "weak-session-check",
+  "xxe-fuzz",
+  "sqlmap",
+  "dalfox",
+  "nuclei-vuln",
+  "nikto",
+]);
+
 export function ScanBuilder() {
   const queryClient = useQueryClient();
   const { setSelectedSessionID } = useSessionContext();
@@ -65,15 +79,22 @@ export function ScanBuilder() {
   const selectedToolRecords = useMemo(() => tools.filter((tool) => selectedTools.includes(tool.id)), [selectedTools, tools]);
   const toolByID = useMemo(() => new Map(tools.map((tool) => [tool.id, tool])), [tools]);
   const installedSelectedTools = selectedToolRecords.filter((tool) => tool.installed);
+  const missingSelectedTools = selectedTools.filter((toolID) => toolByID.get(toolID)?.installed === false || !toolByID.has(toolID));
+  const builtinSelectedTools = selectedToolRecords.filter((tool) => tool.installed && tool.kind === "builtin_http");
+  const optionalInstalledSelectedTools = selectedToolRecords.filter((tool) => tool.installed && tool.kind !== "builtin_http");
   const selectedEnabledPhaseCount = selectedPhases.length;
   const parsedTargets = useMemo(() => splitTargets(targets), [targets]);
+  const routeSeedList = useMemo(() => splitLines(routeSeeds), [routeSeeds]);
+  const authProfileValidation = useMemo(() => validateAuthProfile(authProfile, parsedTargets[0]), [authProfile, parsedTargets]);
+  const selectedActiveValidators = useMemo(() => selectedTools.filter((toolID) => activeValidatorTools.has(toolID)), [selectedTools]);
   const hasSource = sourcePath.trim() !== "";
   const hasTargets = targets.trim() !== "";
   const workloadMode = hasTargets && hasSource ? "combined" : hasSource ? "static" : "dynamic";
   const targetError = !hasTargets && !hasSource ? "Add at least one target or source repository." : hasTargets && parsedTargets.length === 0 ? "Enter valid http:// or https:// targets, separated by commas or new lines." : "";
   const phaseError = hasTargets && selectedEnabledPhaseCount === 0 ? "Select at least one scan phase." : "";
   const toolError = hasTargets && selectedTools.length === 0 ? "Select at least one tool." : hasTargets && installedSelectedTools.length === 0 ? "Select at least one installed or built-in tool." : "";
-  const canStartBase = !targetError && !phaseError && !toolError;
+  const authProfileError = authProfile.trim() && authProfileValidation.tone === "error" ? authProfileValidation.message : "";
+  const canStartBase = !targetError && !phaseError && !toolError && !authProfileError;
 
   const mutation = useMutation({
     mutationFn: startScan,
@@ -268,7 +289,7 @@ export function ScanBuilder() {
     { label: "Scope", value: targetError ? "Needs target or source" : `${parsedTargets.length} target${parsedTargets.length === 1 ? "" : "s"}${hasSource ? " + source" : ""}`, ready: !targetError },
     { label: "Profile", value: selectedProfile ? selectedProfile.name : "Custom settings", ready: true },
     { label: "Phases", value: `${selectedPhases.length} selected`, ready: !phaseError },
-    { label: "Tools", value: `${installedSelectedTools.length} runnable`, ready: !toolError },
+    { label: "Tools", value: `${installedSelectedTools.length} runnable${missingSelectedTools.length ? `, ${missingSelectedTools.length} missing` : ""}`, ready: !toolError && missingSelectedTools.length === 0 },
   ];
 
   return (
@@ -307,7 +328,7 @@ export function ScanBuilder() {
                 {profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
               </select>
             </label>
-            <button className="secondary" type="button" disabled={!selectedProfile} onClick={() => selectedProfile && applyProfile(selectedProfile)}>Apply</button>
+            <button className="secondary" type="button" disabled={!selectedProfile} onClick={() => selectedProfile && applyProfile(selectedProfile)}>Load Profile</button>
             <label>Save Current As
               <input value={profileName} onChange={(event) => setProfileName(event.target.value)} placeholder="Profile name" />
             </label>
@@ -341,6 +362,17 @@ export function ScanBuilder() {
             <HelpLabel className="span-2" label="Seed Routes" help="Optional in-scope paths or full URLs Nyx should include when validating seeded parameters such as search, id, redirect, or hash routes.">
               <textarea value={routeSeeds} onChange={(event) => setRouteSeeds(event.target.value)} rows={3} placeholder={"/admin\n/api/search?q=test\nhttps://example.com/profile?id=1"} />
             </HelpLabel>
+            <div className="span-2 seed-preview-panel">
+              <div>
+                <strong>{routeSeedList.length} route seed{routeSeedList.length === 1 ? "" : "s"}</strong>
+                <span>{routeSeedList.length > 0 ? "Previewing the first entries before launch." : "Add routes manually or paste file contents here."}</span>
+              </div>
+              {routeSeedList.length > 0 ? (
+                <ol>
+                  {routeSeedList.slice(0, 5).map((seed) => <li key={seed}><code>{seed}</code></li>)}
+                </ol>
+              ) : null}
+            </div>
             <HelpLabel label="Auth Headers" help="Static request headers for authenticated scans. Secrets are redacted before scan arguments are persisted.">
               <textarea value={authHeaders} onChange={(event) => setAuthHeaders(event.target.value)} rows={3} placeholder={"Authorization: Bearer ...\nX-Api-Key: ..."} />
             </HelpLabel>
@@ -350,6 +382,17 @@ export function ScanBuilder() {
             <HelpLabel className="span-2" label="Auth Profile JSON" help="Optional form or JSON login profile. Nyx can login, validate the post-login marker, and refresh auth context during long scans.">
               <textarea value={authProfile} onChange={(event) => setAuthProfile(event.target.value)} rows={5} placeholder={'{"type":"form","login_url":"/login","username":"user","password":"pass","csrf_field":"csrf","validation_url":"/account"}'} />
             </HelpLabel>
+            {authProfile.trim() ? (
+              <div className={`span-2 auth-validation-panel ${authProfileValidation.tone}`}>
+                <strong>{authProfileValidation.title}</strong>
+                <p>{authProfileValidation.message}</p>
+                {authProfileValidation.details.length > 0 ? (
+                  <ul>
+                    {authProfileValidation.details.map((detail) => <li key={detail}>{detail}</li>)}
+                  </ul>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </section>
         <details className="panel builder-runtime advanced-section" id="advanced">
@@ -425,7 +468,7 @@ export function ScanBuilder() {
               <article key={phase.id} className={!selectedPhases.includes(phase.id) ? "disabled-tool-phase" : ""}>
                 <h3>{phase.label}</h3>
                 {tools.filter((tool) => tool.phase === phase.id).map((tool) => (
-                  <div key={tool.id} className={`tool-check ${tool.installed ? tool.kind : "missing"} ${selectedTools.includes(tool.id) ? "selected" : ""}`}>
+                  <div key={tool.id} className={`tool-check ${toolAvailabilityClass(tool)} ${selectedTools.includes(tool.id) ? "selected" : ""}`}>
                     <label>
                       <input type="checkbox" disabled={!selectedPhases.includes(phase.id) || !tool.installed} checked={selectedTools.includes(tool.id)} onChange={() => toggleTool(tool)} />
                       {tool.installed ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
@@ -447,12 +490,19 @@ export function ScanBuilder() {
           <p className="profile-description">Selecting a tool automatically selects required dependency tools when available.</p>
         </section>
         <section className="panel span-2 action-panel launch-panel builder-launch" id="launch">
-          <div className="launch-summary">
-            <span className={`origin-badge ${workloadMode === "combined" ? "both" : workloadMode === "static" ? "static" : "dynamic"}`}>{workloadMode}</span>
-            <span>{parsedTargets.length} target{parsedTargets.length === 1 ? "" : "s"}</span>
-            <span>{selectedTools.length} tool{selectedTools.length === 1 ? "" : "s"}</span>
-            <span>{selectedPhases.length} phase{selectedPhases.length === 1 ? "" : "s"}</span>
-            {targetError || phaseError || toolError ? <strong>{targetError || phaseError || toolError}</strong> : <strong>Ready to launch with scope validation.</strong>}
+          <div className="launch-review">
+            <div className="launch-review-heading">
+              <span className={`origin-badge ${workloadMode === "combined" ? "both" : workloadMode === "static" ? "static" : "dynamic"}`}>{workloadMode}</span>
+              <strong>{targetError || phaseError || toolError || authProfileError || (missingSelectedTools.length ? `${missingSelectedTools.length} selected tool${missingSelectedTools.length === 1 ? " is" : "s are"} not installed.` : "Ready to launch with scope validation.")}</strong>
+            </div>
+            <dl className="launch-review-list">
+              <div><dt>Scope</dt><dd>{launchScopeText(parsedTargets, sourcePath)}</dd></div>
+              <div><dt>Authentication</dt><dd>{launchAuthText(authHeaders, authCookie, authProfileValidation)}</dd></div>
+              <div><dt>Routes</dt><dd>{routeSeedList.length ? `${routeSeedList.length} seeded route${routeSeedList.length === 1 ? "" : "s"}; first seed is ${routeSeedList[0]}.` : "No route seeds provided."}</dd></div>
+              <div><dt>Phases</dt><dd>{selectedPhases.length ? `${selectedPhases.length} phase${selectedPhases.length === 1 ? "" : "s"}: ${selectedPhases.map((phase) => phases.find((item) => item.id === phase)?.label ?? phase).join(", ")}.` : "No dynamic phases selected."}</dd></div>
+              <div><dt>Tools</dt><dd>{`${installedSelectedTools.length} runnable tool${installedSelectedTools.length === 1 ? "" : "s"} selected: ${builtinSelectedTools.length} built-in, ${optionalInstalledSelectedTools.length} installed optional${missingSelectedTools.length ? `, ${missingSelectedTools.length} missing (${missingSelectedTools.join(", ")})` : ""}.`}</dd></div>
+              <div><dt>Active validation</dt><dd>{selectedActiveValidators.length ? `Active validators are enabled: ${selectedActiveValidators.join(", ")}.` : "No high-activity validators selected."}</dd></div>
+            </dl>
           </div>
           {mutation.error ? <p className="error-text">{mutation.error.message}</p> : null}
           <button className="primary" type="submit" disabled={!canStart}><Play size={16} />{mutation.isPending ? "Starting" : "Start Scan"}</button>
@@ -581,9 +631,19 @@ function toolStatus(tool: ToolRecord) {
     return "not installed";
   }
   if (tool.kind === "builtin_http") {
-    return "built-in";
+    return "installed and available";
   }
-  return "installed";
+  return "installed optional tool";
+}
+
+function toolAvailabilityClass(tool: ToolRecord) {
+  if (!tool.installed) {
+    return "missing";
+  }
+  if (tool.kind === "builtin_http") {
+    return "available";
+  }
+  return "optional-installed";
 }
 
 function Required() {
@@ -632,4 +692,126 @@ function parseJSONMap(value: string) {
 
 function formatJSONMap(value?: Record<string, unknown>) {
   return value ? JSON.stringify(value, null, 2) : "";
+}
+
+type AuthValidation = {
+  title: string;
+  message: string;
+  tone: "ready" | "warning" | "error";
+  details: string[];
+  method: string;
+};
+
+function validateAuthProfile(value: string, firstTarget: string): AuthValidation {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return { title: "No auth profile", message: "No login flow will run before scan adapters.", tone: "warning", details: [], method: "No login profile" };
+  }
+  let parsed: Record<string, unknown>;
+  try {
+    const candidate = JSON.parse(trimmed) as unknown;
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+      return { title: "Auth profile is not an object", message: "Use a JSON object for form or JSON login settings.", tone: "error", details: [], method: "Invalid login profile" };
+    }
+    parsed = candidate as Record<string, unknown>;
+  } catch {
+    return { title: "Auth profile JSON is invalid", message: "Fix the JSON before launch so the scanner can parse the login flow.", tone: "error", details: [], method: "Invalid login profile" };
+  }
+
+  const details: string[] = [];
+  const type = stringValue(parsed.type) || "form";
+  const loginURL = stringValue(parsed.login_url) || stringValue(parsed.url);
+  const validationURL = stringValue(parsed.validation_url);
+  const csrfField = stringValue(parsed.csrf_field);
+  const username = stringValue(parsed.username);
+  const password = stringValue(parsed.password);
+  const loginStatus = validateProfileURL(loginURL, firstTarget, "Login URL");
+  const validationStatus = validationURL ? validateProfileURL(validationURL, firstTarget, "Validation URL") : null;
+
+  if (!loginURL) {
+    details.push("Login URL is required for form or JSON login.");
+  } else {
+    details.push(loginStatus.message);
+  }
+  if (validationStatus) {
+    details.push(validationStatus.message);
+  } else {
+    details.push("No validation URL is set, so Nyx cannot re-check whether login stayed valid.");
+  }
+  if (!username) {
+    details.push("Username is not set.");
+  }
+  if (!password) {
+    details.push("Password is not set.");
+  }
+  if (csrfField) {
+    details.push(`CSRF field "${csrfField}" will be fetched from the login form before adapters run.`);
+  } else if (type === "form") {
+    details.push("No CSRF field is set. This is fine only for forms that do not require one.");
+  }
+
+  if (!loginURL || !username || !password || loginStatus.tone === "error" || validationStatus?.tone === "error") {
+    return { title: "Auth profile needs attention", message: "Fix required login fields before launch.", tone: "error", details, method: `${type} login profile` };
+  }
+  const warning = !validationURL || type === "form" && !csrfField || loginStatus.tone === "warning" || validationStatus?.tone === "warning";
+  return {
+    title: warning ? "Auth profile has warnings" : "Auth profile is ready for server-side validation",
+    message: "Nyx will verify reachability, CSRF extraction, and validation URL from the scanner process before authenticated phases continue.",
+    tone: warning ? "warning" : "ready",
+    details,
+    method: `${type} login profile`,
+  };
+}
+
+function validateProfileURL(value: string, firstTarget: string, label: string) {
+  if (!value) {
+    return { tone: "error" as const, message: `${label} is missing.` };
+  }
+  if (value.startsWith("/")) {
+    return { tone: "ready" as const, message: `${label} is a relative path and will be resolved against each target.` };
+  }
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return { tone: "error" as const, message: `${label} must use http:// or https://.` };
+    }
+    if (firstTarget) {
+      const targetURL = new URL(firstTarget);
+      if (url.host !== targetURL.host) {
+        return { tone: "warning" as const, message: `${label} points to ${url.host}, which differs from the first target ${targetURL.host}.` };
+      }
+    }
+    return { tone: "ready" as const, message: `${label} is a valid absolute URL.` };
+  } catch {
+    return { tone: "error" as const, message: `${label} is not a valid URL or relative path.` };
+  }
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function launchScopeText(targets: string[], sourcePath: string) {
+  const source = sourcePath.trim();
+  if (targets.length > 0 && source) {
+    return `Scan ${targets.length} web target${targets.length === 1 ? "" : "s"} and audit source at ${source}.`;
+  }
+  if (targets.length > 0) {
+    return `Scan ${targets.length} web target${targets.length === 1 ? "" : "s"}: ${targets.slice(0, 3).join(", ")}${targets.length > 3 ? ", ..." : ""}.`;
+  }
+  if (source) {
+    return `Run static source audit for ${source}.`;
+  }
+  return "No target or source has been added.";
+}
+
+function launchAuthText(authHeaders: string, authCookie: string, authProfile: AuthValidation) {
+  const methods = [];
+  if (authHeaders.trim()) methods.push("static auth headers");
+  if (authCookie.trim()) methods.push("cookie header");
+  if (authProfile.method !== "No login profile" && !authProfile.method.startsWith("Invalid")) methods.push(authProfile.method);
+  if (methods.length === 0) {
+    return "No authentication is configured.";
+  }
+  return `Using ${methods.join(", ")}. ${authProfile.message}`;
 }

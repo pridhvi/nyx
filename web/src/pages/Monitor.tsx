@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Bell, Play, RefreshCw, Trash2 } from "lucide-react";
-import { createMonitorConfig, deleteMonitorConfig, listMonitorConfigs, listMonitorRunChanges, listMonitorRuns, runMonitorConfig, updateMonitorConfig, type MonitorConfig, type SurfaceChange } from "../api/client";
+import { AlertTriangle, Bell, GitCompareArrows, Play, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
+import { createMonitorConfig, deleteMonitorConfig, listMonitorConfigs, listMonitorRunChanges, listMonitorRuns, resetMonitorBaseline, runMonitorConfig, updateMonitorConfig, type MonitorConfig, type MonitorRun, type SurfaceChange } from "../api/client";
 
 const scheduleOptions = [
   { label: "Hourly", value: "@hourly" },
@@ -19,10 +19,11 @@ const phaseOptions = [
 
 const alertOptions = [
   { label: "New Finding", value: "new_finding" },
+  { label: "Severity Change", value: "finding_severity_changed" },
   { label: "New Host", value: "new_host" },
-  { label: "Removed Host", value: "removed_host" },
-  { label: "Technology Change", value: "technology_change" },
-  { label: "Finding Resolved", value: "finding_resolved" },
+  { label: "Removed Host", value: "resolved_host" },
+  { label: "Technology Change", value: "new_technology" },
+  { label: "Finding Resolved", value: "resolved_finding" },
 ];
 
 const defaultForm = {
@@ -52,6 +53,14 @@ export function Monitor() {
     queryFn: () => listMonitorRunChanges(selectedRun!.id),
     enabled: Boolean(selectedRun?.id),
   });
+  const recentCompletedRuns = useMemo(() => (runsQuery.data ?? []).filter((run) => run.status === "completed").slice(0, 8).reverse(), [runsQuery.data]);
+  const trendQueries = useQueries({
+    queries: recentCompletedRuns.map((run) => ({
+      queryKey: ["monitor-trend-changes", run.id],
+      queryFn: () => listMonitorRunChanges(run.id),
+      enabled: Boolean(run.id),
+    })),
+  });
   const createMutation = useMutation({
     mutationFn: () => createMonitorConfig(form),
     onSuccess: (config) => {
@@ -73,6 +82,13 @@ export function Monitor() {
     mutationFn: (config: MonitorConfig) => updateMonitorConfig(config.id, { ...config, enabled: !config.enabled }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["monitor-configs"] }),
   });
+  const baselineMutation = useMutation({
+    mutationFn: ({ configID, runID }: { configID: string; runID: string }) => resetMonitorBaseline(configID, runID),
+    onSuccess: (config) => {
+      setSelectedConfigID(config.id);
+      queryClient.invalidateQueries({ queryKey: ["monitor-configs"] });
+    },
+  });
   const deleteMutation = useMutation({
     mutationFn: deleteMonitorConfig,
     onSuccess: () => {
@@ -80,7 +96,9 @@ export function Monitor() {
       queryClient.invalidateQueries({ queryKey: ["monitor-configs"] });
     },
   });
-  const groupedChanges = useMemo(() => groupChanges(changesQuery.data ?? []), [changesQuery.data]);
+  const operationalSummary = useMemo(() => monitorOperationalSummary(selectedConfig, runsQuery.data ?? []), [runsQuery.data, selectedConfig]);
+  const changeGroups = useMemo(() => groupChangesByCategory(changesQuery.data ?? []), [changesQuery.data]);
+  const trendPoints = useMemo(() => severityTrend(recentCompletedRuns, trendQueries.map((query) => query.data ?? [])), [recentCompletedRuns, trendQueries]);
   const canCreateMonitor = Boolean(form.target_input.trim()) && form.enabled_phases.length > 0 && form.alert_on.length > 0 && !createMutation.isPending;
   const monitorBlocker = !form.target_input.trim()
     ? "Target is required."
@@ -103,6 +121,34 @@ export function Monitor() {
       </header>
 
       <div className="operator-grid">
+        <section className="panel monitor-ops-panel">
+          <div className="monitor-ops-banner">
+            <AlertTriangle size={18} />
+            <div>
+              <strong>Scheduler runs only while nyx serve is active.</strong>
+              <p>Keep the server process running for scheduled windows. Nyx queues one overdue catch-up run on startup, but downtime still means scheduled checks were missed.</p>
+            </div>
+          </div>
+          <div className="monitor-summary-grid">
+            <dl>
+              <dt>Last Successful Run</dt>
+              <dd>{operationalSummary.lastSuccessfulRun ? formatDateTime(operationalSummary.lastSuccessfulRun.completed_at ?? operationalSummary.lastSuccessfulRun.started_at) : "No successful run yet"}</dd>
+            </dl>
+            <dl className={operationalSummary.missedRuns > 0 ? "warning" : ""}>
+              <dt>Missed Scheduled Windows</dt>
+              <dd>{operationalSummary.missedRuns > 0 ? `${operationalSummary.missedRuns} likely missed while offline` : "None detected"}</dd>
+            </dl>
+            <dl>
+              <dt>Baseline</dt>
+              <dd>{selectedConfig?.baseline_session_id ? selectedConfig.baseline_session_id.slice(0, 8) : "First successful run becomes baseline"}</dd>
+            </dl>
+            <dl>
+              <dt>Severity Trend</dt>
+              <dd><SeveritySparkline points={trendPoints} /></dd>
+            </dl>
+          </div>
+        </section>
+
         <section className="scan-form monitor-form">
           <h2>New Monitor</h2>
           <form className="form-grid" onSubmit={(event) => { event.preventDefault(); createMutation.mutate(); }}>
@@ -179,6 +225,7 @@ export function Monitor() {
           {selectedConfig ? (
             <div className="action-row">
               <button className="primary" onClick={() => runMutation.mutate(selectedConfig.id)} disabled={runMutation.isPending}><Play size={16} />Run Now</button>
+              <button className="secondary" onClick={() => selectedRun && baselineMutation.mutate({ configID: selectedConfig.id, runID: selectedRun.id })} disabled={!selectedRun?.session_id || selectedRun.status !== "completed" || baselineMutation.isPending}><RotateCcw size={16} />Reset Baseline</button>
               <button className="secondary danger" onClick={() => window.confirm("Delete this monitor?") && deleteMutation.mutate(selectedConfig.id)}><Trash2 size={16} />Delete</button>
             </div>
           ) : null}
@@ -202,19 +249,26 @@ export function Monitor() {
         </section>
 
         <section className="panel">
-          <h2>Surface Changes</h2>
-          <div className="event-list">
-            {groupedChanges.map((change) => (
-              <article className="event-item" key={change.id}>
-                <span className={`severity ${change.severity}`}>{change.severity}</span>
-                <div>
-                  <strong>{change.description}</strong>
-                  <small>{change.previous_value ? `${change.previous_value} -> ` : ""}{change.current_value}</small>
+          <div className="panel-heading-row">
+            <div>
+              <h2>Surface Changes</h2>
+              <p>{selectedRun ? `Run ${selectedRun.id.slice(0, 8)}` : "Select a monitor run to inspect drift"}</p>
+            </div>
+            <GitCompareArrows size={18} />
+          </div>
+          <div className="surface-change-groups">
+            {changeGroups.map((group) => (
+              <section className="surface-change-group" key={group.id}>
+                <header>
+                  <strong>{group.title}</strong>
+                  <span>{group.changes.length}</span>
+                </header>
+                <div className="surface-change-list">
+                  {group.changes.map((change) => <SurfaceChangeCard change={change} key={change.id} />)}
                 </div>
-                <span className="event-type">{change.change_type.replace(/_/g, " ")}</span>
-              </article>
+              </section>
             ))}
-            {groupedChanges.length === 0 ? <p className="empty-line">No changes for the selected run</p> : null}
+            {changeGroups.length === 0 ? <p className="empty-line">No changes for the selected run</p> : null}
           </div>
         </section>
       </div>
@@ -226,9 +280,148 @@ export function toggleValue(values: string[], value: string) {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
 }
 
-function groupChanges(changes: SurfaceChange[]) {
+function SurfaceChangeCard({ change }: { change: SurfaceChange }) {
+  return (
+    <article className="surface-change-card">
+      <div className="surface-change-title">
+        <span className={`severity ${change.severity}`}>{change.severity}</span>
+        <strong>{change.description}</strong>
+      </div>
+      <div className="before-after-row">
+        <span>
+          <small>Before</small>
+          <code>{change.previous_value || "Not observed"}</code>
+        </span>
+        <span>
+          <small>After</small>
+          <code>{change.current_value || "Not observed"}</code>
+        </span>
+      </div>
+      <span className="event-type">{change.change_type.replace(/_/g, " ")}</span>
+    </article>
+  );
+}
+
+type TrendPoint = {
+  id: string;
+  label: string;
+  rank: number;
+};
+
+function SeveritySparkline({ points }: { points: TrendPoint[] }) {
+  if (points.length === 0) {
+    return <span className="sparkline-empty">No trend yet</span>;
+  }
+  const width = 160;
+  const height = 42;
+  const maxRank = 5;
+  const coordinates = points.map((point, index) => {
+    const x = points.length === 1 ? width / 2 : (index / (points.length - 1)) * width;
+    const y = height - (point.rank / maxRank) * (height - 8) - 4;
+    return { ...point, x, y };
+  });
+  const latestRank = points[points.length - 1]?.rank ?? 0;
+  return (
+    <span className="severity-sparkline" aria-label={`Severity trend ending at ${severityLabel(latestRank)}`}>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img">
+        <polyline points={coordinates.map((point) => `${point.x},${point.y}`).join(" ")} />
+        {coordinates.map((point) => <circle cx={point.x} cy={point.y} key={point.id} r="3" />)}
+      </svg>
+      <small>{severityLabel(latestRank)}</small>
+    </span>
+  );
+}
+
+export function groupChangesByCategory(changes: SurfaceChange[]) {
+  const categories = [
+    { id: "new_findings", title: "New Findings", match: (change: SurfaceChange) => change.change_type === "new_finding" },
+    { id: "resolved_findings", title: "Resolved Findings", match: (change: SurfaceChange) => change.change_type === "resolved_finding" },
+    { id: "severity_changes", title: "Severity Changes", match: (change: SurfaceChange) => change.change_type === "finding_severity_changed" || change.description.toLowerCase().includes("severity") },
+    { id: "new_technologies", title: "New Technologies", match: (change: SurfaceChange) => change.change_type === "new_technology" || change.change_type === "service_changed" },
+    { id: "disappeared_endpoints", title: "Disappeared Endpoints", match: (change: SurfaceChange) => change.change_type === "resolved_host" || change.change_type === "resolved_service" },
+    { id: "new_surface", title: "New Endpoints", match: (change: SurfaceChange) => change.change_type === "new_host" || change.change_type === "new_service" || change.change_type === "endpoint_changed" },
+    { id: "other", title: "Other Changes", match: () => true },
+  ];
+  const remaining = [...changes];
+  return categories.map((category) => {
+    const selected = remaining.filter(category.match);
+    for (const change of selected) {
+      const index = remaining.indexOf(change);
+      if (index >= 0) {
+        remaining.splice(index, 1);
+      }
+    }
+    return {
+      id: category.id,
+      title: category.title,
+      changes: selected.sort((a, b) => severityRank(b.severity) - severityRank(a.severity)),
+    };
+  }).filter((group) => group.changes.length > 0);
+}
+
+export function severityTrend(runs: MonitorRun[], changesByRun: SurfaceChange[][]): TrendPoint[] {
+  return runs.map((run, index) => {
+    const rank = Math.max(0, ...((changesByRun[index] ?? []).map((change) => severityRank(change.severity))));
+    return {
+      id: run.id,
+      label: formatShortDate(run.completed_at ?? run.started_at),
+      rank,
+    };
+  });
+}
+
+export function monitorOperationalSummary(config: MonitorConfig | undefined, runs: MonitorRun[]) {
+  const completedRuns = runs.filter((run) => run.status === "completed");
+  const lastSuccessfulRun = completedRuns[0];
+  return {
+    lastSuccessfulRun,
+    missedRuns: missedScheduledWindows(config, new Date()),
+  };
+}
+
+export function missedScheduledWindows(config: MonitorConfig | undefined, now: Date) {
+  if (!config?.enabled || !config.next_run_at) {
+    return 0;
+  }
+  const interval = scheduleIntervalMs(config.schedule);
+  if (interval === 0) {
+    return 0;
+  }
+  const nextRun = new Date(config.next_run_at);
+  const overdueMs = now.getTime() - nextRun.getTime();
+  if (!Number.isFinite(overdueMs) || overdueMs < 0) {
+    return 0;
+  }
+  return Math.floor(overdueMs / interval) + 1;
+}
+
+function scheduleIntervalMs(schedule: string) {
+  if (schedule === "@hourly") return 60 * 60 * 1000;
+  if (schedule === "@daily") return 24 * 60 * 60 * 1000;
+  if (schedule === "@weekly") return 7 * 24 * 60 * 60 * 1000;
+  return 0;
+}
+
+function severityRank(severity: string) {
   const rank: Record<string, number> = { critical: 5, high: 4, medium: 3, low: 2, info: 1 };
-  return [...changes].sort((a, b) => (rank[b.severity] ?? 0) - (rank[a.severity] ?? 0));
+  return rank[severity] ?? 0;
+}
+
+function severityLabel(rank: number) {
+  if (rank >= 5) return "critical";
+  if (rank >= 4) return "high";
+  if (rank >= 3) return "medium";
+  if (rank >= 2) return "low";
+  if (rank >= 1) return "info";
+  return "no changes";
+}
+
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString();
+}
+
+function formatShortDate(value: string) {
+  return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 function schedulePreview(schedule: string) {

@@ -44,6 +44,7 @@ func TestMigrationCreatesExpectedTables(t *testing.T) {
 		"poc_results",
 		"provider_statuses",
 		"power_callbacks",
+		"finding_triage_events",
 		"schema_migrations",
 	} {
 		var name string
@@ -52,7 +53,7 @@ func TestMigrationCreatesExpectedTables(t *testing.T) {
 			t.Fatalf("expected table %s: %v", table, err)
 		}
 	}
-	for _, version := range []string{"001_initial", "002_phase2_persistence", "003_operator_console", "004_tool_run_sidecars", "005_audit_source_mode", "006_power_features", "007_power_feature_depth", "008_plugin_integrity", "009_finding_status_enum"} {
+	for _, version := range []string{"001_initial", "002_phase2_persistence", "003_operator_console", "004_tool_run_sidecars", "005_audit_source_mode", "006_power_features", "007_power_feature_depth", "008_plugin_integrity", "009_finding_status_enum", "010_finding_triage_events"} {
 		var got string
 		if err := store.db.QueryRowContext(ctx, `SELECT version FROM schema_migrations WHERE version = ?`, version).Scan(&got); err != nil {
 			t.Fatalf("expected migration %s: %v", version, err)

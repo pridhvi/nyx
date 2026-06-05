@@ -63,11 +63,16 @@ func NextRun(schedule string, from time.Time) (time.Time, error) {
 func ValidateAlertTriggers(triggers []string) error {
 	allowed := map[string]bool{
 		string(models.SurfaceChangeNewHost):         true,
+		string(models.SurfaceChangeResolvedHost):    true,
 		string(models.SurfaceChangeNewService):      true,
+		string(models.SurfaceChangeResolvedService): true,
+		string(models.SurfaceChangeServiceChanged):  true,
 		string(models.SurfaceChangeNewTechnology):   true,
 		string(models.SurfaceChangeEndpointChanged): true,
 		string(models.SurfaceChangeNewFinding):      true,
-		"any":                                       true,
+		string(models.SurfaceChangeSeverityChanged): true,
+		string(models.SurfaceChangeResolvedFinding): true,
+		"any": true,
 	}
 	for _, trigger := range triggers {
 		trigger = strings.TrimSpace(trigger)

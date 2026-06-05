@@ -152,7 +152,7 @@ func TestGenerateMarkdownHTMLAndPDFReports(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, format := range []models.ReportFormat{models.ReportFormatMarkdown, models.ReportFormatHTML, models.ReportFormatPDF, models.ReportFormatSARIF} {
-		artifact, err := Generate(ctx, store, Options{Format: format, Mode: models.ReportModeTechnical})
+		artifact, err := Generate(ctx, store, Options{Format: format, Mode: models.ReportModeTechnical, IncludeSuppressed: true})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -185,5 +185,20 @@ func TestGenerateMarkdownHTMLAndPDFReports(t *testing.T) {
 				t.Fatalf("unexpected sarif body: %s", body)
 			}
 		}
+	}
+	artifact, err := Generate(ctx, store, Options{
+		Format:           models.ReportFormatMarkdown,
+		Mode:             models.ReportModeTechnical,
+		ExecutiveSummary: "Client narrative intro.",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(artifact.Content)
+	if !strings.Contains(body, "Client narrative intro.\n\nFull-session LLM narrative for the report.") {
+		t.Fatalf("expected custom executive summary to prepend generated summary, got %s", body)
+	}
+	if strings.Contains(body, "Suppressed and Dismissed Findings") || strings.Contains(body, "Suppressed finding") {
+		t.Fatalf("expected suppressed appendix to be excluded by option, got %s", body)
 	}
 }

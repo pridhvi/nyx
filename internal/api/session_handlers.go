@@ -146,7 +146,7 @@ func (s *Server) updateFinding(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	if err := store.UpdateFinding(r.Context(), findingID, req.Severity, req.Remediation, status); err != nil {
+	if err := store.UpdateFindingWithAudit(r.Context(), session.ID, findingID, req.Severity, req.Remediation, status, "operator"); err != nil {
 		writeDBError(w, err)
 		return
 	}
@@ -330,7 +330,21 @@ func (s *Server) generateReport(w http.ResponseWriter, r *http.Request) {
 	defer store.Close()
 	format := models.ReportFormat(firstNonEmpty(r.URL.Query().Get("format"), string(models.ReportFormatHTML)))
 	mode := models.ReportMode(firstNonEmpty(r.URL.Query().Get("mode"), string(models.ReportModeTechnical)))
-	artifact, err := report.Generate(r.Context(), store, report.Options{Format: format, Mode: mode})
+	includeSuppressed := true
+	if raw := strings.TrimSpace(r.URL.Query().Get("include_suppressed")); raw != "" {
+		parsed, err := strconv.ParseBool(raw)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, fmt.Errorf("include_suppressed must be true or false"))
+			return
+		}
+		includeSuppressed = parsed
+	}
+	executiveSummary := strings.TrimSpace(r.URL.Query().Get("executive_summary"))
+	if len(executiveSummary) > 4000 {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("executive_summary must be 4000 characters or fewer"))
+		return
+	}
+	artifact, err := report.Generate(r.Context(), store, report.Options{Format: format, Mode: mode, IncludeSuppressed: includeSuppressed, ExecutiveSummary: executiveSummary})
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err)
 		return

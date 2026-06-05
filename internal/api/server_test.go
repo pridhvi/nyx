@@ -24,6 +24,7 @@ import (
 	"github.com/pridhvi/nyx/internal/db"
 	"github.com/pridhvi/nyx/internal/engine"
 	"github.com/pridhvi/nyx/internal/models"
+	"github.com/pridhvi/nyx/internal/state"
 )
 
 func TestSPASecurityHeaders(t *testing.T) {
@@ -905,6 +906,52 @@ func TestMonitorConfigAPIRequiresConfiguredAPIKeyAndRedactsSecrets(t *testing.T)
 	handler.ServeHTTP(list, apiKeyRequest(http.MethodGet, "/api/monitor/configs", nil))
 	if list.Code != http.StatusOK || strings.Contains(list.Body.String(), "hooks.slack.test") {
 		t.Fatalf("expected redacted monitor list, status=%d body=%s", list.Code, list.Body.String())
+	}
+}
+
+func TestMonitorBaselineResetUsesCompletedRunSession(t *testing.T) {
+	ctx := t.Context()
+	sessionDir := t.TempDir()
+	handler := NewServer(Config{SessionDir: sessionDir, APIKey: "secret"}).Handler()
+	create := httptest.NewRecorder()
+	body := bytes.NewBufferString(`{"name":"fixture","target_input":"http://127.0.0.1:1","schedule":"@daily"}`)
+	handler.ServeHTTP(create, apiKeyRequest(http.MethodPost, "/api/monitor/configs", body))
+	if create.Code != http.StatusCreated {
+		t.Fatalf("create status=%d body=%s", create.Code, create.Body.String())
+	}
+	var config models.MonitorConfig
+	if err := json.NewDecoder(create.Body).Decode(&config); err != nil {
+		t.Fatal(err)
+	}
+	store, err := state.Open(ctx, state.DBPath(sessionDir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	completedAt := time.Now().UTC()
+	run := models.MonitorRun{
+		ID:           "run-1",
+		ConfigID:     config.ID,
+		SessionID:    "session-1",
+		Status:       models.MonitorRunStatusCompleted,
+		ChangesFound: true,
+		StartedAt:    completedAt.Add(-time.Minute),
+		CompletedAt:  &completedAt,
+	}
+	if err := store.InsertMonitorRun(ctx, run); err != nil {
+		t.Fatal(err)
+	}
+	reset := httptest.NewRecorder()
+	handler.ServeHTTP(reset, apiKeyRequest(http.MethodPost, "/api/monitor/configs/"+config.ID+"/baseline", bytes.NewBufferString(`{"run_id":"run-1"}`)))
+	if reset.Code != http.StatusOK {
+		t.Fatalf("reset status=%d body=%s", reset.Code, reset.Body.String())
+	}
+	var updated models.MonitorConfig
+	if err := json.NewDecoder(reset.Body).Decode(&updated); err != nil {
+		t.Fatal(err)
+	}
+	if updated.BaselineSessionID != "session-1" {
+		t.Fatalf("expected baseline to use completed run session, got %q", updated.BaselineSessionID)
 	}
 }
 

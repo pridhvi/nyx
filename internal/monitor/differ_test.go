@@ -40,6 +40,34 @@ func TestDifferDetectsNewAndResolvedFindings(t *testing.T) {
 	}
 }
 
+func TestDifferDetectsFindingSeverityChanges(t *testing.T) {
+	ctx := context.Background()
+	sessionDir := t.TempDir()
+	baseID := "base2000000000000000000000000000"
+	currentID := "curr2000000000000000000000000000"
+	baseTarget := target(baseID, "base-target", "example.test", 443, "https")
+	currentTarget := target(currentID, "current-target", "example.test", 443, "https")
+	if err := createSession(ctx, sessionDir, baseID, baseTarget, []models.Finding{finding(baseID, baseTarget.ID, "missing-csp", models.SeverityLow)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := createSession(ctx, sessionDir, currentID, currentTarget, []models.Finding{finding(currentID, currentTarget.ID, "missing-csp", models.SeverityHigh)}); err != nil {
+		t.Fatal(err)
+	}
+	changes, err := Differ{SessionDir: sessionDir}.DiffSessions(ctx, baseID, currentID, "run-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, change := range changes {
+		if change.ChangeType == models.SurfaceChangeSeverityChanged {
+			if change.PreviousValue != string(models.SeverityLow) || change.CurrentValue != string(models.SeverityHigh) || change.Severity != models.SeverityHigh {
+				t.Fatalf("unexpected severity change: %#v", change)
+			}
+			return
+		}
+	}
+	t.Fatalf("expected severity change, got %#v", changes)
+}
+
 func TestDifferDetectsNewHostAndTechnology(t *testing.T) {
 	ctx := context.Background()
 	sessionDir := t.TempDir()

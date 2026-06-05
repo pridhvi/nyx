@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAttackChains, connectedNodeIDs, layoutAttackChain, relationLabel, type AttackChain } from "./pages/AttackGraph";
+import { buildAttackChains, chainForFinding, connectedNodeIDs, layoutAttackChain, relationLabel, type AttackChain } from "./pages/AttackGraph";
 import type { AttackGraphEdge, AttackVector, Finding, ToolRecord } from "./api/client";
 import { filterFindingsByID, findingOrigin } from "./pages/Findings";
 
@@ -103,6 +103,13 @@ describe("attack path helpers", () => {
     expect(filterFindingsByID(findings, "f2").map((item) => item.id)).toEqual(["f2"]);
     expect(filterFindingsByID(findings, "")).toHaveLength(2);
     expect(findingOrigin({ ...findings[0], target_id: "" })).toBe("static");
+  });
+
+  it("finds chains that contain a finding node for graph deep links", () => {
+    const chain = chainFixture();
+
+    expect(chainForFinding([chain], "f2")?.id).toBe("v1");
+    expect(chainForFinding([chain], "missing")).toBeUndefined();
   });
 });
 

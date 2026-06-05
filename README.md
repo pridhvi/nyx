@@ -143,10 +143,11 @@ Use `--lean` when you want normalized findings but do not want to retain raw sid
 2. Log in with the configured API key.
 3. Open **Scan Builder** and enter one or more authorized targets.
 4. Optionally add a source repository path. The browser picker lists server-side directories from `NYX_SOURCE_ROOTS`, or from the server user's home and current working directory when no roots are configured.
-5. Select mode, phases, and tools from the default workflow; expand Advanced only when you need route seeds, auth, runtime limits, proxy behavior, or optional LLM settings.
-6. Start the scan and watch the session dashboard, lifecycle events, tool progress rows, and terminal feed.
-7. Review **Findings**, **Tool Runs**, **CVEs**, and **Reports**. Findings use validated triage statuses: `open`, `confirmed`, `false-positive`, `suppressed`, and `wont-fix`, with desktop split triage, keyboard-openable rows, arrow-key evidence tabs, copyable evidence, and a mobile drawer for evidence review. **Attack Paths** is currently an in-progress workspace.
-8. Export Markdown, HTML, SARIF, or PDF reports.
+5. Load a saved scan profile directly in Scan Builder when you want a preset, then review route seed counts/previews, auth-profile preflight feedback, and installed/missing tool states before launch.
+6. Select mode, phases, and tools from the default workflow; expand Advanced only when you need auth, runtime limits, proxy behavior, or optional LLM settings. The launch review summarizes targets, auth method, route seeds, phase count, enabled tools, missing tools, and active validators in plain English.
+7. Start the scan and watch the session dashboard, phase-level progress, lifecycle events, optional tool details, and collapsible terminal feed.
+8. Review **Findings**, **Attack Paths**, **Tool Runs**, **CVEs**, and **Reports**. Findings use validated triage statuses: `open`, `confirmed`, `false-positive`, `suppressed`, and `wont-fix`, with desktop split triage, composable severity/category/tool/source/status filters, unified source-finding badges, visible suppressed rows, bulk suppress/review/export actions, prominent severity/status editing with audit events, cross-confirmation evidence above the tabs, attack-chain usage links back to the graph, keyboard-openable rows, arrow-key evidence tabs, copyable evidence, and a mobile drawer for evidence review. **Attack Paths** uses React Flow plus dagre layout, opens finding nodes in an in-page detail panel, and deep-links to Findings without losing the selected chain context. **CVEs** shows sortable/filterable source, CVSS severity, affected package, fixed version, and exploitability rows with copy buttons for CVE IDs and CVSS vectors.
+9. Export Markdown, HTML, SARIF, or PDF reports.
 
 The UI is backed by the same local session database used by the CLI. You can run a scan from the CLI, then inspect that session in the browser.
 
@@ -219,7 +220,7 @@ When `validation_url` is present, Nyx re-validates and can re-login during longe
 
 ## Reports And Evidence
 
-Nyx normalizes all tool output into shared target, finding, evidence, technology, CVE, and attack-vector models. Reports can include dynamic findings, source findings, cross-confirmation, tool coverage, dependency CVEs, suppressed findings, and LLM-generated narrative when available.
+Nyx normalizes all tool output into shared target, finding, evidence, technology, CVE, and attack-vector models. The Report Composer previews HTML and Markdown in the browser, explains that SARIF is for CI/CD and code-scanning import rather than human reading, shows the included findings order, supports a custom executive-summary intro, and can include or exclude the suppressed/dismissed findings appendix. Reports can include dynamic findings, source findings, cross-confirmation, tool coverage, dependency CVEs, suppressed findings, and LLM-generated narrative when available.
 
 Supported report formats:
 
@@ -281,7 +282,7 @@ CLI examples:
 ./bin/nyx llm chat <session-id>
 ```
 
-LLM output can summarize, explain, and suggest safe follow-up checks. Deterministic findings, scope checks, CVE matches, and attack-vector rules remain authoritative.
+LLM output can summarize, explain, and suggest safe follow-up checks. The Analyst UI keeps persisted audit history, supports fresh working contexts with a context-usage summary, shows what stored data each tool call fetched, adapts suggested prompts to the current triage context, and can pin assistant responses as report-composer candidates. Deterministic findings, scope checks, CVE matches, and attack-vector rules remain authoritative.
 
 Treat model suggestions as advisory. Active validation of secrets, credentials, or exploitability should only happen when explicitly authorized and intentionally requested by the operator.
 
@@ -303,11 +304,13 @@ Monitor configs, runs, and surface changes are stored in the global state databa
 ./bin/nyx monitor changes <config-id>
 ```
 
-The UI exposes monitor configs, manual runs, run history, and surface-change review.
+The UI exposes monitor configs, manual runs, run history, and surface-change review. It also calls out the scheduler limitation directly, shows the last successful run, estimates likely missed scheduled windows when `next_run_at` is overdue, charts recent max-severity drift, groups changes into new findings, resolved findings, severity changes, new technologies, and disappeared endpoints, and provides a baseline reset action for completed runs.
 
 ## Supported Tools
 
 All external tools are optional. Missing tools are recorded as tool runs and the scan continues with available adapters.
+
+The Tools UI defaults to a compact inventory table for scanning large tool sets by name, phase, version, status, and path. A card/detail mode remains available for install hints, dependencies, descriptions, and troubleshooting context for a selected tool.
 
 | Phase | Built-in and optional adapters |
 | --- | --- |
@@ -392,7 +395,9 @@ Important environment variables:
 | `NYX_LOG_LEVEL` | `debug`, `info`, `warn`, or `error` |
 | `NYX_LOG_FORMAT` | `text` or `json` |
 
-Power-feature modules are explicit and safe by default. Provider tokens and active validation settings are configured separately and redacted from effective config, logs, API output, and UI surfaces.
+System Health includes a sanitized effective-config copy action for debugging and support handoff. Copied output preserves readiness/configured indicators while redacting secret-shaped values before they leave the UI.
+
+Power-feature modules are explicit and safe by default. Provider tokens and active validation settings are configured separately and redacted from effective config, logs, API output, and UI surfaces. The Power Features workspace groups operator actions into payload, credential, OSINT, AD/BloodHound, PoC, Burp, and request-behavior sections, shows provider readiness for GitHub, Shodan, and SecurityTrails, and requires a readable active-action review before credential checks, PoC marker requests, AD requests, payload validation, or Burp sync actions. Stored credential material is displayed with the consistent `[REDACTED]` pattern, and block/evasion events can be filtered by type and time range.
 
 Active credential checks never fall back to built-in default username/password lists. Nyx records placeholder candidates for operator review in correlate mode, but confirmed HTTP login attempts require explicit usernames and passwords supplied by the operator.
 

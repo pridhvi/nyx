@@ -287,6 +287,25 @@ WHERE id = ?`,
 	return err
 }
 
+func (s *Store) SetMonitorBaseline(ctx context.Context, id, baselineSessionID string) error {
+	result, err := s.db.ExecContext(ctx, `
+UPDATE monitor_configs
+SET baseline_session_id = ?, updated_at = ?
+WHERE id = ?`,
+		baselineSessionID, formatTime(time.Now().UTC()), id)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return db.ErrNotFound
+	}
+	return nil
+}
+
 func (s *Store) InsertMonitorRun(ctx context.Context, run models.MonitorRun) error {
 	_, err := s.db.ExecContext(ctx, `
 INSERT INTO monitor_runs (id, config_id, session_id, status, changes_found, error, started_at, completed_at)

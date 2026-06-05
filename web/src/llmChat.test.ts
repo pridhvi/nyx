@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chatMessages, splitReasoningContent, toolCallLabel, visibleChatMessages } from "./pages/LLMChat";
+import { chatMessages, contextUsageSummary, splitReasoningContent, suggestedPrompts, toolCallLabel, toolCallSummary, visibleChatMessages } from "./pages/LLMChat";
 import type { LLMAnalysis } from "./api/client";
 
 describe("LLM chat helpers", () => {
@@ -10,7 +10,7 @@ describe("LLM chat helpers", () => {
       model_id: "local-model",
       prompt_summary: "summary",
       total_tokens: 10,
-      created_at: "",
+      created_at: "2026-06-05T12:00:00Z",
       messages: [
         { role: "system", content: "system prompt" },
         { role: "user", content: "Session context JSON:\n{\"internal\":true}" },
@@ -53,7 +53,28 @@ describe("LLM chat helpers", () => {
 
   it("uses friendly labels for persisted analyst context calls", () => {
     expect(toolCallLabel("list_findings")).toBe("Analysis context: Findings");
+    expect(toolCallLabel("get_session_findings")).toBe("Analysis context: Findings");
     expect(toolCallLabel("list_tool_runs")).toBe("Analysis context: Tool runs");
     expect(toolCallLabel("custom_context_probe")).toBe("Custom Context Probe");
+  });
+
+  it("summarizes tool-call payloads for operator trust", () => {
+    expect(toolCallSummary("get_session_findings", JSON.stringify([{ id: "finding-1" }, { id: "finding-2" }]), "abcdef123456")).toBe("Fetched 2 findings from session abcdef12.");
+    expect(toolCallSummary("lookup_cve", JSON.stringify({ cve_id: "CVE-2026-12345" }), "abcdef123456")).toBe("Fetched CVE-2026-12345 details from session abcdef12.");
+    expect(toolCallSummary("request_scan", JSON.stringify({ accepted: false, target: "https://out.example" }), "abcdef123456")).toBe("Denied follow-up scan request for https://out.example.");
+  });
+
+  it("estimates active context usage after a reset point", () => {
+    const analyses: LLMAnalysis[] = [
+      { id: "old", session_id: "s", model_id: "m", prompt_summary: "old", messages: [], total_tokens: 1000, created_at: "2026-06-05T10:00:00Z" },
+      { id: "new", session_id: "s", model_id: "m", prompt_summary: "new", messages: [], total_tokens: 16384, created_at: "2026-06-05T12:00:00Z" },
+    ];
+    expect(contextUsageSummary(analyses, "2026-06-05T11:00:00Z")).toEqual({ tokens: 16384, percent: 50 });
+  });
+
+  it("returns context-aware prompt sets", () => {
+    expect(suggestedPrompts({ activeMessages: 0, currentFindingID: "finding-1", pinnedCount: 0, sessionStatus: "completed" })[0].label).toBe("Finding brief");
+    expect(suggestedPrompts({ activeMessages: 0, currentFindingID: "", pinnedCount: 2, sessionStatus: "completed" })[0].label).toBe("Report synthesis");
+    expect(suggestedPrompts({ activeMessages: 0, currentFindingID: "", pinnedCount: 0, sessionStatus: "completed" })[0].label).toBe("Post-scan brief");
   });
 });

@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"path/filepath"
@@ -55,6 +56,10 @@ type monitorConfigRequest struct {
 	NotificationConfig models.MonitorNotificationConfig `json:"notification_config"`
 	BaselineSessionID  string                           `json:"baseline_session_id"`
 	Enabled            *bool                            `json:"enabled"`
+}
+
+type monitorBaselineRequest struct {
+	RunID string `json:"run_id"`
 }
 
 func (s *Server) listMonitorConfigs(w http.ResponseWriter, r *http.Request) {
@@ -213,6 +218,53 @@ func (s *Server) runMonitorConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	s.reloadMonitorScheduler(r.Context())
 	writeJSONStatus(w, http.StatusAccepted, map[string]any{"run": run, "changes": changes})
+}
+
+func (s *Server) resetMonitorBaseline(w http.ResponseWriter, r *http.Request) {
+	if !s.requireConfiguredAPIKey(w, "monitor baseline reset requires API key authentication") {
+		return
+	}
+	var req monitorBaselineRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	req.RunID = strings.TrimSpace(req.RunID)
+	if req.RunID == "" {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("run_id is required"))
+		return
+	}
+	store, err := s.openState(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	defer store.Close()
+	configID := r.PathValue("config_id")
+	run, err := store.GetMonitorRun(r.Context(), req.RunID)
+	if err != nil {
+		writeDBError(w, err)
+		return
+	}
+	if run.ConfigID != configID {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("run_id does not belong to this monitor"))
+		return
+	}
+	if run.Status != models.MonitorRunStatusCompleted || strings.TrimSpace(run.SessionID) == "" {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("baseline run must be completed and have a session"))
+		return
+	}
+	if err := store.SetMonitorBaseline(r.Context(), configID, run.SessionID); err != nil {
+		writeDBError(w, err)
+		return
+	}
+	config, err := store.GetMonitorConfig(r.Context(), configID)
+	if err != nil {
+		writeDBError(w, err)
+		return
+	}
+	s.reloadMonitorScheduler(r.Context())
+	writeJSON(w, config.Redacted())
 }
 
 func (s *Server) listMonitorRuns(w http.ResponseWriter, r *http.Request) {

@@ -16,7 +16,7 @@ import "@xyflow/react/dist/style.css";
 import dagre from "dagre";
 import { Graph } from "@dagrejs/graphlib";
 import { X } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   listAttackGraphEdges,
   listFindings,
@@ -96,6 +96,9 @@ export function AttackGraph() {
   const [selectedNodeID, setSelectedNodeID] = useState("");
   const [hoveredNodeID, setHoveredNodeID] = useState("");
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedChainID = searchParams.get("chain_id")?.trim() ?? "";
+  const requestedFindingID = searchParams.get("finding_id")?.trim() ?? "";
 
   const vectorsQuery = useQuery({
     queryKey: ["attack-vectors", selectedSessionID],
@@ -131,11 +134,14 @@ export function AttackGraph() {
       setSelectedNodeID("");
       return;
     }
-    if (!chains.some((chain) => chain.id === activeChainID)) {
-      setActiveChainID(chains[0].id);
+    const requestedChain = requestedChainID ? chains.find((chain) => chain.id === requestedChainID) : undefined;
+    const findingChain = requestedFindingID ? chainForFinding(chains, requestedFindingID) : undefined;
+    const nextChain = requestedChain ?? findingChain ?? (chains.some((chain) => chain.id === activeChainID) ? undefined : chains[0]);
+    if (nextChain) {
+      setActiveChainID(nextChain.id);
       setSelectedNodeID("");
     }
-  }, [activeChainID, chains]);
+  }, [activeChainID, chains, requestedChainID, requestedFindingID]);
 
   const activeChain = chains.find((chain) => chain.id === activeChainID) ?? chains[0];
   const activeNodeID = selectedNodeID || hoveredNodeID;
@@ -147,12 +153,41 @@ export function AttackGraph() {
     setActiveChainID(chainID);
     setSelectedNodeID("");
     setHoveredNodeID("");
-  }, []);
+    setSearchParams({ chain_id: chainID });
+  }, [setSearchParams]);
+
+  useEffect(() => {
+    if (!activeChain || !requestedFindingID) return;
+    const requestedNode = activeChain.nodes.find((node) => node.finding?.id === requestedFindingID);
+    if (requestedNode && requestedNode.id !== selectedNodeID) {
+      setSelectedNodeID(requestedNode.id);
+    }
+  }, [activeChain, requestedFindingID, selectedNodeID]);
+
+  const selectNode = useCallback((nodeID: string) => {
+    setSelectedNodeID(nodeID);
+    const findingID = activeChain?.nodes.find((node) => node.id === nodeID)?.finding?.id;
+    const params: Record<string, string> = { chain_id: activeChain?.id ?? "" };
+    if (findingID) params.finding_id = findingID;
+    setSearchParams(cleanParams(params));
+  }, [activeChain, setSearchParams]);
+
+  const clearNodeSelection = useCallback(() => {
+    setSelectedNodeID("");
+    if (activeChain) {
+      setSearchParams({ chain_id: activeChain.id });
+    }
+  }, [activeChain, setSearchParams]);
 
   const viewFinding = useCallback((findingID: string) => {
     if (!selectedSessionID) return;
-    navigate(`/sessions/${selectedSessionID}/findings?finding_id=${encodeURIComponent(findingID)}`);
-  }, [navigate, selectedSessionID]);
+    const params = new URLSearchParams(cleanParams({
+      finding_id: findingID,
+      graph_chain: activeChain?.id ?? "",
+      graph_finding: findingID,
+    }));
+    navigate(`/sessions/${selectedSessionID}/findings?${params.toString()}`);
+  }, [activeChain, navigate, selectedSessionID]);
 
   return (
     <section className="page attack-paths-page">
@@ -194,12 +229,12 @@ export function AttackGraph() {
               chain={activeChain}
               activeNodeID={activeNodeID}
               selectedNodeID={selectedNodeID}
-              onSelectNode={setSelectedNodeID}
+              onSelectNode={selectNode}
               onHoverNode={setHoveredNodeID}
-              onPaneClick={() => setSelectedNodeID("")}
+              onPaneClick={clearNodeSelection}
             />
           </ReactFlowProvider>
-          <NodeDetailPanel node={selectedNode} chain={activeChain} onClose={() => setSelectedNodeID("")} onViewFinding={viewFinding} />
+          <NodeDetailPanel node={selectedNode} chain={activeChain} onClose={clearNodeSelection} onViewFinding={viewFinding} />
         </div>
       ) : null}
     </section>
@@ -536,6 +571,10 @@ export function connectedNodeIDs(edges: AttackChainEdge[], activeNodeID: string)
   return connected;
 }
 
+export function chainForFinding(chains: AttackChain[], findingID: string) {
+  return chains.find((chain) => chain.nodes.some((node) => node.finding?.id === findingID));
+}
+
 export function relationLabel(relation: ChainRelation) {
   switch (relation) {
     case "enables": return "enables";
@@ -681,4 +720,8 @@ function shortText(value: string, max: number) {
   const normalized = value.replace(/\s+/g, " ").trim();
   if (normalized.length <= max) return normalized;
   return `${normalized.slice(0, max - 1).trim()}…`;
+}
+
+function cleanParams(params: Record<string, string>) {
+  return Object.fromEntries(Object.entries(params).filter(([, value]) => value));
 }

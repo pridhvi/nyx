@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Check, Clipboard } from "lucide-react";
 import { effectiveConfig, listPlugins, listTools } from "../api/client";
 
 export function Settings() {
@@ -7,6 +8,7 @@ export function Settings() {
   const toolsQuery = useQuery({ queryKey: ["tools"], queryFn: () => listTools() });
   const pluginsQuery = useQuery({ queryKey: ["plugins"], queryFn: listPlugins });
   const [uiTheme, setUITheme] = useState(() => localStorage.getItem("nyx-theme") ?? document.documentElement.dataset.theme ?? "dark");
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const cfg = configQuery.data;
   const tools = toolsQuery.data ?? [];
   const installed = tools.filter((tool) => tool.installed).length;
@@ -26,6 +28,20 @@ export function Settings() {
     };
   }, []);
 
+  async function copyConfig() {
+    if (!cfg || !navigator.clipboard) {
+      setCopyState("failed");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(sanitizedConfigForCopy(cfg));
+      setCopyState("copied");
+      window.setTimeout(() => setCopyState("idle"), 1800);
+    } catch {
+      setCopyState("failed");
+    }
+  }
+
   return (
     <section className="page">
       <header className="page-header">
@@ -35,6 +51,22 @@ export function Settings() {
         </div>
       </header>
       <div className="settings-grid">
+        <section className="panel effective-config-panel">
+          <div className="panel-heading-row">
+            <div>
+              <h2>Effective Config</h2>
+              <p>Sanitized runtime configuration for debugging and support handoff.</p>
+            </div>
+            <button className="secondary" type="button" onClick={() => void copyConfig()} disabled={!cfg}>
+              {copyState === "copied" ? <Check size={16} /> : <Clipboard size={16} />}
+              {copyState === "copied" ? "Copied Config" : copyState === "failed" ? "Copy Failed" : "Copy Sanitized Config"}
+            </button>
+          </div>
+          <details className="raw-config">
+            <summary>Raw effective config</summary>
+            <pre>{cfg ? sanitizedConfigForCopy(cfg) : "{}"}</pre>
+          </details>
+        </section>
         <section className="panel">
           <h2>Storage</h2>
           <dl>
@@ -84,4 +116,25 @@ export function Settings() {
       </div>
     </section>
   );
+}
+
+export function sanitizedConfigForCopy(config: unknown) {
+  return JSON.stringify(redactConfigValue(config), null, 2);
+}
+
+function redactConfigValue(value: unknown, key = ""): unknown {
+  if (isSensitiveConfigKey(key) && typeof value !== "boolean") {
+    return "[REDACTED]";
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => redactConfigValue(item, key));
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([entryKey, entryValue]) => [entryKey, redactConfigValue(entryValue, entryKey)]));
+  }
+  return value;
+}
+
+function isSensitiveConfigKey(key: string) {
+  return /(^|[_-])(api[_-]?key|authorization|bearer|cookie|password|secret|token)([_-]|$)/i.test(key);
 }

@@ -195,6 +195,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/monitor/configs/{config_id}", s.updateMonitorConfig)
 	mux.HandleFunc("DELETE /api/monitor/configs/{config_id}", s.deleteMonitorConfig)
 	mux.HandleFunc("POST /api/monitor/configs/{config_id}/run", s.runMonitorConfig)
+	mux.HandleFunc("POST /api/monitor/configs/{config_id}/baseline", s.resetMonitorBaseline)
 	mux.HandleFunc("GET /api/monitor/runs", s.listMonitorRuns)
 	mux.HandleFunc("GET /api/monitor/runs/{run_id}/changes", s.listMonitorRunChanges)
 	mux.HandleFunc("PUT /api/monitor/changes/{change_id}/alert-sent", s.markMonitorChangeAlerted)

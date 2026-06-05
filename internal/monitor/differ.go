@@ -109,6 +109,12 @@ func (d Differ) findingChanges(runID, sessionID string, baseline, current []mode
 	next := mapFindings(current)
 	var changes []models.SurfaceChange
 	for key, finding := range next {
+		if previous, ok := base[key]; ok {
+			if previous.Severity != finding.Severity {
+				changes = append(changes, newChange(runID, sessionID, models.SurfaceChangeSeverityChanged, finding.Severity, fmt.Sprintf("Finding severity changed: %s", finding.Title), string(previous.Severity), string(finding.Severity), finding.TargetID, finding.ID, at))
+			}
+			continue
+		}
 		if _, ok := base[key]; !ok {
 			changes = append(changes, newChange(runID, sessionID, models.SurfaceChangeNewFinding, finding.Severity, fmt.Sprintf("New finding: %s", finding.Title), "", findingLabel(finding), finding.TargetID, finding.ID, at))
 		}
