@@ -2,18 +2,13 @@ import { useEffect, useMemo, useState, type CSSProperties, type MouseEvent } fro
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity, AlertTriangle, CheckCircle2, Clock, Loader2, Pause, Play, Radar, Square, TerminalSquare, Trash2, XCircle } from "lucide-react";
 import { Link } from "react-router-dom";
-import { deleteSession, getScanStatus, getSessionStats, listFindings, listMonitorConfigs, listMonitorRunChanges, listMonitorRuns, listTargets, listToolRuns, listTools, pauseScan, resumeScan, scanEventsURL, stopScan, type ScanEvent, type ToolRun } from "../api/client";
+import { compareSessions, deleteSession, getScanStatus, getSessionStats, listFindings, listMonitorConfigs, listMonitorRunChanges, listMonitorRuns, listTargets, listToolRuns, listTools, pauseScan, resumeScan, scanEventsURL, stopScan, type ScanEvent, type ToolRun } from "../api/client";
 import { useSessionContext } from "../session";
+import { severityColorTokens } from "../theme";
 
 const severityOrder = ["critical", "high", "medium", "low", "info"] as const;
 
-const severityColors: Record<string, string> = {
-  critical: "#ff3b5c",
-  high: "#ff7a30",
-  medium: "#f0c040",
-  low: "#30d58c",
-  info: "#4ca8ff",
-};
+const severityColors = severityColorTokens;
 
 const phaseLabels: Record<string, string> = {
   source_analysis: "Source",
@@ -31,6 +26,7 @@ export function Dashboard() {
   const { sessions, selectedSessionID, setSelectedSessionID, refreshSessions } = useSessionContext();
   const [scanEvents, setScanEvents] = useState<ScanEvent[]>([]);
   const [hoveredRisk, setHoveredRisk] = useState<HoveredRiskMix | null>(null);
+  const [baseCompareSessionID, setBaseCompareSessionID] = useState("");
   const selected = selectedSessionID;
   const selectedRecord = sessions.find((record) => record.session.id === selected)?.session;
   const statsQuery = useQuery({
@@ -119,6 +115,17 @@ export function Dashboard() {
   const newMonitorFindings = useMemo(() => {
     return (monitorChangesQuery.data ?? []).filter((change) => change.change_type === "new_finding" || (change.finding_id && change.change_type.includes("finding"))).length;
   }, [monitorChangesQuery.data]);
+  const comparableSessions = useMemo(() => sessions.filter((record) => record.session.id !== selected), [selected, sessions]);
+  useEffect(() => {
+    if (!baseCompareSessionID || baseCompareSessionID === selected || !comparableSessions.some((record) => record.session.id === baseCompareSessionID)) {
+      setBaseCompareSessionID(comparableSessions[0]?.session.id ?? "");
+    }
+  }, [baseCompareSessionID, comparableSessions, selected]);
+  const compareQuery = useQuery({
+    queryKey: ["session-compare", selected, baseCompareSessionID],
+    queryFn: () => compareSessions(selected, baseCompareSessionID),
+    enabled: Boolean(selected && baseCompareSessionID && selected !== baseCompareSessionID),
+  });
   const severityData = useMemo(() => {
     return buildRiskMixData(statsQuery.data?.severity_counts);
   }, [statsQuery.data]);
@@ -156,6 +163,15 @@ export function Dashboard() {
     socket.onmessage = (message) => {
       const event = JSON.parse(message.data) as ScanEvent;
       setScanEvents((current) => [event, ...current.filter((item) => item.at !== event.at || item.type !== event.type)].slice(0, 12));
+      if (event.type === "completed" || event.type === "failed" || event.type === "cancelled") {
+        window.dispatchEvent(new CustomEvent("nyx-toast", {
+          detail: {
+            tone: event.type === "completed" ? "success" : "error",
+            title: event.type === "completed" ? "Scan completed" : event.type === "failed" ? "Scan failed" : "Scan cancelled",
+            message: event.message ?? selectedRecord?.target_input ?? selected,
+          },
+        }));
+      }
       if (event.type === "finding_found" || event.type === "tool_completed" || event.type === "tool_error" || event.type === "completed" || event.type === "failed" || event.type === "cancelled" || event.status === "paused") {
         queryClient.invalidateQueries({ queryKey: ["sessions"] });
         queryClient.invalidateQueries({ queryKey: ["session-stats", selected] });
@@ -250,6 +266,19 @@ export function Dashboard() {
           ) : null}
         </div>
       </header>
+      {sessions.length === 0 ? (
+        <section className="first-run-panel">
+          <div>
+            <span className="card-kicker">First Run</span>
+            <h2>Create your first Nyx session</h2>
+            <p>Start with a scoped quick scan, then come back here for progress, triage, reports, and retest comparisons.</p>
+          </div>
+          <div className="first-run-actions">
+            <Link className="primary link-button" to="/scan"><TerminalSquare size={16} />New Scan</Link>
+            <Link className="secondary link-button" to="/settings">Check System Health</Link>
+          </div>
+        </section>
+      ) : null}
       <div className="command-layout">
         <section className="last-scan-card">
           <div>
@@ -273,6 +302,47 @@ export function Dashboard() {
             <Link className="primary link-button" to="/scan"><Radar size={16} />Quick Scan</Link>
             {lastCompletedSession ? <Link className="secondary link-button" to={`/sessions/${lastCompletedSession.id}/findings`}>Review Last Findings</Link> : null}
           </div>
+        </section>
+        <section className="panel session-compare-panel">
+          <div className="panel-heading-row">
+            <div>
+              <h2>Retest Compare</h2>
+              <p className="profile-description">Compare the selected session against an earlier manual run.</p>
+            </div>
+            <label className="compact-select">Base
+              <select value={baseCompareSessionID} onChange={(event) => setBaseCompareSessionID(event.target.value)} disabled={comparableSessions.length === 0}>
+                {comparableSessions.map((record) => (
+                  <option key={record.session.id} value={record.session.id}>{record.session.name || record.session.target_input || record.session.id}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {selected && baseCompareSessionID && compareQuery.data ? (
+            <>
+              <div className="compare-metrics">
+                <span><strong>{compareQuery.data.new_count}</strong>new</span>
+                <span><strong>{compareQuery.data.resolved_count}</strong>resolved</span>
+                <span><strong>{compareQuery.data.severity_change_count}</strong>severity changed</span>
+              </div>
+              <div className="compare-list">
+                {compareQuery.data.severity_changes.slice(0, 3).map((change) => (
+                  <Link key={change.fingerprint} to={`/sessions/${selected}/findings?finding_id=${change.finding_id}`}>
+                    <span className={`severity ${change.to}`}>{change.to}</span>
+                    <strong>{change.title}</strong>
+                    <small>{change.from} to {change.to} · {change.url || change.tool_id}</small>
+                  </Link>
+                ))}
+                {compareQuery.data.new_findings.slice(0, 3).map((finding) => (
+                  <Link key={finding.id} to={`/sessions/${selected}/findings?finding_id=${finding.id}`}>
+                    <span className={`severity ${finding.severity}`}>{finding.severity}</span>
+                    <strong>{finding.title}</strong>
+                    <small>new · {finding.url || finding.tool_id}</small>
+                  </Link>
+                ))}
+                {compareQuery.data.new_count + compareQuery.data.resolved_count + compareQuery.data.severity_change_count === 0 ? <div className="empty-line">No finding changes between these sessions.</div> : null}
+              </div>
+            </>
+          ) : <div className="empty-line">{comparableSessions.length === 0 ? "Run another session to compare retest results." : "Loading comparison."}</div>}
         </section>
         <section className="panel">
           <h2>Next Actions</h2>

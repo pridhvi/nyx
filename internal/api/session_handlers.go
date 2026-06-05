@@ -119,6 +119,122 @@ func (s *Server) listSourceFindings(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, findings)
 }
 
+type sessionCompareResponse struct {
+	BaseSessionID       string                  `json:"base_session_id"`
+	CompareSessionID    string                  `json:"compare_session_id"`
+	NewCount            int                     `json:"new_count"`
+	ResolvedCount       int                     `json:"resolved_count"`
+	SeverityChangeCount int                     `json:"severity_change_count"`
+	NewFindings         []models.Finding        `json:"new_findings"`
+	ResolvedFindings    []models.Finding        `json:"resolved_findings"`
+	SeverityChanges     []sessionSeverityChange `json:"severity_changes"`
+}
+
+type sessionSeverityChange struct {
+	Fingerprint string          `json:"fingerprint"`
+	Title       string          `json:"title"`
+	URL         string          `json:"url"`
+	ToolID      string          `json:"tool_id"`
+	From        models.Severity `json:"from"`
+	To          models.Severity `json:"to"`
+	FindingID   string          `json:"finding_id"`
+}
+
+func (s *Server) compareSessions(w http.ResponseWriter, r *http.Request) {
+	compareID := r.PathValue("id")
+	baseID := strings.TrimSpace(r.URL.Query().Get("base"))
+	if baseID == "" {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("base session is required"))
+		return
+	}
+	if baseID == compareID {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("base and comparison sessions must be different"))
+		return
+	}
+	baseStore, err := db.OpenSession(r.Context(), s.cfg.SessionDir, baseID)
+	if err != nil {
+		writeDBError(w, err)
+		return
+	}
+	defer baseStore.Close()
+	compareStore, err := db.OpenSession(r.Context(), s.cfg.SessionDir, compareID)
+	if err != nil {
+		writeDBError(w, err)
+		return
+	}
+	defer compareStore.Close()
+	baseSession, err := baseStore.GetSession(r.Context())
+	if err != nil {
+		writeDBError(w, err)
+		return
+	}
+	compareSession, err := compareStore.GetSession(r.Context())
+	if err != nil {
+		writeDBError(w, err)
+		return
+	}
+	baseFindings, err := baseStore.ListFindings(r.Context(), baseSession.ID, db.FindingFilter{})
+	if err != nil {
+		writeDBError(w, err)
+		return
+	}
+	compareFindings, err := compareStore.ListFindings(r.Context(), compareSession.ID, db.FindingFilter{})
+	if err != nil {
+		writeDBError(w, err)
+		return
+	}
+	writeJSON(w, compareFindingSets(baseSession.ID, compareSession.ID, baseFindings, compareFindings))
+}
+
+func compareFindingSets(baseSessionID, compareSessionID string, baseFindings, compareFindings []models.Finding) sessionCompareResponse {
+	baseByFingerprint := make(map[string]models.Finding, len(baseFindings))
+	compareByFingerprint := make(map[string]models.Finding, len(compareFindings))
+	for _, finding := range baseFindings {
+		baseByFingerprint[findingFingerprint(finding)] = finding
+	}
+	for _, finding := range compareFindings {
+		compareByFingerprint[findingFingerprint(finding)] = finding
+	}
+	result := sessionCompareResponse{BaseSessionID: baseSessionID, CompareSessionID: compareSessionID}
+	for fingerprint, finding := range compareByFingerprint {
+		baseFinding, exists := baseByFingerprint[fingerprint]
+		if !exists {
+			result.NewFindings = append(result.NewFindings, finding)
+			continue
+		}
+		if baseFinding.Severity != finding.Severity {
+			result.SeverityChanges = append(result.SeverityChanges, sessionSeverityChange{
+				Fingerprint: fingerprint,
+				Title:       finding.Title,
+				URL:         finding.URL,
+				ToolID:      finding.ToolID,
+				From:        baseFinding.Severity,
+				To:          finding.Severity,
+				FindingID:   finding.ID,
+			})
+		}
+	}
+	for fingerprint, finding := range baseByFingerprint {
+		if _, exists := compareByFingerprint[fingerprint]; !exists {
+			result.ResolvedFindings = append(result.ResolvedFindings, finding)
+		}
+	}
+	result.NewCount = len(result.NewFindings)
+	result.ResolvedCount = len(result.ResolvedFindings)
+	result.SeverityChangeCount = len(result.SeverityChanges)
+	return result
+}
+
+func findingFingerprint(finding models.Finding) string {
+	parts := []string{
+		strings.ToLower(strings.TrimSpace(finding.Title)),
+		strings.ToLower(strings.TrimSpace(finding.URL)),
+		strings.ToLower(strings.TrimSpace(finding.ToolID)),
+		strings.ToLower(strings.TrimSpace(string(finding.Type))),
+	}
+	return strings.Join(parts, "|")
+}
+
 type updateFindingRequest struct {
 	Severity    models.Severity `json:"severity"`
 	Remediation string          `json:"remediation"`

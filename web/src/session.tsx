@@ -5,6 +5,8 @@ import { listSessions, type SessionRecord } from "./api/client";
 
 type SessionContextValue = {
   sessions: SessionRecord[];
+  sessionsLoading: boolean;
+  sessionsError: string;
   selectedSessionID: string;
   selected?: SessionRecord;
   setSelectedSessionID: (id: string) => void;
@@ -31,6 +33,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const selected = sessions.find((record) => record.session.id === selectedSessionID);
   const value = useMemo(() => ({
     sessions,
+    sessionsLoading: sessionsQuery.isLoading,
+    sessionsError: sessionsQuery.error instanceof Error ? sessionsQuery.error.message : "",
     selectedSessionID,
     selected,
     setSelectedSessionID: (id: string) => {

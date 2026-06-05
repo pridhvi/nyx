@@ -202,6 +202,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/sessions", s.listSessions)
 	mux.HandleFunc("GET /api/sessions/{id}", s.getSession)
 	mux.HandleFunc("DELETE /api/sessions/{id}", s.deleteSession)
+	mux.HandleFunc("GET /api/sessions/{id}/compare", s.compareSessions)
 	mux.HandleFunc("GET /api/sessions/{id}/targets", s.listTargets)
 	mux.HandleFunc("GET /api/sessions/{id}/findings", s.listFindings)
 	mux.HandleFunc("GET /api/sessions/{id}/source-findings", s.listSourceFindings)

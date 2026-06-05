@@ -200,7 +200,9 @@ work and must be carried forward:
   API-key-guided global plugin registration, checkbox-driven monitor
   config/run/change review, responsive session-aware tool inventory cards,
   polished stdout/stderr log drawers, LLM model probing, settings health panels
-  with collapsible raw config, and report pages backed by real API data with
+  with collapsible raw config, shell-level skeletons/retryable API error banners,
+  global search, keyboard shortcuts, toast notifications, manual session
+  comparison, first-run guidance, and report pages backed by real API data with
   explicit no-session/loading/error/empty states. Reports include source findings,
   suppressed findings, tool coverage, dependency CVEs, and cross-confirmed
   static/dynamic evidence. Built assets are embedded into
@@ -1176,6 +1178,9 @@ work and must be carried forward:
   frontend, and CVE visibility without exposing API-key values, including live
   current-theme reporting, a sanitized effective-config copy action, and
   collapsible raw config disclosure.
+- Added shell-level skeleton loaders, retryable API error banners, global search
+  across selected-session evidence, keyboard shortcuts, toast notifications,
+  first-run dashboard guidance, and Command Center manual session comparison.
 - Added lazy-loaded route chunks for graph, chart, report, LLM, findings, tools,
   runs, CVEs, settings, and scan-builder surfaces.
 - Added route-level error recovery so transient route chunk failures do not

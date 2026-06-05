@@ -357,6 +357,64 @@ func TestSessionAPI(t *testing.T) {
 	}
 }
 
+func TestCompareSessionsReportsRetestDiff(t *testing.T) {
+	ctx := context.Background()
+	sessionDir := t.TempDir()
+	now := time.Now().UTC()
+	baseSession := models.Session{ID: "base-session", Name: "Original", Status: models.SessionStatusCompleted, TargetInput: "https://app.test", TargetCount: 1, CreatedAt: now}
+	retestSession := models.Session{ID: "retest-session", Name: "Retest", Status: models.SessionStatusCompleted, TargetInput: "https://app.test", TargetCount: 1, CreatedAt: now.Add(time.Minute)}
+	baseTarget := models.Target{ID: "base-target", SessionID: baseSession.ID, Host: "app.test", Port: 443, Protocol: "https", IsAlive: true, CreatedAt: now}
+	retestTarget := models.Target{ID: "retest-target", SessionID: retestSession.ID, Host: "app.test", Port: 443, Protocol: "https", IsAlive: true, CreatedAt: now}
+	if _, err := db.CreateSessionDB(ctx, sessionDir, baseSession, baseTarget); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.CreateSessionDB(ctx, sessionDir, retestSession, retestTarget); err != nil {
+		t.Fatal(err)
+	}
+	baseStore, err := db.OpenSession(ctx, sessionDir, baseSession.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer baseStore.Close()
+	retestStore, err := db.OpenSession(ctx, sessionDir, retestSession.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer retestStore.Close()
+	for _, finding := range []models.Finding{
+		{ID: "same-base", SessionID: baseSession.ID, TargetID: baseTarget.ID, ToolID: "scanner", Type: models.FindingTypeVulnerability, Severity: models.SeverityHigh, Title: "Reflected XSS", URL: "https://app.test/search", CreatedAt: now},
+		{ID: "resolved-base", SessionID: baseSession.ID, TargetID: baseTarget.ID, ToolID: "scanner", Type: models.FindingTypeMisconfiguration, Severity: models.SeverityMedium, Title: "Missing CSP", URL: "https://app.test", CreatedAt: now},
+	} {
+		if err := baseStore.InsertFinding(ctx, finding); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, finding := range []models.Finding{
+		{ID: "same-retest", SessionID: retestSession.ID, TargetID: retestTarget.ID, ToolID: "scanner", Type: models.FindingTypeVulnerability, Severity: models.SeverityCritical, Title: "Reflected XSS", URL: "https://app.test/search", CreatedAt: now},
+		{ID: "new-retest", SessionID: retestSession.ID, TargetID: retestTarget.ID, ToolID: "scanner", Type: models.FindingTypeExposure, Severity: models.SeverityLow, Title: "Debug endpoint", URL: "https://app.test/debug", CreatedAt: now},
+	} {
+		if err := retestStore.InsertFinding(ctx, finding); err != nil {
+			t.Fatal(err)
+		}
+	}
+	handler := NewServer(Config{SessionDir: sessionDir}).Handler()
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/sessions/"+retestSession.ID+"/compare?base="+baseSession.ID, nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("compare status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var result sessionCompareResponse
+	if err := json.NewDecoder(rec.Body).Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	if result.NewCount != 1 || result.ResolvedCount != 1 || result.SeverityChangeCount != 1 {
+		t.Fatalf("unexpected compare result: %#v", result)
+	}
+	if result.SeverityChanges[0].From != models.SeverityHigh || result.SeverityChanges[0].To != models.SeverityCritical {
+		t.Fatalf("unexpected severity change: %#v", result.SeverityChanges[0])
+	}
+}
+
 func TestLLMHistoryIsCappedAndPageable(t *testing.T) {
 	ctx := context.Background()
 	sessionDir := t.TempDir()

@@ -81,17 +81,127 @@ session_dir="$root_dir/sessions"
 mkdir -p "$session_dir"
 NYX_SESSION_DIR="$session_dir" go run . scan --target "$target" --tools security-headers,graphql-introspection,openapi-discovery,js-secret-scan,cors-check --no-llm --config /dev/null >"$scan_log" 2>&1
 session_id="$(session_id_for "$session_dir")"
-python3 - "$session_dir/$session_id/session.db" "$session_id" <<'PY'
+python3 - "$session_dir/$session_id/session.db" "$session_id" "$session_dir" <<'PY'
 import sqlite3
 import sys
 import json
+import shutil
+from pathlib import Path
 
-db_path, session_id = sys.argv[1], sys.argv[2]
+db_path, session_id, session_dir = sys.argv[1], sys.argv[2], sys.argv[3]
 conn = sqlite3.connect(db_path)
 finding_row = conn.execute("SELECT id FROM findings ORDER BY created_at ASC LIMIT 1").fetchone()
 finding_id = finding_row[0] if finding_row else None
 target_row = conn.execute("SELECT id FROM targets ORDER BY created_at ASC LIMIT 1").fetchone()
 target_id = target_row[0] if target_row else None
+base_session_id = "browser-smoke-baseline"
+base_dir = Path(session_dir) / base_session_id
+base_dir.mkdir(parents=True, exist_ok=True)
+base_db = base_dir / "session.db"
+shutil.copyfile(db_path, base_db)
+base = sqlite3.connect(base_db)
+base.execute("PRAGMA foreign_keys = OFF")
+for table in [
+    "sessions",
+    "targets",
+    "findings",
+    "http_evidence",
+    "technologies",
+    "tool_runs",
+    "attack_vectors",
+    "attack_steps",
+    "attack_graph_edges",
+    "cve_matches",
+    "llm_analyses",
+    "source_findings",
+    "payloads",
+    "credential_findings",
+    "osint_findings",
+    "provider_status",
+    "ad_entities",
+    "ad_relationships",
+    "ad_artifacts",
+    "block_events",
+    "poc_results",
+    "power_callbacks",
+]:
+    try:
+        base.execute(f"UPDATE {table} SET session_id = ?", (base_session_id,))
+    except sqlite3.OperationalError:
+        pass
+base.execute("UPDATE sessions SET id = ?, name = ?, finding_count = finding_count + 1", (base_session_id, "Original baseline"))
+if finding_id:
+    base.execute("UPDATE findings SET severity = 'info' WHERE id = ?", (finding_id,))
+if target_id:
+    base.execute(
+        """
+        INSERT OR REPLACE INTO findings (
+            id, session_id, target_id, tool_id, type, severity, confidence,
+            cvss_score, title, description, remediation, url, parameter,
+            method, evidence_raw, evidence_normalized, code_context,
+            flow_summary, status, notes, tags, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """,
+        (
+            "browser-smoke-resolved",
+            base_session_id,
+            target_id,
+            "scanner",
+            "misconfiguration",
+            "medium",
+            0.8,
+            5.0,
+            "Verbose server banner",
+            "Baseline-only finding for retest comparison.",
+            "Remove verbose headers.",
+            "http://127.0.0.1:18083/banner",
+            "",
+            "GET",
+            "",
+            "",
+            "",
+            "",
+            "open",
+            "",
+            "[]",
+        ),
+    )
+base.commit()
+base.close()
+if target_id:
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO findings (
+            id, session_id, target_id, tool_id, type, severity, confidence,
+            cvss_score, title, description, remediation, url, parameter,
+            method, evidence_raw, evidence_normalized, code_context,
+            flow_summary, status, notes, tags, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """,
+        (
+            "browser-smoke-new-retest",
+            session_id,
+            target_id,
+            "scanner",
+            "exposure",
+            "high",
+            0.85,
+            7.5,
+            "Retest-only debug endpoint",
+            "New finding added for browser smoke retest comparison.",
+            "Disable the debug endpoint.",
+            "http://127.0.0.1:18083/debug",
+            "",
+            "GET",
+            "",
+            "",
+            "",
+            "",
+            "open",
+            "",
+            "[]",
+        ),
+    )
 conn.execute(
     """
     INSERT OR REPLACE INTO cve_matches (
@@ -402,9 +512,31 @@ async function visit(name, path, expectedText) {
 }
 
 await visit("dashboard", `/sessions/${sessionID}`, "Command Center");
+for (const expected of ["Search", "Retest Compare", "New scan", "Triage"]) {
+  if (!(await page.locator(`text=${expected}`).first().isVisible())) {
+    throw new Error(`Dashboard cross-cutting control did not render ${expected}`);
+  }
+}
 if (!(await page.locator("text=Last Completed Scan").isVisible())) {
   throw new Error("Dashboard last completed scan summary did not render");
 }
+await page.locator(".session-compare-panel").scrollIntoViewIfNeeded();
+if (!(await page.locator(".compare-metrics", { hasText: "severity changed" }).isVisible())) {
+  throw new Error("Dashboard session comparison did not render compare metrics");
+}
+await page.locator(".session-compare-panel").screenshot({ path: `${screenshotDir}/nyx-browser-session-compare.png` });
+await page.keyboard.press("/");
+await page.locator(".search-modal input").fill("debug endpoint");
+if (!(await page.locator(".search-results", { hasText: "Retest-only debug endpoint" }).isVisible())) {
+  throw new Error("Global search did not find the retest finding");
+}
+await page.screenshot({ path: `${screenshotDir}/nyx-browser-global-search.png`, fullPage: false });
+await page.keyboard.press("Escape");
+await page.evaluate(() => window.dispatchEvent(new CustomEvent("nyx-toast", { detail: { tone: "success", title: "Scan completed", message: "Browser smoke notification" } })));
+if (!(await page.locator(".toast", { hasText: "Scan completed" }).isVisible())) {
+  throw new Error("Toast notification did not render");
+}
+await page.screenshot({ path: `${screenshotDir}/nyx-browser-toast.png`, fullPage: false });
 await page.locator("text=Latest Phase Progress").scrollIntoViewIfNeeded();
 if (!(await page.locator("text=Tool pipeline details").isVisible())) {
   throw new Error("Dashboard collapsed tool pipeline details did not render");

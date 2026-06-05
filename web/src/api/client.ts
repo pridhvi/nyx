@@ -1,6 +1,6 @@
 type SessionStatus = "pending" | "running" | "paused" | "completed" | "failed" | "cancelled";
 
-type Session = {
+export type Session = {
   id: string;
   name: string;
   status: SessionStatus;
@@ -41,6 +41,27 @@ type RunnerOptions = {
 export type SessionRecord = {
   session: Session;
   db_path: string;
+};
+
+export type SessionSeverityChange = {
+  fingerprint: string;
+  title: string;
+  url: string;
+  tool_id: string;
+  from: string;
+  to: string;
+  finding_id: string;
+};
+
+export type SessionCompare = {
+  base_session_id: string;
+  compare_session_id: string;
+  new_count: number;
+  resolved_count: number;
+  severity_change_count: number;
+  new_findings: Finding[];
+  resolved_findings: Finding[];
+  severity_changes: SessionSeverityChange[];
 };
 
 type Technology = {
@@ -643,6 +664,10 @@ export function listSessions() {
 
 export function getSessionStats(sessionID: string) {
   return api<SessionStats>(`/api/sessions/${sessionID}/stats`);
+}
+
+export function compareSessions(compareSessionID: string, baseSessionID: string) {
+  return api<SessionCompare>(`/api/sessions/${compareSessionID}/compare?base=${encodeURIComponent(baseSessionID)}`);
 }
 
 export function getScanStatus(sessionID: string) {

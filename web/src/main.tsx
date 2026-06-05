@@ -1,9 +1,9 @@
-import React, { Suspense, lazy, useEffect, useRef, useState } from "react";
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { BrowserRouter, Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { Bot, Boxes, FileCode2, FileText, Menu, Moon, MoreHorizontal, Network, PackageSearch, Radar, RefreshCw, Search, Settings as SettingsIcon, Shield, Sparkles, Sun, TerminalSquare, Wrench, X } from "lucide-react";
-import { authExpiredEvent, login as loginAPI } from "./api/client";
+import { authExpiredEvent, listCVEs, listFindings, listSourceFindings, login as loginAPI, type CVEMatch, type Finding, type SessionRecord, type SourceFinding } from "./api/client";
 import { scopedSessionPath } from "./sessionRoutes";
 import { SessionProvider, useSessionContext } from "./session";
 import "./styles.css";
@@ -132,10 +132,12 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 }
 
 function OperatorShell() {
-  const { sessions, selectedSessionID, selected, setSelectedSessionID, refreshSessions } = useSessionContext();
+  const { sessions, sessionsLoading, sessionsError, selectedSessionID, selected, setSelectedSessionID, refreshSessions } = useSessionContext();
   const [theme, setTheme] = useState(() => localStorage.getItem("nyx-theme") ?? "dark");
   const [navOpen, setNavOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const location = useLocation();
   const scoped = (suffix: string) => scopedSessionPath(selectedSessionID, suffix);
   const selectedSession = selected?.session;
@@ -160,14 +162,53 @@ function OperatorShell() {
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setSearchOpen(true);
+        return;
+      }
+      if (!isTypingTarget(event.target)) {
+        if (event.key === "/") {
+          event.preventDefault();
+          setSearchOpen(true);
+          return;
+        }
+        if (event.key.toLowerCase() === "n") {
+          window.history.pushState(null, "", "/scan");
+          window.dispatchEvent(new PopStateEvent("popstate"));
+          return;
+        }
+        if (event.key.toLowerCase() === "t" && selectedSessionID) {
+          window.history.pushState(null, "", scopedSessionPath(selectedSessionID, "/findings"));
+          window.dispatchEvent(new PopStateEvent("popstate"));
+          return;
+        }
+      }
       if (event.key !== "Escape") {
         return;
       }
       setNavOpen(false);
       setActionsOpen(false);
+      setSearchOpen(false);
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
+  }, [selectedSessionID]);
+
+  useEffect(() => {
+    function onToast(event: Event) {
+      const detail = event instanceof CustomEvent ? event.detail as Partial<ToastMessage> : {};
+      const toast: ToastMessage = {
+        id: crypto.randomUUID(),
+        tone: detail.tone ?? "info",
+        title: detail.title ?? "Nyx update",
+        message: detail.message ?? "",
+      };
+      setToasts((current) => [toast, ...current].slice(0, 4));
+      window.setTimeout(() => setToasts((current) => current.filter((item) => item.id !== toast.id)), 5200);
+    }
+    window.addEventListener("nyx-toast", onToast);
+    return () => window.removeEventListener("nyx-toast", onToast);
   }, []);
 
   const navGroups = [
@@ -223,6 +264,7 @@ function OperatorShell() {
           </div>
           <button className="icon-button mobile-actions-button" aria-label={actionsOpen ? "Close page actions" : "Open page actions"} aria-expanded={actionsOpen} aria-controls="topbar-actions" onClick={() => setActionsOpen((open) => !open)}><MoreHorizontal size={18} /></button>
           <div id="topbar-actions" className={`topbar-actions ${actionsOpen ? "open" : ""}`}>
+            <button className="secondary topbar-search" type="button" onClick={() => setSearchOpen(true)} title="Search current session"><Search size={16} />Search</button>
             <Link className="secondary link-button topbar-action" to={selectedSessionID ? scoped("/findings") : "/scan"}>{selectedSessionID ? "Triage" : "New Scan"}</Link>
             <button
               className={`theme-toggle ${theme === "light" ? "light" : "dark"}`}
@@ -242,8 +284,20 @@ function OperatorShell() {
           </div>
           {navOpen ? <button className="icon-button close-mobile-nav" aria-label="Close navigation" onClick={() => setNavOpen(false)}><X size={18} /></button> : null}
         </header>
+        <div className="shortcut-strip" aria-label="Keyboard shortcuts">
+          <span><kbd>/</kbd> Search</span>
+          <span><kbd>N</kbd> New scan</span>
+          <span><kbd>T</kbd> Triage</span>
+        </div>
+        {sessionsError ? (
+          <section className="app-alert error">
+            <div><strong>Session API unavailable</strong><span>{sessionsError}</span></div>
+            <button className="secondary" type="button" onClick={refreshSessions}><RefreshCw size={16} />Retry</button>
+          </section>
+        ) : null}
+        {sessionsLoading ? <RouteSkeleton label="Loading sessions" /> : null}
         <RouteErrorBoundary key={location.pathname}>
-          <Suspense fallback={<section className="panel route-loading">Loading</section>}>
+          <Suspense fallback={<RouteSkeleton label="Loading workspace" />}>
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/scan" element={<ScanBuilder />} />
@@ -272,9 +326,135 @@ function OperatorShell() {
             </Routes>
           </Suspense>
         </RouteErrorBoundary>
+        <GlobalSearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
+        <ToastCenter toasts={toasts} onDismiss={(id) => setToasts((current) => current.filter((toast) => toast.id !== id))} />
       </main>
     </div>
   );
+}
+
+type ToastMessage = {
+  id: string;
+  tone: "info" | "success" | "warning" | "error";
+  title: string;
+  message: string;
+};
+
+function ToastCenter({ toasts, onDismiss }: { toasts: ToastMessage[]; onDismiss: (id: string) => void }) {
+  return (
+    <div className="toast-center" aria-live="polite" aria-relevant="additions">
+      {toasts.map((toast) => (
+        <article key={toast.id} className={`toast ${toast.tone}`}>
+          <div><strong>{toast.title}</strong>{toast.message ? <span>{toast.message}</span> : null}</div>
+          <button className="icon-button" type="button" aria-label="Dismiss notification" onClick={() => onDismiss(toast.id)}><X size={14} /></button>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function GlobalSearchOverlay({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { sessions, selectedSessionID } = useSessionContext();
+  const [query, setQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const findingsQuery = useQuery({ queryKey: ["global-search-findings", selectedSessionID], queryFn: () => listFindings(selectedSessionID), enabled: open && Boolean(selectedSessionID) });
+  const sourceQuery = useQuery({ queryKey: ["global-search-source", selectedSessionID], queryFn: () => listSourceFindings(selectedSessionID), enabled: open && Boolean(selectedSessionID) });
+  const cvesQuery = useQuery({ queryKey: ["global-search-cves", selectedSessionID], queryFn: () => listCVEs(selectedSessionID), enabled: open && Boolean(selectedSessionID) });
+
+  useEffect(() => {
+    if (!open) return;
+    setQuery("");
+    window.setTimeout(() => inputRef.current?.focus(), 0);
+  }, [open]);
+
+  const results = useMemo(() => buildGlobalSearchResults(query, selectedSessionID, sessions, findingsQuery.data ?? [], sourceQuery.data ?? [], cvesQuery.data ?? []), [cvesQuery.data, findingsQuery.data, query, selectedSessionID, sessions, sourceQuery.data]);
+  if (!open) return null;
+  return (
+    <div className="search-overlay" role="dialog" aria-modal="true" aria-label="Global search">
+      <button className="modal-scrim" type="button" aria-label="Close search" onClick={onClose} />
+      <section className="search-modal">
+        <div className="search-box">
+          <Search size={18} />
+          <input ref={inputRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search findings, CVEs, URLs, OWASP categories, source findings, sessions" />
+          <button className="icon-button" type="button" aria-label="Close search" onClick={onClose}><X size={16} /></button>
+        </div>
+        <div className="search-results">
+          {results.map((result) => (
+            <Link key={`${result.kind}-${result.id}`} to={result.to} onClick={onClose}>
+              <span>{result.kind}</span>
+              <strong>{result.title}</strong>
+              <small>{result.detail}</small>
+            </Link>
+          ))}
+          {results.length === 0 ? <div className="empty-line">{query.trim() ? "No matching session data." : "Type to search the selected session and session history."}</div> : null}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+type SearchResult = {
+  id: string;
+  kind: string;
+  title: string;
+  detail: string;
+  to: string;
+  haystack: string;
+};
+
+export function buildGlobalSearchResults(query: string, selectedSessionID: string, sessions: SessionRecord[], findings: Finding[], sourceFindings: SourceFinding[], cves: CVEMatch[]) {
+  const rows: SearchResult[] = [
+    ...sessions.map((record) => ({
+      id: record.session.id,
+      kind: "session",
+      title: record.session.name || record.session.target_input || record.session.source_path || record.session.id,
+      detail: `${record.session.status} · ${record.session.finding_count} findings`,
+      to: `/sessions/${record.session.id}`,
+      haystack: [record.session.name, record.session.target_input, record.session.source_path, record.session.status].join(" "),
+    })),
+    ...findings.map((finding) => ({
+      id: finding.id,
+      kind: "finding",
+      title: finding.title,
+      detail: `${finding.severity} · ${finding.tool_id} · ${finding.url}`,
+      to: `/sessions/${selectedSessionID}/findings?finding_id=${finding.id}`,
+      haystack: [finding.title, finding.description, finding.url, finding.tool_id, finding.type, finding.severity, ...(finding.tags ?? [])].join(" "),
+    })),
+    ...sourceFindings.map((finding) => ({
+      id: finding.id,
+      kind: "source",
+      title: finding.value || finding.kind,
+      detail: `${finding.kind} · ${finding.file_path}:${finding.line_number}`,
+      to: `/sessions/${selectedSessionID}/source`,
+      haystack: [finding.value, finding.kind, finding.language, finding.framework, finding.file_path, finding.context, finding.notes].join(" "),
+    })),
+    ...cves.map((cve) => ({
+      id: cve.id,
+      kind: "cve",
+      title: cve.cve_id,
+      detail: `${cve.package_name || "component"} · CVSS ${cve.cvss_v3_score || "n/a"}`,
+      to: `/sessions/${selectedSessionID}/cves`,
+      haystack: [cve.cve_id, cve.package_name, cve.package_version, cve.affected_version, cve.fixed_version, cve.description, cve.source].join(" "),
+    })),
+  ];
+  const needle = query.trim().toLowerCase();
+  return (needle ? rows.filter((row) => `${row.title} ${row.detail} ${row.haystack}`.toLowerCase().includes(needle)) : rows).slice(0, 18);
+}
+
+function RouteSkeleton({ label }: { label: string }) {
+  return (
+    <section className="route-skeleton" aria-label={label}>
+      <span />
+      <span />
+      <span />
+    </section>
+  );
+}
+
+function isTypingTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName.toLowerCase();
+  return tag === "input" || tag === "textarea" || tag === "select" || target.isContentEditable;
 }
 
 class RouteErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
