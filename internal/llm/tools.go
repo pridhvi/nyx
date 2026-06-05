@@ -24,7 +24,7 @@ func NewToolRunner(store Store) ToolRunner {
 
 func ToolDefinitions() []openai.Tool {
 	return []openai.Tool{
-		objectTool("request_scan", "Request a follow-up scan for an in-scope target. This records a constrained request only; scans still require explicit API or CLI execution.", map[string]any{
+		objectTool("request_scan", "Request a safe, non-invasive follow-up scan for an in-scope target. This records a constrained audit request only; scans still require explicit API or CLI execution. Do not request active credential validation, secret use, brute force, or exploitability validation unless the operator explicitly authorized that scope.", map[string]any{
 			"target": map[string]any{"type": "string"},
 			"tool":   map[string]any{"type": "string"},
 			"reason": map[string]any{"type": "string"},

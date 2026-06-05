@@ -206,6 +206,71 @@ func TestAnalystPersistsConversationAndToolAuditTrail(t *testing.T) {
 	}
 }
 
+func TestSystemPromptDefaultsToDefensiveCredentialGuidance(t *testing.T) {
+	required := []string{
+		"Default to defensive, non-invasive guidance",
+		"rotating or revoking exposed credentials",
+		"Do not recommend using or validating exposed credentials",
+		"active credential validation unless the operator explicitly asks",
+		"clear authorization and scope",
+	}
+	for _, phrase := range required {
+		if !strings.Contains(SystemPrompt, phrase) {
+			t.Fatalf("system prompt missing %q:\n%s", phrase, SystemPrompt)
+		}
+	}
+}
+
+func TestAnalystSendsHardenedSystemPrompt(t *testing.T) {
+	ctx := context.Background()
+	session, store := testLLMStore(t, ctx)
+	client := &fakeCompleter{}
+
+	_, err := NewAnalyst(store, client, Config{
+		Provider:    "openai-compatible",
+		BaseURL:     "http://localhost:11434/v1",
+		Model:       "llama3:8b",
+		MaxTokens:   256,
+		Temperature: 0.1,
+	}).AnalyzeSession(ctx, session.ID, "What should I do about leaked credentials?")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(client.requests) != 1 || len(client.requests[0].Messages) == 0 {
+		t.Fatalf("expected one LLM request with messages, got %#v", client.requests)
+	}
+	system := client.requests[0].Messages[0]
+	if system.Role != openai.ChatMessageRoleSystem {
+		t.Fatalf("expected first message to be system prompt, got %#v", system)
+	}
+	if !strings.Contains(system.Content, "Do not recommend using or validating exposed credentials") ||
+		!strings.Contains(system.Content, "active credential validation unless the operator explicitly asks") {
+		t.Fatalf("expected hardened credential guidance in system prompt, got %q", system.Content)
+	}
+}
+
+func TestRequestScanToolDescriptionDiscouragesActiveCredentialValidation(t *testing.T) {
+	for _, tool := range ToolDefinitions() {
+		if tool.Function == nil || tool.Function.Name != "request_scan" {
+			continue
+		}
+		description := tool.Function.Description
+		required := []string{
+			"safe, non-invasive",
+			"Do not request active credential validation",
+			"secret use",
+			"explicitly authorized",
+		}
+		for _, phrase := range required {
+			if !strings.Contains(description, phrase) {
+				t.Fatalf("request_scan description missing %q: %s", phrase, description)
+			}
+		}
+		return
+	}
+	t.Fatal("request_scan tool definition not found")
+}
+
 func TestOpenAIClientPreservesReasoningContent(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/chat/completions" {
