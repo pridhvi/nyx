@@ -13,6 +13,7 @@ Nyx runs locally by default. There is no telemetry, no required cloud account, a
 - [What Nyx Is For](#what-nyx-is-for)
 - [What The UI Looks Like](#what-the-ui-looks-like)
 - [Quick Start With Docker Compose](#quick-start-with-docker-compose)
+- [Download A Release Binary](#download-a-release-binary)
 - [Build And Run From Source](#build-and-run-from-source)
 - [First CLI Scans](#first-cli-scans)
 - [Web UI Workflow](#web-ui-workflow)
@@ -66,7 +67,7 @@ The generator writes PNG screenshots under `docs/assets/readme/`.
 
 ## Quick Start With Docker Compose
 
-Docker Compose is the easiest way to try the full web UI with the bundled baseline scanner set.
+Docker Compose is the recommended first-run path and the best-supported way to exercise full-tool scans. The image bundles the baseline scanner set and keeps Nyx bound to loopback by default.
 
 ```sh
 git clone https://github.com/pridhvi/nyx.git
@@ -85,6 +86,29 @@ curl -H "X-Nyx-API-Key: $NYX_API_KEY" http://127.0.0.1:6767/api/health
 ```
 
 Compose publishes Nyx only on `127.0.0.1:6767` by default. Nyx refuses non-loopback serving without an API key. API keys are accepted through `X-Nyx-API-Key` or `Authorization: Bearer` headers and through the browser login cookie, not query strings. Failed authentication uses exponential backoff keyed by client address and credential fingerprint.
+
+## Download A Release Binary
+
+Nyx publishes release archives for Linux, macOS, and Windows on amd64 and arm64. Download the archive for your platform from the GitHub Releases page, unpack it, and run the `nyx` binary.
+
+Example for Linux amd64:
+
+```sh
+curl -L -o nyx_linux_amd64.tar.gz \
+  https://github.com/pridhvi/nyx/releases/download/v0.1.0/nyx_linux_amd64.tar.gz
+tar -xzf nyx_linux_amd64.tar.gz
+./nyx version
+```
+
+Verify downloads with `checksums.txt` from the same release:
+
+```sh
+curl -L -o checksums.txt \
+  https://github.com/pridhvi/nyx/releases/download/v0.1.0/checksums.txt
+sha256sum -c checksums.txt --ignore-missing
+```
+
+Linux and Docker are the fully validated paths for external scanner coverage, benchmark gates, and tool installation. macOS and Windows binaries are expected to support the embedded Web UI, built-in checks, static audit, SQLite sessions, reports, and LLM analysis, but optional subprocess scanners depend on tools you install and configure yourself. Use Docker when you want the most predictable full-tool behavior outside Linux.
 
 ## Build And Run From Source
 
@@ -115,6 +139,8 @@ To install commonly used Linux scanner tools, review the dry run first:
 ./scripts/install-linux-tools.sh
 ./scripts/install-linux-tools.sh --execute
 ```
+
+On macOS and Windows, start with built-in checks or Docker. External scanner integrations such as `ffuf`, `sqlmap`, `dalfox`, `nuclei`, `nikto`, and `whatweb` require platform-specific installation and may not behave identically to the Linux validation environment.
 
 ## First CLI Scans
 
@@ -418,6 +444,8 @@ make benchmark-targets-down
 ```
 
 Benchmark artifacts are written under `artifacts/benchmarks/<timestamp>/`. The current accepted Linux VM baseline requires DVWA to cover at least 14 expected items, Juice Shop to cover at least 15 expected items, and benchmark tool runs to avoid nonzero exits unless a local override is set.
+
+The v0.1.0 release-prep validation passed the local Go/frontend/security suite, Docker smoke, strict Linux VM full-tool smoke, DVWA `14/14`, Juice Shop `15/15`, and LM Studio-backed LLM scan-time, CLI, and API analyst paths. This validation applies to Linux/Docker full-tool operation; macOS and Windows release binaries are provided for core workflows and convenience pending dedicated platform acceptance.
 
 See [docs/benchmark-driven-scanner-depth.md](docs/benchmark-driven-scanner-depth.md) for the benchmark plan and acceptance history.
 

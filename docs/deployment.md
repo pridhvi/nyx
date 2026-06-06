@@ -64,7 +64,7 @@ that can initiate outbound model traffic:
 
 ```sh
 export NYX_SOURCE_ROOTS=/srv/audits,/work/repos
-export NYX_LLM_ALLOWED_HOSTS=127.0.0.1,localhost,ollama,10.0.0.100
+export NYX_LLM_ALLOWED_HOSTS=127.0.0.1,localhost,ollama,llm.internal.example
 export NYX_SECURE_COOKIES=true
 ```
 
@@ -76,6 +76,22 @@ browser login cookie always carries the `Secure` flag.
 
 Single-binary local mode remains supported. Optional external tools degrade
 gracefully when they are not installed.
+
+## Release Artifacts
+
+Tagged releases publish archives for Linux, macOS, and Windows on amd64 and
+arm64. The archives contain the `nyx` binary plus README, changelog, deployment
+notes, project spec, and implementation plan. The binary embeds the production
+frontend; optional external scanners still need to be installed separately when
+running outside Docker.
+
+Linux and Docker are the fully validated paths for full-tool operation. macOS
+and Windows binaries are intended for core Nyx workflows such as the Web UI,
+built-in checks, static audit, local SQLite sessions, reports, and LLM analysis.
+External scanner coverage on those platforms depends on local tool availability
+and should be treated as best-effort until platform-specific acceptance is run.
+
+Verify downloaded archives with the release `checksums.txt` file before use.
 
 ## Release Snapshots
 

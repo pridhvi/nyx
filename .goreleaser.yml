@@ -21,6 +21,7 @@ builds:
       - arm64
     ldflags:
       - -s -w
+      - -X github.com/pridhvi/nyx/cmd/nyx.version={{ .Version }}
 
 archives:
   - id: nyx
@@ -29,6 +30,7 @@ archives:
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
     files:
       - README.md
+      - CHANGELOG.md
       - docs/deployment.md
       - docs/nyx-project-spec.md
       - docs/implementation-plan.md

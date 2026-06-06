@@ -11,7 +11,7 @@ import (
 	nyxlog "github.com/pridhvi/nyx/internal/logging"
 )
 
-const version = "0.1.0-dev"
+var version = "0.1.0-dev"
 
 func Execute() {
 	if err := nyxlog.ConfigureFromEnv(); err != nil {
