@@ -533,7 +533,9 @@ if (!(await page.locator(".search-results", { hasText: "Retest-only debug endpoi
 await page.screenshot({ path: `${screenshotDir}/nyx-browser-global-search.png`, fullPage: false });
 await page.keyboard.press("Escape");
 await page.evaluate(() => window.dispatchEvent(new CustomEvent("nyx-toast", { detail: { tone: "success", title: "Scan completed", message: "Browser smoke notification" } })));
-if (!(await page.locator(".toast", { hasText: "Scan completed" }).isVisible())) {
+const smokeToast = page.locator(".toast", { hasText: "Scan completed" });
+await smokeToast.waitFor({ state: "visible", timeout: 5000 }).catch(() => null);
+if (!(await smokeToast.isVisible())) {
   throw new Error("Toast notification did not render");
 }
 await page.screenshot({ path: `${screenshotDir}/nyx-browser-toast.png`, fullPage: false });

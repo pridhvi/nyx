@@ -148,7 +148,7 @@ export function Reports() {
         {selected && format !== "pdf" && reportQuery.isLoading ? <ReportState title="Generating Preview" message="Nyx is rendering the selected report from stored evidence." /> : null}
         {selected && format !== "pdf" && reportQuery.error ? <ReportState title="Report Error" message={reportQuery.error.message} /> : null}
         {selected && format !== "pdf" && !reportQuery.isLoading && !reportQuery.error && !reportContent.trim() ? <ReportState title="Empty Report" message="The report renderer returned no preview content for this session and format." /> : null}
-        {selected && format === "html" && reportContent.trim() ? <iframe title="Report preview" sandbox="" referrerPolicy="no-referrer" srcDoc={reportContent} /> : null}
+        {selected && format === "html" && reportContent.trim() ? <iframe title="Report preview" sandbox="" referrerPolicy="no-referrer" src={downloadURL} /> : null}
         {selected && format !== "html" && format !== "pdf" && reportContent.trim() ? <pre>{reportContent}</pre> : null}
       </div>
     </section>

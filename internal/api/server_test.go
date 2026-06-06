@@ -86,6 +86,30 @@ func TestAPISecurityHeadersDoNotSetSPACSP(t *testing.T) {
 	}
 }
 
+func TestHTMLReportUsesIsolatedPreviewSecurityHeaders(t *testing.T) {
+	handler := NewServer(Config{SessionDir: t.TempDir()}).Handler()
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/sessions/session-1/report?format=html", nil))
+	if got := rec.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Fatalf("X-Content-Type-Options = %q", got)
+	}
+	if got := rec.Header().Get("X-Frame-Options"); got != "SAMEORIGIN" {
+		t.Fatalf("X-Frame-Options = %q", got)
+	}
+	csp := rec.Header().Get("Content-Security-Policy")
+	for _, want := range []string{
+		"default-src 'none'",
+		"script-src 'none'",
+		"style-src 'unsafe-inline'",
+		"frame-ancestors 'self'",
+	} {
+		if !strings.Contains(csp, want) {
+			t.Fatalf("Content-Security-Policy %q does not contain %q", csp, want)
+		}
+	}
+}
+
 func TestHealthDoesNotExposeSessionDirectory(t *testing.T) {
 	sessionDir := t.TempDir()
 	handler := NewServer(Config{SessionDir: sessionDir}).Handler()
