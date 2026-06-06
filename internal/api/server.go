@@ -70,6 +70,7 @@ const (
 	serverReadTimeout          = 30 * time.Second
 	serverIdleTimeout          = 2 * time.Minute
 	nonStreamingHandlerTimeout = 2 * time.Minute
+	llmHandlerTimeout          = 5 * time.Minute
 	serverShutdownTimeout      = 5 * time.Second
 	scanManagerShutdownTimeout = 30 * time.Second
 )
@@ -278,9 +279,14 @@ func (s *Server) httpServer() *http.Server {
 
 func timeoutNonStreaming(next http.Handler) http.Handler {
 	timeout := http.TimeoutHandler(next, nonStreamingHandlerTimeout, `{"error":"request timed out"}`+"\n")
+	llmTimeout := http.TimeoutHandler(next, llmHandlerTimeout, `{"error":"llm request timed out"}`+"\n")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if streamingRoute(r) {
 			next.ServeHTTP(w, r)
+			return
+		}
+		if llmRoute(r) {
+			llmTimeout.ServeHTTP(w, r)
 			return
 		}
 		timeout.ServeHTTP(w, r)
@@ -293,6 +299,15 @@ func streamingRoute(r *http.Request) bool {
 		return true
 	}
 	return strings.HasPrefix(path, "/api/scan/") && strings.HasSuffix(path, "/events")
+}
+
+func llmRoute(r *http.Request) bool {
+	if r.Method != http.MethodPost {
+		return false
+	}
+	path := strings.TrimSpace(r.URL.Path)
+	return strings.HasPrefix(path, "/api/sessions/") &&
+		(strings.HasSuffix(path, "/llm/chat") || strings.HasSuffix(path, "/llm/analyse"))
 }
 
 func spaHandler() http.Handler {

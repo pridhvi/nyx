@@ -874,6 +874,27 @@ func TestStreamingRouteBypassesNonStreamingTimeout(t *testing.T) {
 	}
 }
 
+func TestLLMRoutesUseLongerTimeoutClass(t *testing.T) {
+	cases := []struct {
+		method string
+		path   string
+		want   bool
+	}{
+		{method: http.MethodPost, path: "/api/sessions/session-1/llm/chat", want: true},
+		{method: http.MethodPost, path: "/api/sessions/session-1/llm/analyse", want: true},
+		{method: http.MethodGet, path: "/api/sessions/session-1/llm/history", want: false},
+		{method: http.MethodPost, path: "/api/llm/models", want: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.method+" "+tc.path, func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, tc.path, nil)
+			if got := llmRoute(req); got != tc.want {
+				t.Fatalf("llmRoute(%s %q) = %v, want %v", tc.method, tc.path, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestSourcePathHonorsAllowlist(t *testing.T) {
 	repo := t.TempDir()
 	other := t.TempDir()
