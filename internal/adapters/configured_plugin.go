@@ -57,15 +57,7 @@ func (p ConfiguredPlugin) Run(ctx context.Context, input AdapterInput) (AdapterO
 		run.NormalizedAt = &now
 		return AdapterOutput{ToolRun: run}, nil
 	}
-	if err := VerifyPluginBinarySHA256(p.record.Binary, p.record.SHA256); err != nil {
-		run.ExitCode = 1
-		run.RawStderr = err.Error()
-		run.DurationMS = time.Since(started).Milliseconds()
-		now := time.Now().UTC()
-		run.NormalizedAt = &now
-		return AdapterOutput{ToolRun: run}, nil
-	}
-	resp, err := RunPlugin(ctx, p.record.Binary, PluginRequest{
+	resp, err := RunPlugin(ctx, p.record.Binary, p.record.SHA256, PluginRequest{
 		Version:   pluginProtocolVersion,
 		SessionID: input.Session.ID,
 		Target:    input.Target,

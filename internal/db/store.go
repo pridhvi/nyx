@@ -18,7 +18,10 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-var ErrNotFound = errors.New("not found")
+var (
+	ErrNotFound       = errors.New("not found")
+	ErrNoFieldsUpdate = errors.New("no fields to update")
+)
 
 type Store struct {
 	db   *sql.DB
@@ -317,22 +320,37 @@ INSERT INTO findings (
 }
 
 func (s *Store) UpdateFinding(ctx context.Context, findingID string, severity models.Severity, remediation string, status models.FindingStatus) error {
-	query := `UPDATE findings SET id = id`
+	hasSeverity := severity != ""
+	hasRemediation := remediation != ""
+	hasStatus := status != ""
+	if !hasSeverity && !hasRemediation && !hasStatus {
+		return ErrNoFieldsUpdate
+	}
+	var query string
 	args := []any{}
-	if severity != "" {
-		query += `, severity = ?`
-		args = append(args, string(severity))
+	switch {
+	case hasSeverity && hasRemediation && hasStatus:
+		query = `UPDATE findings SET severity = ?, remediation = ?, status = ? WHERE id = ?`
+		args = []any{string(severity), remediation, string(status), findingID}
+	case hasSeverity && hasRemediation:
+		query = `UPDATE findings SET severity = ?, remediation = ? WHERE id = ?`
+		args = []any{string(severity), remediation, findingID}
+	case hasSeverity && hasStatus:
+		query = `UPDATE findings SET severity = ?, status = ? WHERE id = ?`
+		args = []any{string(severity), string(status), findingID}
+	case hasRemediation && hasStatus:
+		query = `UPDATE findings SET remediation = ?, status = ? WHERE id = ?`
+		args = []any{remediation, string(status), findingID}
+	case hasSeverity:
+		query = `UPDATE findings SET severity = ? WHERE id = ?`
+		args = []any{string(severity), findingID}
+	case hasRemediation:
+		query = `UPDATE findings SET remediation = ? WHERE id = ?`
+		args = []any{remediation, findingID}
+	case hasStatus:
+		query = `UPDATE findings SET status = ? WHERE id = ?`
+		args = []any{string(status), findingID}
 	}
-	if remediation != "" {
-		query += `, remediation = ?`
-		args = append(args, remediation)
-	}
-	if status != "" {
-		query += `, status = ?`
-		args = append(args, string(status))
-	}
-	query += ` WHERE id = ?`
-	args = append(args, findingID)
 	result, err := s.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return err

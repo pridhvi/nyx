@@ -47,6 +47,8 @@ func TestSPASecurityHeaders(t *testing.T) {
 			for _, want := range []string{
 				"default-src 'self'",
 				"script-src 'self'",
+				"style-src 'self'",
+				"connect-src 'self'",
 				"object-src 'none'",
 				"frame-ancestors 'none'",
 				"base-uri 'self'",
@@ -54,6 +56,12 @@ func TestSPASecurityHeaders(t *testing.T) {
 				if !strings.Contains(csp, want) {
 					t.Fatalf("Content-Security-Policy %q does not contain %q", csp, want)
 				}
+			}
+			if strings.Contains(csp, " ws:") || strings.Contains(csp, " wss:") {
+				t.Fatalf("Content-Security-Policy allows broad websocket destinations: %q", csp)
+			}
+			if strings.Contains(csp, "'unsafe-inline'") {
+				t.Fatalf("Content-Security-Policy allows inline styles or scripts: %q", csp)
 			}
 		})
 	}
@@ -245,6 +253,11 @@ func TestSessionAPI(t *testing.T) {
 	}
 	if len(decodedFindings) == 0 {
 		t.Fatal("expected security header findings")
+	}
+	emptyFindingUpdate := httptest.NewRecorder()
+	handler.ServeHTTP(emptyFindingUpdate, jsonRequest(http.MethodPatch, "/api/sessions/"+created.Session.ID+"/findings/"+decodedFindings[0].ID, bytes.NewBufferString(`{}`)))
+	if emptyFindingUpdate.Code != http.StatusBadRequest || !strings.Contains(emptyFindingUpdate.Body.String(), "no fields to update") {
+		t.Fatalf("expected empty finding update rejection, got %d body=%s", emptyFindingUpdate.Code, emptyFindingUpdate.Body.String())
 	}
 	invalidFindingStatus := httptest.NewRecorder()
 	handler.ServeHTTP(invalidFindingStatus, jsonRequest(http.MethodPatch, "/api/sessions/"+created.Session.ID+"/findings/"+decodedFindings[0].ID, bytes.NewBufferString(`{"status":"needs-review"}`)))
@@ -623,6 +636,19 @@ func TestAuthFailureBackoffEscalatesAndResetsOnSuccess(t *testing.T) {
 	server.clearAuthFailures(keys...)
 	if server.authLimitedAt(secondLockout, keys...) {
 		t.Fatal("successful auth should clear accumulated lockout state")
+	}
+}
+
+func TestAuthLockoutDurationCapsLargeCounts(t *testing.T) {
+	if got := authLockoutDuration(authFailureLimit - 1); got != 0 {
+		t.Fatalf("expected no lockout below failure limit, got %s", got)
+	}
+	if got := authLockoutDuration(authFailureLimit); got != authLockoutBase {
+		t.Fatalf("expected base lockout at failure limit, got %s", got)
+	}
+	maxInt := int(^uint(0) >> 1)
+	if got := authLockoutDuration(maxInt); got != authLockoutMax {
+		t.Fatalf("expected maximum lockout for pathological count, got %s", got)
 	}
 }
 

@@ -73,6 +73,38 @@ func TestConfiguredPluginRejectsDigestMismatchBeforeExecution(t *testing.T) {
 	}
 }
 
+func TestRunPluginVerifiesDigestBeforeExecution(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell fixture is unix-only")
+	}
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "executed")
+	binary := writePluginFixture(t, `{"version":"nyx.plugin.v1","findings":[],"technologies":[],"new_targets":[]}`)
+	digest := mustPluginDigest(t, binary)
+	body := "#!/bin/sh\n" +
+		"touch " + marker + "\n" +
+		"printf '%s' '{\"version\":\"nyx.plugin.v1\",\"findings\":[],\"technologies\":[],\"new_targets\":[]}'\n"
+	if err := os.WriteFile(binary, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := RunPlugin(context.Background(), binary, digest, PluginRequest{Version: pluginProtocolVersion})
+	if err == nil || !strings.Contains(err.Error(), "sha256 mismatch") {
+		t.Fatalf("expected digest mismatch from RunPlugin, got %v", err)
+	}
+	if _, statErr := os.Stat(marker); !os.IsNotExist(statErr) {
+		t.Fatalf("expected tampered plugin not to execute, stat err=%v", statErr)
+	}
+}
+
+func TestRunPluginRequiresExpectedDigest(t *testing.T) {
+	binary := writePluginFixture(t, `{"version":"nyx.plugin.v1","findings":[],"technologies":[],"new_targets":[]}`)
+	_, err := RunPlugin(context.Background(), binary, "", PluginRequest{Version: pluginProtocolVersion})
+	if err == nil || !strings.Contains(err.Error(), "expected sha256 is required") {
+		t.Fatalf("expected missing digest rejection, got %v", err)
+	}
+}
+
 func TestConfiguredPluginMissingBinaryReturnsFailedToolRun(t *testing.T) {
 	session := models.Session{ID: "session-1", Mode: models.ScanModeActive, CreatedAt: time.Now().UTC()}
 	target := models.Target{ID: "target-1", SessionID: session.ID, Host: "example.com", Protocol: "https", Port: 443}

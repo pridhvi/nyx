@@ -31,12 +31,16 @@ type PluginResponse struct {
 	Error        *string             `json:"error"`
 }
 
-func RunPlugin(ctx context.Context, binary string, req PluginRequest) (PluginResponse, error) {
+func RunPlugin(ctx context.Context, binary, expectedSHA256 string, req PluginRequest) (PluginResponse, error) {
+	path, err := VerifiedPluginBinaryPath(binary, expectedSHA256)
+	if err != nil {
+		return PluginResponse{}, err
+	}
 	body, err := json.Marshal(req)
 	if err != nil {
 		return PluginResponse{}, err
 	}
-	cmd := exec.CommandContext(ctx, binary)
+	cmd := exec.CommandContext(ctx, path) // #nosec G204 -- plugin binary path is registered, digest-pinned, and verified immediately before execution.
 	cmd.Stdin = bytes.NewReader(body)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

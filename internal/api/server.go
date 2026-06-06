@@ -1579,6 +1579,10 @@ func writeDBError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, err)
 		return
 	}
+	if errors.Is(err, db.ErrNoFieldsUpdate) {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
 	writeError(w, http.StatusInternalServerError, err)
 }
 

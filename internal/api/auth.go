@@ -127,6 +127,7 @@ const (
 	authFailureIdleReset  = 24 * time.Hour
 	authLockoutBase       = 30 * time.Second
 	authLockoutMax        = 30 * time.Minute
+	authLockoutMaxShift   = 10
 	authSessionTTL        = 12 * time.Hour
 	authSessionCleanup    = time.Hour
 	authSessionCookieName = "nyx_session"
@@ -315,8 +316,11 @@ func authLockoutDuration(count int) time.Duration {
 		return 0
 	}
 	shift := count - authFailureLimit
-	if shift > 10 {
-		shift = 10
+	// Failure counts are attacker-influenced over time. Cap the exponent before
+	// shifting to keep pathological counts from producing oversized shifts, then
+	// apply the separate duration cap to preserve the configured lockout policy.
+	if shift > authLockoutMaxShift {
+		shift = authLockoutMaxShift
 	}
 	duration := authLockoutBase * time.Duration(1<<shift)
 	if duration > authLockoutMax {

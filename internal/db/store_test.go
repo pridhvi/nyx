@@ -650,6 +650,42 @@ func TestAuditSourcePersistenceAndStats(t *testing.T) {
 	}
 }
 
+func TestUpdateFindingRequiresAtLeastOneField(t *testing.T) {
+	ctx := context.Background()
+	session, target, store := createTestStore(t, ctx)
+	finding := models.Finding{
+		ID:        models.NewID(),
+		SessionID: session.ID,
+		TargetID:  target.ID,
+		ToolID:    "fixture",
+		Type:      models.FindingTypeVulnerability,
+		Severity:  models.SeverityMedium,
+		Title:     "Needs triage",
+		URL:       "https://example.com/finding",
+		Status:    models.FindingStatusOpen,
+		CreatedAt: time.Now().UTC(),
+	}
+	if err := store.InsertFinding(ctx, finding); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.UpdateFinding(ctx, finding.ID, "", "", ""); !errors.Is(err, ErrNoFieldsUpdate) {
+		t.Fatalf("expected no-field update rejection, got %v", err)
+	}
+	if err := store.UpdateFinding(ctx, "missing", models.SeverityHigh, "", ""); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected missing finding rejection, got %v", err)
+	}
+	if err := store.UpdateFinding(ctx, finding.ID, models.SeverityHigh, "", ""); err != nil {
+		t.Fatalf("expected severity update to succeed: %v", err)
+	}
+	updated, err := store.GetFinding(ctx, session.ID, finding.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Severity != models.SeverityHigh {
+		t.Fatalf("expected severity update, got %#v", updated.Severity)
+	}
+}
+
 func TestPowerDepthStoreProviderStatusesAndCallbacks(t *testing.T) {
 	ctx := context.Background()
 	session, target, store := createTestStore(t, ctx)

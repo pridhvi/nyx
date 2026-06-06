@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Controls,
@@ -373,7 +373,7 @@ function AttackFlowCanvas({
 function AttackNodeCard({ data }: NodeProps<AttackFlowNode>) {
   const { node, selected, dimmed } = data;
   return (
-    <article className={`attack-flow-node ${node.kind} ${selected ? "selected" : ""} ${dimmed ? "dimmed" : ""}`} style={{ "--node-severity": severityColor(node.severity) } as CSSProperties}>
+    <article className={`attack-flow-node ${node.kind} attack-sev-${normalizeSeverity(node.severity)} ${selected ? "selected" : ""} ${dimmed ? "dimmed" : ""}`}>
       <Handle className="attack-node-handle" type="target" position={Position.Left} />
       <div className="attack-node-topline">
         <span>{node.phase}</span>
@@ -386,7 +386,7 @@ function AttackNodeCard({ data }: NodeProps<AttackFlowNode>) {
         <span>{node.toolName}</span>
         <code>{node.finding?.id ?? `step ${node.order + 1}`}</code>
       </footer>
-      <span className="attack-node-confidence" style={{ width: `${confidencePercent(node.confidence)}%` }} />
+      <meter className="attack-node-confidence" min={0} max={100} value={confidencePercent(node.confidence)} />
       <Handle className="attack-node-handle" type="source" position={Position.Right} />
     </article>
   );
@@ -476,9 +476,7 @@ function AttackPathSkeleton() {
 
 function ConfidenceBar({ value }: { value: number }) {
   return (
-    <span className="confidence-meter" aria-label={`Confidence ${confidencePercent(value)} percent`}>
-      <span style={{ width: `${confidencePercent(value)}%` }} />
-    </span>
+    <meter className="confidence-meter" min={0} max={100} value={confidencePercent(value)} aria-label={`Confidence ${confidencePercent(value)} percent`} />
   );
 }
 

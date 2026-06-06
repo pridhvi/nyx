@@ -86,7 +86,7 @@ func (m *ScanManager) Start(session models.Session) {
 			m.mu.Unlock()
 			cancel()
 		}()
-		store, err := db.OpenSession(context.Background(), m.sessionDir, session.ID)
+		store, err := db.OpenSession(ctx, m.sessionDir, session.ID)
 		if err != nil {
 			slog.Error("open async scan session", "session_id", session.ID, "error", err)
 			m.Publish(engine.ScanEvent{

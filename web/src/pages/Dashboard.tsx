@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties, type MouseEvent } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity, AlertTriangle, CheckCircle2, Clock, Loader2, Pause, Play, Radar, Square, TerminalSquare, Trash2, XCircle } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -150,7 +150,7 @@ export function Dashboard() {
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
     const segment = riskSegmentAtPoint(severitySegments, x, y, rect.width, rect.height);
-    setHoveredRisk(segment ? { segment, x, y } : null);
+    setHoveredRisk(segment ? { segment, anchor: riskTooltipAnchor(x, y, rect.width, rect.height) } : null);
   };
 
   useEffect(() => {
@@ -379,14 +379,7 @@ export function Dashboard() {
                   <span>findings</span>
                 </div>
                 {hoveredRisk ? (
-                  <div
-                    className="risk-tooltip"
-                    style={{
-                      "--risk-color": severityColors[hoveredRisk.segment.severity],
-                      left: hoveredRisk.x,
-                      top: hoveredRisk.y,
-                    } as CSSProperties}
-                  >
+                  <div className={`risk-tooltip risk-tooltip-${hoveredRisk.anchor} risk-tooltip-${hoveredRisk.segment.severity}`}>
                     <span aria-hidden="true" />
                     {riskTooltipLabel(hoveredRisk.segment)}
                   </div>
@@ -529,8 +522,7 @@ type RiskMixSegment = {
 
 type HoveredRiskMix = {
   segment: RiskMixSegment;
-  x: number;
-  y: number;
+  anchor: string;
 };
 
 export function buildRiskMixData(counts: Record<string, number> = {}): RiskMixDatum[] {
@@ -567,6 +559,18 @@ export function buildRiskMixSegments(data: RiskMixDatum[]): RiskMixSegment[] {
 
 export function riskTooltipLabel(segment: Pick<RiskMixSegment, "severity" | "value">) {
   return `${segment.severity}: ${segment.value} finding${segment.value === 1 ? "" : "s"}`;
+}
+
+export function riskTooltipAnchor(x: number, y: number, width = 148, height = 148) {
+  const angle = Math.atan2(y - height / 2, x - width / 2) * 180 / Math.PI;
+  if (angle >= -22.5 && angle < 22.5) return "right";
+  if (angle >= 22.5 && angle < 67.5) return "bottom-right";
+  if (angle >= 67.5 && angle < 112.5) return "bottom";
+  if (angle >= 112.5 && angle < 157.5) return "bottom-left";
+  if (angle >= 157.5 || angle < -157.5) return "left";
+  if (angle >= -157.5 && angle < -112.5) return "top-left";
+  if (angle >= -112.5 && angle < -67.5) return "top";
+  return "top-right";
 }
 
 export function riskSegmentAtPoint(segments: RiskMixSegment[], x: number, y: number, width = 148, height = 148): RiskMixSegment | null {
@@ -621,12 +625,23 @@ function SeverityBar({ counts, total }: { counts?: Record<string, number>; total
   const values = severityOrder.map((severity) => ({ severity, value: counts?.[severity] ?? 0 }));
   const known = values.reduce((sum, item) => sum + item.value, 0);
   if (known === 0 && total > 0) {
-    return <div className="sev-bar"><span className="sev-bar-seg sev-info" style={{ flex: 1 }} /></div>;
+    return (
+      <svg className="sev-bar" viewBox="0 0 100 5" preserveAspectRatio="none" aria-hidden="true">
+        <rect className="sev-bar-seg sev-info" x="0" y="0" width="100" height="5" rx="2.5" />
+      </svg>
+    );
   }
+  let cursor = 0;
   return (
-    <div className="sev-bar">
-      {values.map((item) => item.value > 0 ? <span key={item.severity} className={`sev-bar-seg sev-${item.severity}`} style={{ flex: item.value }} /> : null)}
-    </div>
+    <svg className="sev-bar" viewBox="0 0 100 5" preserveAspectRatio="none" aria-hidden="true">
+      {values.map((item) => {
+        if (item.value <= 0 || known <= 0) return null;
+        const width = (item.value / known) * 100;
+        const x = cursor;
+        cursor += width;
+        return <rect key={item.severity} className={`sev-bar-seg sev-${item.severity}`} x={x.toFixed(2)} y="0" width={width.toFixed(2)} height="5" rx="2.5" />;
+      })}
+    </svg>
   );
 }
 

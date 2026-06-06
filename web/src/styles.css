@@ -1570,17 +1570,83 @@ tbody tr[tabindex] {
   pointer-events: none;
   position: absolute;
   text-transform: uppercase;
-  transform: translate(10px, -50%);
   white-space: nowrap;
   z-index: 2;
 }
 
+.risk-tooltip-right {
+  left: calc(100% - 4px);
+  top: 50%;
+  transform: translate(10px, -50%);
+}
+
+.risk-tooltip-bottom-right {
+  left: 82%;
+  top: 82%;
+  transform: translate(10px, -20%);
+}
+
+.risk-tooltip-bottom {
+  left: 50%;
+  top: calc(100% - 2px);
+  transform: translate(-50%, 10px);
+}
+
+.risk-tooltip-bottom-left {
+  right: 82%;
+  top: 82%;
+  transform: translate(-10px, -20%);
+}
+
+.risk-tooltip-left {
+  right: calc(100% - 4px);
+  top: 50%;
+  transform: translate(-10px, -50%);
+}
+
+.risk-tooltip-top-left {
+  bottom: 82%;
+  right: 82%;
+  transform: translate(-10px, 20%);
+}
+
+.risk-tooltip-top {
+  bottom: calc(100% - 2px);
+  left: 50%;
+  transform: translate(-50%, -10px);
+}
+
+.risk-tooltip-top-right {
+  bottom: 82%;
+  left: 82%;
+  transform: translate(10px, 20%);
+}
+
 .risk-tooltip span {
-  background: var(--risk-color);
   border-radius: 50%;
   display: inline-block;
   height: 8px;
   width: 8px;
+}
+
+.risk-tooltip-critical span {
+  background: var(--danger);
+}
+
+.risk-tooltip-high span {
+  background: var(--high);
+}
+
+.risk-tooltip-medium span {
+  background: var(--warning);
+}
+
+.risk-tooltip-low span {
+  background: var(--low);
+}
+
+.risk-tooltip-info span {
+  background: var(--info);
 }
 
 html[data-theme="light"] .chart-panel {
@@ -1770,14 +1836,14 @@ html[data-theme="light"] .chart-panel {
 .sev-bar {
   background: var(--surface-2);
   border-radius: 999px;
-  display: flex;
-  gap: 2px;
+  display: block;
   height: 5px;
   overflow: hidden;
+  width: 100%;
 }
 
 .sev-bar-seg {
-  min-width: 5px;
+  shape-rendering: crispEdges;
 }
 
 .sev-critical {
@@ -4144,6 +4210,7 @@ html[data-theme="light"] .chart-panel {
 
 .confidence-meter {
   background: rgba(149, 133, 248, 0.14);
+  border: 0;
   border-radius: 999px;
   display: block;
   height: 6px;
@@ -4151,11 +4218,22 @@ html[data-theme="light"] .chart-panel {
   width: 100%;
 }
 
-.confidence-meter > span {
+.confidence-meter::-webkit-meter-bar {
+  background: rgba(149, 133, 248, 0.14);
+  border: 0;
+  border-radius: 999px;
+}
+
+.confidence-meter::-webkit-meter-optimum-value,
+.confidence-meter::-webkit-meter-suboptimum-value,
+.confidence-meter::-webkit-meter-even-less-good-value {
   background: linear-gradient(90deg, var(--accent), var(--accent-2));
   border-radius: inherit;
-  display: block;
-  height: 100%;
+}
+
+.confidence-meter::-moz-meter-bar {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  border-radius: 999px;
 }
 
 .attack-flow-panel {
@@ -4237,7 +4315,7 @@ html[data-theme="light"] .attack-flow-canvas {
 .attack-flow-node {
   background: linear-gradient(180deg, rgba(20, 22, 38, 0.98), rgba(13, 15, 26, 0.98));
   border: 1px solid rgba(149, 133, 248, 0.22);
-  border-left: 5px solid var(--node-severity);
+  border-left-width: 5px;
   border-radius: var(--r-md);
   box-shadow: 0 16px 34px rgba(0, 0, 0, 0.22);
   color: var(--text);
@@ -4249,6 +4327,26 @@ html[data-theme="light"] .attack-flow-canvas {
   position: relative;
   transition: border-color 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
   width: 220px;
+}
+
+.attack-flow-node.attack-sev-critical {
+  border-left-color: var(--danger);
+}
+
+.attack-flow-node.attack-sev-high {
+  border-left-color: var(--high);
+}
+
+.attack-flow-node.attack-sev-medium {
+  border-left-color: var(--warning);
+}
+
+.attack-flow-node.attack-sev-low {
+  border-left-color: var(--low);
+}
+
+.attack-flow-node.attack-sev-info {
+  border-left-color: var(--info);
 }
 
 html[data-theme="light"] .attack-flow-node {
@@ -4325,10 +4423,27 @@ html[data-theme="light"] .attack-flow-node {
 
 .attack-node-confidence {
   background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  border: 0;
   bottom: 0;
   height: 3px;
   left: 0;
   position: absolute;
+  width: 100%;
+}
+
+.attack-node-confidence::-webkit-meter-bar {
+  background: transparent;
+  border: 0;
+}
+
+.attack-node-confidence::-webkit-meter-optimum-value,
+.attack-node-confidence::-webkit-meter-suboptimum-value,
+.attack-node-confidence::-webkit-meter-even-less-good-value {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+}
+
+.attack-node-confidence::-moz-meter-bar {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
 }
 
 .attack-node-handle {
