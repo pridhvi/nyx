@@ -96,7 +96,7 @@ func NewServer(cfg Config) *Server {
 	cfg.BurpAllowedHosts = append(cfg.BurpAllowedHosts, splitEnvList(os.Getenv("NYX_BURP_ALLOWED_HOSTS"))...)
 	server := &Server{
 		cfg:          cfg,
-		scanManager:  NewScanManager(cfg.SessionDir, cfg.HTTPClient, cfg.LLMAllowedHosts),
+		scanManager:  NewScanManager(cfg.SessionDir, cfg.HTTPClient, cfg.AppConfig, cfg.LLMAllowedHosts),
 		authFailures: make(map[string]authFailureState),
 		authSessions: make(map[string]time.Time),
 	}
@@ -1192,6 +1192,21 @@ func (s *Server) startScan(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, err)
 			return
 		}
+	}
+	llmConfig := llmintel.ConfigFromApp(s.cfg.AppConfig)
+	if strings.TrimSpace(req.LLMBaseURL) != "" {
+		llmConfig.BaseURL = strings.TrimSpace(req.LLMBaseURL)
+	}
+	if strings.TrimSpace(req.LLMModel) != "" {
+		llmConfig.Model = strings.TrimSpace(req.LLMModel)
+	}
+	if llmConfig.Configured() {
+		if err := llmintel.ValidateBaseURL(llmConfig.BaseURL, s.cfg.LLMAllowedHosts); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		req.LLMBaseURL = llmConfig.BaseURL
+		req.LLMModel = llmConfig.Model
 	}
 	runnerOptions, _, err := evasion.Normalize(models.ScanRunnerOptions{
 		Concurrency:        req.Concurrency,

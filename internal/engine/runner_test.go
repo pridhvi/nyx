@@ -19,6 +19,7 @@ import (
 
 	"github.com/pridhvi/nyx/internal/adapters"
 	"github.com/pridhvi/nyx/internal/db"
+	llmintel "github.com/pridhvi/nyx/internal/llm"
 	nyxlog "github.com/pridhvi/nyx/internal/logging"
 	"github.com/pridhvi/nyx/internal/models"
 )
@@ -77,6 +78,66 @@ func TestRunnerTreatsAdapterErrorAsNonFatal(t *testing.T) {
 	}
 	if !strings.Contains(logs.String(), `"msg":"adapter failed"`) || !strings.Contains(logs.String(), `"tool_id":"nonfatal"`) {
 		t.Fatalf("expected structured adapter failure log, got %q", logs.String())
+	}
+}
+
+func TestRunnerPersistsPostScanLLMAnalysisToolRun(t *testing.T) {
+	ctx := context.Background()
+	session, store := testRunnerStore(t, ctx)
+	llmServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/chat/completions" {
+			t.Fatalf("unexpected LLM path %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"id":"chatcmpl-test",
+			"object":"chat.completion",
+			"created":1710000000,
+			"model":"local-test",
+			"choices":[{"index":0,"message":{"role":"assistant","content":"Post-scan analysis complete."},"finish_reason":"stop"}],
+			"usage":{"prompt_tokens":10,"completion_tokens":4,"total_tokens":14}
+		}`))
+	}))
+	defer llmServer.Close()
+
+	runner := NewRunnerWithOptions(store, nil, nil, RunnerOptions{
+		GlobalConcurrency:  1,
+		PerToolConcurrency: 1,
+		LLMConfig: llmintel.Config{
+			Provider:     "openai-compatible",
+			BaseURL:      llmServer.URL + "/v1",
+			Model:        "local-test",
+			MaxTokens:    256,
+			Temperature:  0.2,
+			AllowedHosts: []string{"127.0.0.1"},
+		},
+	})
+
+	if err := runner.Run(ctx, session); err != nil {
+		t.Fatalf("runner failed: %v", err)
+	}
+	analyses, err := store.ListLLMAnalyses(ctx, session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(analyses) != 1 || analyses[0].ModelID != "local-test" {
+		t.Fatalf("expected persisted LLM analysis, got %#v", analyses)
+	}
+	runs, err := store.ListToolRuns(ctx, session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, run := range runs {
+		if run.ToolID == "llm-analysis" {
+			found = true
+			if run.ExitCode != 0 || run.StdoutPath == "" {
+				t.Fatalf("expected successful LLM tool run with stdout sidecar, got %#v", run)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected llm-analysis tool run, got %#v", runs)
 	}
 }
 

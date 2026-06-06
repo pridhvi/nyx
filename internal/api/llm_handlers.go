@@ -186,7 +186,7 @@ func (s *Server) runLLM(w http.ResponseWriter, r *http.Request, prompt string) {
 		return
 	}
 	defer store.Close()
-	config := llmintel.ConfigFromSession(session)
+	config := llmintel.ConfigFromSessionWithApp(session, s.cfg.AppConfig)
 	config.AllowedHosts = s.cfg.LLMAllowedHosts
 	if !config.Configured() {
 		writeError(w, http.StatusServiceUnavailable, llmintel.ErrNotConfigured)

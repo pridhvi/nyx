@@ -41,6 +41,20 @@ func ConfigFromSession(session models.Session) Config {
 	return config
 }
 
+func ConfigFromSessionWithApp(session models.Session, cfg appconfig.Config) Config {
+	config := ConfigFromApp(cfg)
+	if strings.TrimSpace(session.LLMBaseURL) != "" {
+		config.BaseURL = strings.TrimSpace(session.LLMBaseURL)
+	}
+	if strings.TrimSpace(session.LLMModel) != "" {
+		config.Model = strings.TrimSpace(session.LLMModel)
+	}
+	if config.Model == "" && config.BaseURL != "" {
+		config.Model = "llama3:8b"
+	}
+	return config
+}
+
 func ConfigFromApp(cfg appconfig.Config) Config {
 	config := Config{
 		Provider:     firstNonEmpty(os.Getenv("NYX_LLM_PROVIDER"), cfg.LLM.Provider, defaultProvider),

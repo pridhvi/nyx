@@ -37,6 +37,7 @@ type RunnerOptions struct {
 	ToolDelay          time.Duration
 	ToolTimeout        time.Duration
 	Lean               bool
+	LLMConfig          llmintel.Config
 	LLMAllowedHosts    []string
 	ProxyURL           string
 }
@@ -399,19 +400,51 @@ func (r *Runner) refreshAuthIfNeeded(ctx context.Context, session models.Session
 }
 
 func (r *Runner) runLLMAnalysis(ctx context.Context, session models.Session) error {
-	config := llmintel.ConfigFromSession(session)
-	if len(r.options.LLMAllowedHosts) > 0 {
-		config.AllowedHosts = r.options.LLMAllowedHosts
-	}
+	config := r.resolvedLLMConfig(session)
 	if !config.Configured() {
 		return nil
 	}
+	started := time.Now().UTC()
+	run := models.ToolRun{
+		ID:        models.NewID(),
+		SessionID: session.ID,
+		ToolID:    "llm-analysis",
+		Args:      []string{"post-scan-analysis"},
+		StartedAt: started,
+	}
 	analyst := llmintel.NewAnalyst(r.store, nil, config)
-	_, err := analyst.AnalyzeSession(ctx, session.ID, "Review the completed scan. Summarize the highest-confidence risks, relevant CVEs, deterministic attack vectors, and safe follow-up checks.")
+	analysis, err := analyst.AnalyzeSession(ctx, session.ID, "Review the completed scan. Summarize the highest-confidence risks, relevant CVEs, deterministic attack vectors, and safe follow-up checks.")
+	run.DurationMS = time.Since(started).Milliseconds()
+	now := time.Now().UTC()
+	run.NormalizedAt = &now
 	if err != nil {
+		run.ExitCode = 1
+		run.RawStderr = err.Error()
+		if persistErr := r.persist(ctx, session.ID, adapters.AdapterOutput{ToolRun: run}); persistErr != nil {
+			return persistErr
+		}
+		slog.Warn("llm analysis skipped", "session_id", session.ID, "error", err)
 		return nil
 	}
-	return nil
+	run.RawStdout = fmt.Sprintf("stored LLM analysis %s", analysis.ID)
+	return r.persist(ctx, session.ID, adapters.AdapterOutput{ToolRun: run})
+}
+
+func (r *Runner) resolvedLLMConfig(session models.Session) llmintel.Config {
+	config := llmintel.ConfigFromSession(session)
+	if r.options.LLMConfig.Configured() {
+		config = r.options.LLMConfig
+		if strings.TrimSpace(config.BaseURL) == "" {
+			config.BaseURL = session.LLMBaseURL
+		}
+		if strings.TrimSpace(config.Model) == "" {
+			config.Model = session.LLMModel
+		}
+	}
+	if len(r.options.LLMAllowedHosts) > 0 {
+		config.AllowedHosts = r.options.LLMAllowedHosts
+	}
+	return config
 }
 
 func (r *Runner) runAttackVectorEngine(ctx context.Context, session models.Session) error {

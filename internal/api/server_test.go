@@ -1420,6 +1420,80 @@ func TestOperatorConsoleAPI(t *testing.T) {
 	}
 }
 
+func TestStartScanUsesConfiguredLLMForPostScanAnalysis(t *testing.T) {
+	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/chat/completions":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"id":"chatcmpl-api-test",
+				"object":"chat.completion",
+				"created":1710000000,
+				"model":"configured-local",
+				"choices":[{"index":0,"message":{"role":"assistant","content":"Configured scan-time analysis complete."},"finish_reason":"stop"}],
+				"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}
+			}`))
+		default:
+			_, _ = w.Write([]byte("ok"))
+		}
+	}))
+	defer targetServer.Close()
+
+	appCfg := appconfig.Default()
+	appCfg.LLM.Enabled = true
+	appCfg.LLM.BaseURL = targetServer.URL + "/v1"
+	appCfg.LLM.Model = "configured-local"
+	appCfg.LLM.MaxTokens = 256
+	sessionDir := t.TempDir()
+	handler := NewServer(Config{
+		SessionDir:      sessionDir,
+		HTTPClient:      targetServer.Client(),
+		AppConfig:       appCfg,
+		LLMAllowedHosts: []string{"127.0.0.1"},
+	}).Handler()
+
+	start := httptest.NewRecorder()
+	body := bytes.NewBufferString(`{"target":"` + targetServer.URL + `","mode":"active","tools":["http-probe"]}`)
+	handler.ServeHTTP(start, jsonRequest(http.MethodPost, "/api/scan/start", body))
+	if start.Code != http.StatusAccepted {
+		t.Fatalf("start status = %d body=%s", start.Code, start.Body.String())
+	}
+	var created db.SessionRecord
+	if err := json.NewDecoder(start.Body).Decode(&created); err != nil {
+		t.Fatal(err)
+	}
+	if created.Session.LLMBaseURL != targetServer.URL+"/v1" || created.Session.LLMModel != "configured-local" {
+		t.Fatalf("expected configured LLM persisted on session, got base=%q model=%q", created.Session.LLMBaseURL, created.Session.LLMModel)
+	}
+	waitForCompletedScan(t, handler, created.Session.ID)
+
+	store, err := db.OpenSession(context.Background(), sessionDir, created.Session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	analyses, err := store.ListLLMAnalyses(context.Background(), created.Session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(analyses) != 1 || analyses[0].ModelID != "configured-local" {
+		t.Fatalf("expected configured scan-time LLM analysis, got %#v", analyses)
+	}
+	runs, err := store.ListToolRuns(context.Background(), created.Session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, run := range runs {
+		if run.ToolID == "llm-analysis" && run.ExitCode == 0 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected successful llm-analysis tool run, got %#v", runs)
+	}
+}
+
 func TestPluginUploadUsesPrivateExecutablePermissions(t *testing.T) {
 	handler := NewServer(Config{SessionDir: t.TempDir(), APIKey: "secret"}).Handler()
 	var body bytes.Buffer
@@ -1691,7 +1765,7 @@ func TestScanManagerShutdownDrainsRunningScans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	manager := NewScanManager(sessionDir, targetServer.Client(), nil)
+	manager := NewScanManager(sessionDir, targetServer.Client(), appconfig.Default(), nil)
 	manager.Start(record.Session)
 	select {
 	case <-requestStarted:

@@ -124,14 +124,17 @@ func runScan(args []string) error {
 		PerToolConcurrency: runnerOptions.PerToolConcurrency,
 		Lean:               *lean,
 		ProxyURL:           runnerOptions.ProxyURL,
+		LLMConfig: llmintel.Config{
+			Provider:     "openai-compatible",
+			BaseURL:      selectedLLMURL,
+			APIKey:       cfg.LLM.APIKey,
+			Model:        selectedLLMModel,
+			MaxTokens:    cfg.LLM.MaxTokens,
+			Temperature:  cfg.LLM.Temperature,
+			AllowedHosts: llmintel.AllowedHostsFromEnv(),
+		},
 	}
-	scanErr := runScanWorkload(context.Background(), store, record.Session, engineOptions, llmintel.Config{
-		Provider:     "openai-compatible",
-		BaseURL:      selectedLLMURL,
-		APIKey:       cfg.LLM.APIKey,
-		Model:        selectedLLMModel,
-		AllowedHosts: llmintel.AllowedHostsFromEnv(),
-	})
+	scanErr := runScanWorkload(context.Background(), store, record.Session, engineOptions, engineOptions.LLMConfig)
 
 	fmt.Printf("created session %s for %s (%s mode)\n", record.Session.ID, record.Session.TargetInput, record.Session.Mode)
 	fmt.Printf("db: %s\n", record.DBPath)
@@ -159,9 +162,11 @@ func runScanWorkload(ctx context.Context, store *db.Store, session models.Sessio
 		}
 		dynamicSession := session
 		dynamicSession.EnabledTools = dynamicToolIDs(session.EnabledTools)
+		options.LLMConfig = llmConfig
 		runner := engine.NewRunnerWithOptions(store, engine.DefaultSafeAdapters(), nil, options)
 		return runner.Run(ctx, dynamicSession)
 	default:
+		options.LLMConfig = llmConfig
 		runner := engine.NewRunnerWithOptions(store, engine.DefaultSafeAdapters(), nil, options)
 		return runner.Run(ctx, session)
 	}

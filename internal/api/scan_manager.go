@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/pridhvi/nyx/internal/adapters"
+	appconfig "github.com/pridhvi/nyx/internal/config"
 	"github.com/pridhvi/nyx/internal/db"
 	"github.com/pridhvi/nyx/internal/engine"
 	llmintel "github.com/pridhvi/nyx/internal/llm"
@@ -17,6 +18,7 @@ import (
 type ScanManager struct {
 	sessionDir      string
 	httpClient      adapters.HTTPDoer
+	appConfig       appconfig.Config
 	llmAllowedHosts []string
 	events          *scanEventBroker
 	ctx             context.Context
@@ -30,11 +32,12 @@ type ScanManager struct {
 	plugins         func() []models.PluginRecord
 }
 
-func NewScanManager(sessionDir string, httpClient adapters.HTTPDoer, llmAllowedHosts []string) *ScanManager {
+func NewScanManager(sessionDir string, httpClient adapters.HTTPDoer, appConfig appconfig.Config, llmAllowedHosts []string) *ScanManager {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &ScanManager{
 		sessionDir:      sessionDir,
 		httpClient:      httpClient,
+		appConfig:       appConfig,
 		llmAllowedHosts: append([]string(nil), llmAllowedHosts...),
 		events:          newScanEventBroker(),
 		ctx:             ctx,
@@ -132,7 +135,7 @@ func (m *ScanManager) Shutdown(ctx context.Context) error {
 func (m *ScanManager) runSession(ctx context.Context, store *db.Store, session models.Session) error {
 	switch session.WorkloadMode {
 	case models.WorkloadModeStatic:
-		llmConfig := llmintel.ConfigFromSession(session)
+		llmConfig := llmintel.ConfigFromSessionWithApp(session, m.appConfig)
 		llmConfig.AllowedHosts = m.llmAllowedHosts
 		audit := engine.NewAuditRunner(store, engine.AuditOptions{
 			Tools:     session.EnabledTools,
@@ -141,7 +144,7 @@ func (m *ScanManager) runSession(ctx context.Context, store *db.Store, session m
 		audit.OnEvent(m.Publish)
 		return audit.Run(ctx, session, session.SourcePath)
 	case models.WorkloadModeCombined:
-		llmConfig := llmintel.ConfigFromSession(session)
+		llmConfig := llmintel.ConfigFromSessionWithApp(session, m.appConfig)
 		llmConfig.AllowedHosts = m.llmAllowedHosts
 		audit := engine.NewAuditRunner(store, engine.AuditOptions{
 			Tools:           auditTools(session.EnabledTools),
@@ -165,6 +168,8 @@ func (m *ScanManager) runDynamic(ctx context.Context, store *db.Store, session m
 	session.EnabledTools = dynamicTools(session.EnabledTools)
 	options := runnerOptionsFromSession(session)
 	options.LLMAllowedHosts = m.llmAllowedHosts
+	options.LLMConfig = llmintel.ConfigFromSessionWithApp(session, m.appConfig)
+	options.LLMConfig.AllowedHosts = m.llmAllowedHosts
 	runner := engine.NewRunnerWithOptions(store, engine.DefaultSafeAdapters(), m.httpClient, options)
 	runner.SetPauseController(m.pauseController(session.ID))
 	for _, plugin := range m.enabledPlugins() {
