@@ -189,6 +189,53 @@ func TestResolveSessionAuthFormProfile(t *testing.T) {
 	}
 }
 
+func TestResolveSessionAuthFormProfilePersistsPathScopedCookies(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/app/login":
+			http.SetCookie(w, &http.Cookie{Name: "appsession", Value: "ok", Path: "/app"})
+			_, _ = w.Write([]byte("Welcome"))
+			return
+		case "/app/account":
+			cookie, err := r.Cookie("appsession")
+			if err != nil || cookie.Value != "ok" {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			_, _ = w.Write([]byte("Account"))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	input := authTestInput(t, server.URL+"/app")
+	input.Session.ToolParameters = map[string]map[string]any{
+		models.SessionScanOptionsKey: {
+			"auth_profile": map[string]any{
+				"type":                "form",
+				"login_url":           "/app/login",
+				"username":            "alice",
+				"password":            "secret",
+				"validation_url":      "/app/account",
+				"validation_contains": "Account",
+			},
+		},
+	}
+	result, err := ResolveSessionAuth(context.Background(), input.Session, input.Target, input.Scope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input.Session = result.Session
+	req, err := newHTTPRequestWithAuth(context.Background(), input, http.MethodGet, server.URL+"/app/account", nil, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := req.Header.Get("Cookie"); got != "appsession=ok" {
+		t.Fatalf("expected path-scoped app cookie, got %q", got)
+	}
+}
+
 func TestResolveSessionAuthRejectsOutOfScopeValidationRedirect(t *testing.T) {
 	outOfScopeHit := 0
 	outOfScope := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

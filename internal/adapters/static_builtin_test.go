@@ -95,9 +95,19 @@ class Demo {
     ctx.search("ou=people", param, null);
     javax.xml.xpath.XPath xp = null;
     xp.evaluate(param, document);
+    java.io.ObjectInputStream ois = new java.io.ObjectInputStream(new java.io.ByteArrayInputStream(param.getBytes()));
+    ois.readObject();
+    javax.xml.stream.XMLInputFactory.newInstance();
+    new java.net.URL(param).openStream();
+    http.csrf(csrf -> csrf.disable());
+    org.springframework.security.crypto.password.NoOpPasswordEncoder.getInstance();
+    return failed(this).output(param).build();
   }
 }`
 	if err := os.WriteFile(filepath.Join(repo, "Demo.java"), []byte(source), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, "pom.xml"), []byte(`<project><dependencies><dependency><groupId>com.thoughtworks.xstream</groupId><artifactId>xstream</artifactId><version>1.4.5</version></dependency></dependencies></project>`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	findings, err := scanJavaPatternFindings(context.Background(), StaticAdapterInput{SessionID: "session-1", RepoPath: repo})
@@ -110,7 +120,7 @@ class Demo {
 			got[finding.Tags[len(finding.Tags)-1]] = true
 		}
 	}
-	for _, want := range []string{"cmdi", "crypto", "hash", "ldapi", "pathtraver", "securecookie", "sqli", "trustbound", "weakrand", "xpathi", "xss"} {
+	for _, want := range []string{"cmdi", "crypto", "deser", "hash", "ldapi", "nooppass", "outputinj", "pathtraver", "securecookie", "springcsrf", "sqli", "ssrf", "trustbound", "vulndep", "weakrand", "xpathi", "xss", "xxe"} {
 		if !got[want] {
 			t.Fatalf("missing Java pattern class %s from findings %#v", want, findings)
 		}

@@ -13,16 +13,31 @@
     "webwolf_default_host_port": 19090,
     "webwolf_container_port": 9090
   },
-  "auth": {},
+  "auth": {
+    "type": "form",
+    "login_url": "/WebGoat/login",
+    "username": "nyxbench",
+    "password": "Nyx12345",
+    "username_field": "username",
+    "password_field": "password",
+    "validation_url": "/WebGoat/service/lessonmenu.mvc",
+    "validation_contains": "SqlInjection"
+  },
   "setup": {
-    "baseline_only": true
+    "baseline_only": false,
+    "register_user": true,
+    "source_tag": "v2025.3",
+    "minimum_covered": 14,
+    "allow_failed_tools": false
   },
   "safe_active_checks": {
+    "allow_dom_xss": true,
+    "allow_stored_xss": true,
     "intentionally_vulnerable": true,
     "non_production": true
   },
   "notes": [
-    "WebGoat usually needs an operator-created account for deep authenticated lessons. Initial integration starts the target and scans public/login surfaces only.",
-    "Authenticated lesson setup and expected mappings should be added after the first baseline run."
+    "WebGoat uses an app-root path and path-scoped JSESSIONID cookie; auth setup registers the deterministic benchmark user and validates the lesson menu.",
+    "The accepted gate is category-level: authenticated dynamic lesson routes are combined with a pinned v2025.3 Java source audit. Core scanner adapters must not hardcode WebGoat lesson names or challenge solutions."
   ]
 }

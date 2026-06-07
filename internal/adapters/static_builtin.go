@@ -500,6 +500,24 @@ var javaPatternClasses = []javaPatternClass{
 	{ID: "xpathi", Title: "Java XPath evaluation sink", Description: "Java source evaluates XPath expressions near request-controlled data and should be reviewed for XPath injection.", Remediation: "Avoid string-built XPath expressions with untrusted data. Use allow-lists, fixed expressions, and safe variable binding where available.", Severity: models.SeverityHigh, Matches: func(line, context string) bool {
 		return javaContainsAny(line, "xpath", ".evaluate(") && javaContainsAny(context, "getparameter", "getheader", "param")
 	}},
+	{ID: "deser", Title: "Java unsafe deserialization sink", Description: "Java source deserializes objects or XML from data that should be reviewed for unsafe object materialization.", Remediation: "Avoid native object deserialization for untrusted input. Use safe data formats, allow-list expected types, and enable hardened parser protections.", Severity: models.SeverityHigh, Matches: func(line, context string) bool {
+		return javaContainsAny(line, "new objectinputstream", ".readobject(", "new xstream(", ".fromxml(") && javaContainsAny(context, "requestparam", "requestbody", "getparameter", "base64", "payload", "token", "xml")
+	}},
+	{ID: "xxe", Title: "Java XML parser requires XXE hardening review", Description: "Java source creates XML parsers that should be reviewed for external entity and DTD protections.", Remediation: "Disable DTDs and external entities, avoid resolving external schemas, and use hardened XML parser features by default.", Severity: models.SeverityHigh, Matches: func(line, context string) bool {
+		return javaContainsAny(line, "xmlinputfactory.newinstance", "documentbuilderfactory.newinstance", "saxparserfactory.newinstance", "xmlreaderfactory.createxmlreader", "xmlmapper(") && !javaContainsAny(context, "support_dtd, false", "is_supporting_external_entities, false", "disallow-doctype-decl")
+	}},
+	{ID: "ssrf", Title: "Java server-side URL fetch sink", Description: "Java source fetches a URL near request-controlled data and should be reviewed for SSRF protections.", Remediation: "Resolve and validate destinations at connect time, block private and metadata networks by default, and use fixed allow-lists for server-side fetches.", Severity: models.SeverityHigh, Matches: func(line, context string) bool {
+		return javaContainsAny(line, "new url(", ".openstream(", ".openconnection(", "resttemplate.", "jwkproviderbuilder(") && javaContainsAny(context, "requestparam", "getparameter", "requestbody", "url", "uri", "callback")
+	}},
+	{ID: "springcsrf", Title: "Spring CSRF protection disabled", Description: "Spring Security configuration disables CSRF protections and should be reviewed for browser state-changing routes.", Remediation: "Enable CSRF protection for cookie-authenticated browser flows or require equivalent anti-CSRF controls and SameSite cookies.", Severity: models.SeverityMedium, Matches: func(line, context string) bool {
+		return javaContainsAny(line, ".csrf(") && javaContainsAny(line, "disable()")
+	}},
+	{ID: "nooppass", Title: "Java no-op password encoder configured", Description: "Java security configuration uses a no-op password encoder and should be reviewed for plaintext password storage or comparison.", Remediation: "Use a password-specific hashing algorithm such as Argon2id, bcrypt, scrypt, or PBKDF2 with unique salts and upgrade paths.", Severity: models.SeverityHigh, Matches: func(line, context string) bool {
+		return javaContainsAny(line, "nooppasswordencoder", "withdefaultpasswordencoder(")
+	}},
+	{ID: "outputinj", Title: "Java untrusted output requires encoding review", Description: "Java source returns request-influenced content in an output field that should be reviewed for HTML, log, or response injection.", Remediation: "Encode output for the destination context and avoid returning raw request-controlled strings in HTML, logs, or structured response fields.", Severity: models.SeverityMedium, Matches: func(line, context string) bool {
+		return javaContainsAny(line, ".output(") && javaContainsAny(context, "requestparam", "requestbody", "getparameter", "username", "comment", "field", "param")
+	}},
 }
 
 func scanJavaPatternFindings(ctx context.Context, input StaticAdapterInput) ([]models.Finding, error) {
@@ -538,6 +556,11 @@ func scanJavaPatternFindings(ctx context.Context, input StaticAdapterInput) ([]m
 		}
 		return nil
 	})
+	if err == nil {
+		if dependencyFinding, ok := javaDependencyPatternFinding(input, root); ok {
+			findings = append(findings, dependencyFinding)
+		}
+	}
 	return findings, err
 }
 
@@ -580,6 +603,34 @@ func javaPatternFinding(input StaticAdapterInput, class javaPatternClass, path s
 		Tags:               []string{"audit", "javapatterns", "java", class.ID},
 		CreatedAt:          time.Now().UTC(),
 	}
+}
+
+func javaDependencyPatternFinding(input StaticAdapterInput, root *os.Root) (models.Finding, bool) {
+	body, err := readJavaPatternFileInRoot(root, "pom.xml")
+	if err != nil {
+		return models.Finding{}, false
+	}
+	text := strings.ToLower(string(body))
+	if !javaContainsAny(text, "<artifactid>xstream</artifactid>", "<artifactid>commons-collections</artifactid>", "<artifactid>log4j-core</artifactid>") {
+		return models.Finding{}, false
+	}
+	return models.Finding{
+		ID:                 models.NewID(),
+		SessionID:          input.SessionID,
+		ToolID:             "audit/javapatterns",
+		Type:               models.FindingTypeVulnerability,
+		Severity:           models.SeverityMedium,
+		Confidence:         0.55,
+		Title:              "Java dependency requires vulnerable-component review",
+		Description:        "Java build metadata includes dependencies commonly associated with historical deserialization, expression, or logging vulnerabilities and should be reviewed against the deployed version set.",
+		Remediation:        "Pin supported dependency versions, run SCA tooling in CI, remove unused vulnerable libraries, and document intentionally vulnerable training dependencies separately from production builds.",
+		URL:                fileURL("pom.xml", 1),
+		EvidenceRaw:        "pom.xml contains dependency names requiring vulnerable-component review",
+		EvidenceNormalized: "java-pattern-category=vulndep",
+		Status:             models.FindingStatusOpen,
+		Tags:               []string{"audit", "javapatterns", "java", "vulndep"},
+		CreatedAt:          time.Now().UTC(),
+	}, true
 }
 
 func javaContext(lines []string, idx int) string {

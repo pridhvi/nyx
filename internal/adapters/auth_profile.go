@@ -107,7 +107,7 @@ func ResolveSessionAuth(ctx context.Context, session models.Session, target mode
 	if err != nil {
 		return AuthResolution{Session: session}, err
 	}
-	cookies := cookiesForTarget(jar, target)
+	cookies := cookiesForAuthProfile(jar, session, target, profile)
 	cookieHeader := cookieHeader(cookies)
 	if len(headers) == 0 && cookieHeader == "" {
 		return AuthResolution{Session: session}, fmt.Errorf("auth profile produced no reusable cookies or headers")
@@ -369,19 +369,34 @@ func extractInputValue(body, field string) string {
 	return ""
 }
 
-func cookiesForTarget(jar http.CookieJar, target models.Target) map[string]string {
-	rawURL := targetURL(target)
-	parsed, err := url.Parse(rawURL)
-	if err != nil {
-		return nil
-	}
+func cookiesForAuthProfile(jar http.CookieJar, session models.Session, target models.Target, profile map[string]any) map[string]string {
 	out := map[string]string{}
-	for _, cookie := range jar.Cookies(parsed) {
-		if cookie.Name != "" && cookie.Value != "" {
-			out[cookie.Name] = cookie.Value
+	for _, rawURL := range authCookieCandidateURLs(session, target, profile) {
+		parsed, err := url.Parse(rawURL)
+		if err != nil {
+			continue
+		}
+		for _, cookie := range jar.Cookies(parsed) {
+			if cookie.Name != "" && cookie.Value != "" {
+				out[cookie.Name] = cookie.Value
+			}
 		}
 	}
 	return out
+}
+
+func authCookieCandidateURLs(session models.Session, target models.Target, profile map[string]any) []string {
+	candidates := []string{targetURL(target)}
+	for _, raw := range []string{
+		session.TargetInput,
+		firstNonEmptyString(mapString(profile, "login_url"), mapString(profile, "url")),
+		mapString(profile, "validation_url"),
+	} {
+		if normalized := normalizeSeedURL(target, raw); normalized != "" {
+			candidates = append(candidates, normalized)
+		}
+	}
+	return dedupeStrings(candidates)
 }
 
 func cookieHeader(cookies map[string]string) string {

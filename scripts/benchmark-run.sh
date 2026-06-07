@@ -114,6 +114,9 @@ source_path_for() {
     owasp-benchmark)
       prepare_owasp_benchmark_source "$name"
       ;;
+    webgoat)
+      prepare_webgoat_source "$name"
+      ;;
     *)
       printf ''
       ;;
@@ -128,6 +131,9 @@ tools_for() {
       ;;
     dvga)
       printf '%s' "${NYX_BENCHMARK_TOOLS_DVGA:-http-probe,security-headers,graphql-introspection,graphql-security-review}"
+      ;;
+    webgoat)
+      printf '%s' "${NYX_BENCHMARK_TOOLS_WEBGOAT:-audit/javapatterns,audit/authmiddleware,audit/idor,audit/dangerfuncs,http-probe,security-headers,cors-check,workflow-assist,observability-assist,deserialization-assist,csp-review}"
       ;;
     *)
       printf '%s' "$tools"
@@ -156,6 +162,56 @@ prepare_owasp_benchmark_source() {
   cleanup_container
   trap - EXIT HUP INT TERM
   rm -rf "$artifact_root/$name/source-extract"
+  printf '%s' "$source_dir"
+}
+
+prepare_webgoat_source() {
+  name="$1"
+  source_dir="$artifact_root/$name/source"
+  if [ -d "$source_dir/src/main/java" ]; then
+    printf '%s' "$source_dir"
+    return
+  fi
+  rm -rf "$source_dir" "$artifact_root/$name/source.zip"
+  mkdir -p "$source_dir"
+  tag="${NYX_BENCHMARK_WEBGOAT_SOURCE_TAG:-v2025.3}"
+  archive_url="${NYX_BENCHMARK_WEBGOAT_SOURCE_URL:-https://github.com/WebGoat/WebGoat/archive/refs/tags/$tag.zip}"
+  archive="$artifact_root/$name/source.zip"
+  python3 - "$archive_url" "$archive" "$source_dir" <<'PY'
+import shutil
+import sys
+import urllib.request
+import zipfile
+from pathlib import Path
+
+archive_url = sys.argv[1]
+archive = Path(sys.argv[2])
+source_dir = Path(sys.argv[3])
+with urllib.request.urlopen(archive_url, timeout=60) as response, archive.open("wb") as handle:
+    shutil.copyfileobj(response, handle)
+with zipfile.ZipFile(archive) as bundle:
+    roots = sorted({name.split("/", 1)[0] for name in bundle.namelist() if "/" in name})
+    if not roots:
+        raise SystemExit("WebGoat source archive did not contain a top-level directory")
+    root = roots[0]
+    for member in bundle.infolist():
+        name = member.filename
+        if not name.startswith(root + "/"):
+            continue
+        rel = name[len(root) + 1 :]
+        if not rel:
+            continue
+        target = source_dir / rel
+        if member.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with bundle.open(member) as src, target.open("wb") as dst:
+            shutil.copyfileobj(src, dst)
+PY
+  if [ ! -d "$source_dir/src/main/java" ]; then
+    fail "WebGoat source extraction did not produce src/main/java"
+  fi
   printf '%s' "$source_dir"
 }
 
@@ -392,12 +448,48 @@ def setup_crapi() -> None:
         raise SystemExit(f"crAPI benchmark auth validation failed with HTTP {dashboard_status}")
 
 
+def setup_webgoat() -> None:
+    log(f"preparing WebGoat benchmark at {target_url}")
+    username = "nyxbench"
+    password = "Nyx12345"
+    status, _ = request("GET", "/registration")
+    log(f"GET /registration status={status}")
+    register_status, register_body = request(
+        "POST",
+        "/register.mvc",
+        form={
+            "username": username,
+            "password": password,
+            "matchingPassword": password,
+            "agree": "agree",
+        },
+    )
+    log(f"POST /register.mvc status={register_status}")
+    if register_status >= 400:
+        raise SystemExit(f"WebGoat registration failed with HTTP {register_status}: {register_body[:240]}")
+    reset_session()
+    login_status, login_body = request(
+        "POST",
+        "/login",
+        form={"username": username, "password": password},
+    )
+    log(f"POST /login status={login_status}")
+    if login_status >= 400 or "login?error" in login_body:
+        raise SystemExit(f"WebGoat login failed with HTTP {login_status}: {login_body[:240]}")
+    menu_status, menu_body = request("GET", "/service/lessonmenu.mvc")
+    log(f"GET /service/lessonmenu.mvc status={menu_status}")
+    if menu_status >= 400 or "SqlInjection" not in menu_body:
+        raise SystemExit(f"WebGoat auth validation failed with HTTP {menu_status}")
+
+
 if name == "dvwa":
     setup_dvwa()
 elif name == "juice-shop":
     setup_juice_shop()
 elif name == "crapi":
     setup_crapi()
+elif name == "webgoat":
+    setup_webgoat()
 else:
     log(f"no benchmark setup defined for {name}")
 log("benchmark setup completed")
@@ -453,7 +545,7 @@ min_covered_for() {
       printf '%s' "${NYX_BENCHMARK_MIN_COVERED_DVGA:-24}"
       ;;
     webgoat)
-      printf '%s' "${NYX_BENCHMARK_MIN_COVERED_WEBGOAT:-}"
+      printf '%s' "${NYX_BENCHMARK_MIN_COVERED_WEBGOAT:-14}"
       ;;
     nodegoat)
       printf '%s' "${NYX_BENCHMARK_MIN_COVERED_NODEGOAT:-}"
@@ -482,7 +574,7 @@ summary_gate_args() {
       allow_failed="${NYX_BENCHMARK_ALLOW_FAILED_TOOLS_DVGA:-${allow_failed:-0}}"
       ;;
     webgoat)
-      allow_failed="${NYX_BENCHMARK_ALLOW_FAILED_TOOLS_WEBGOAT:-${allow_failed:-1}}"
+      allow_failed="${NYX_BENCHMARK_ALLOW_FAILED_TOOLS_WEBGOAT:-${allow_failed:-0}}"
       ;;
     nodegoat)
       allow_failed="${NYX_BENCHMARK_ALLOW_FAILED_TOOLS_NODEGOAT:-${allow_failed:-1}}"

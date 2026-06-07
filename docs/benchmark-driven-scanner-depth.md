@@ -98,10 +98,13 @@ starts the target for readiness, extracts the BenchmarkJava source tree from the
 Docker image, runs a source audit, records the `expectedresults-1.2.csv` class counts, and
 gates on all 11 vulnerability classes at category level. DVGA now gates on 24
 upstream GraphQL solution categories using the generic `graphql-security-review`
-adapter, safe probes, and schema-shaped human-assist findings. WebGoat and
-NodeGoat intentionally start as baseline integrations with route seeds and empty
-expected mappings. Their first runs should establish target readiness, Nyx scan
-stability, report generation, and initial observed findings before minimum
+adapter, safe probes, and schema-shaped human-assist findings. WebGoat now
+registers a deterministic local benchmark user, validates authenticated
+lesson-menu access, downloads pinned WebGoat `v2025.3` source, and gates on 14
+Java lesson-oriented categories using generic source/authenticated evidence.
+NodeGoat intentionally starts as a baseline integration with route seeds and an
+empty expected mapping. Its first runs should establish target readiness, Nyx
+scan stability, report generation, and initial observed findings before minimum
 coverage gates are added.
 
 ## Phase 1: Benchmark Harness
@@ -508,12 +511,18 @@ against commit `a41272c` in the Kali VM checkout at
   execution, arbitrary file write, SSRF, XSS, and DoS are not executed by the
   benchmark gate. The run wrote artifacts under
   `/tmp/nyx-dvga-benchmark/artifacts-20260607-152154/dvga`.
-- LLM acceptance: LM Studio at `http://10.0.0.100:1234/v1` listed
-  `huihui-qwen3.5-9b-abliterated`,
-  `huihui-qwen3.6-35b-a3b-claude-4.7-opus-abliterated`, and
-  `text-embedding-nomic-embed-text-v1.5`; both chat models persisted non-empty
-  assistant messages against the DVWA benchmark session. The operator-console
-  LLM page rendered real persisted history with assistant labels, copy buttons,
+- WebGoat: accepted local Docker baseline on 2026-06-07 covered 14 of 14 Java
+  lesson-oriented categories with 984 findings and no failed tool runs. The
+  gate registers and logs in a deterministic benchmark user, validates the
+  authenticated lesson menu, downloads pinned WebGoat `v2025.3` source, and
+  combines generic Java source patterns, auth-middleware route review, and
+  built-in authenticated HTTP checks without hardcoding lesson solutions. The
+  run wrote artifacts under
+  `artifacts/benchmarks/20260607-154946/webgoat`.
+- LLM acceptance: a local OpenAI-compatible LM Studio endpoint listed chat and
+  embedding models; two local chat models persisted non-empty assistant
+  messages against the DVWA benchmark session. The operator-console LLM page
+  rendered real persisted history with assistant labels, copy buttons,
   collapsed long reasoning output, the reasoning-output badge, formatted risk
   bullets, and hidden internal session-context JSON.
 
@@ -523,13 +532,15 @@ benchmark-juice` requires at least 15 covered expected items, `make
 benchmark-crapi` requires 12 covered expected categories,
 `make benchmark-owasp-benchmark` requires 11 covered OWASP Benchmark
 vulnerability classes, `make benchmark-dvga` requires 24 covered GraphQL
-solution categories, and those commands fail when any benchmark tool run exits
-nonzero. Temporary local experimentation can lower those gates with
+solution categories, `make benchmark-webgoat` requires 14 covered WebGoat Java
+lesson categories, and those commands fail when any strict benchmark tool run
+exits nonzero. Temporary local experimentation can lower those gates with
 `NYX_BENCHMARK_MIN_COVERED_DVWA`,
 `NYX_BENCHMARK_MIN_COVERED_JUICE_SHOP`,
 `NYX_BENCHMARK_MIN_COVERED_CRAPI`,
 `NYX_BENCHMARK_MIN_COVERED_OWASP_BENCHMARK`,
-`NYX_BENCHMARK_MIN_COVERED_DVGA`, or
+`NYX_BENCHMARK_MIN_COVERED_DVGA`,
+`NYX_BENCHMARK_MIN_COVERED_WEBGOAT`, or
 `NYX_BENCHMARK_ALLOW_FAILED_TOOLS=1`; baseline changes should be intentional and
 reviewed.
 

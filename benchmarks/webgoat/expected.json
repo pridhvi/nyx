@@ -1,5 +1,134 @@
 {
   "benchmark": "webgoat",
-  "name": "WebGoat baseline coverage",
-  "items": []
+  "name": "WebGoat category-level coverage",
+  "known_findings": [
+    {"class": "broken-access-control", "label": "Broken access control lessons"},
+    {"class": "cryptographic-failures", "label": "Cryptographic failures lessons"},
+    {"class": "sql-injection", "label": "SQL injection lessons"},
+    {"class": "xss", "label": "Cross-site scripting lessons"},
+    {"class": "path-traversal", "label": "Path traversal lesson"},
+    {"class": "csrf", "label": "Cross-site request forgery lesson"},
+    {"class": "xxe", "label": "XML external entity lesson"},
+    {"class": "vulnerable-components", "label": "Vulnerable components lesson"},
+    {"class": "identity-auth-failure", "label": "Identity and authentication failure lessons"},
+    {"class": "insecure-deserialization", "label": "Insecure deserialization lesson"},
+    {"class": "logging-failures", "label": "Security logging failure lesson"},
+    {"class": "ssrf", "label": "Server-side request forgery lesson"},
+    {"class": "client-side-controls", "label": "Client-side control lessons"},
+    {"class": "jwt", "label": "JWT lesson"}
+  ],
+  "items": [
+    {
+      "id": "webgoat-broken-access-control",
+      "class": "broken-access-control",
+      "label": "Broken access control",
+      "automation_suitable": false,
+      "confirmation_strategy": "Java source route review for IDOR/access-control lessons",
+      "all_match": {"tool": ["audit/authmiddleware"], "url": ["lessons/idor", "lessons/accesscontrol"]}
+    },
+    {
+      "id": "webgoat-crypto",
+      "class": "cryptographic-failures",
+      "label": "Cryptographic failures",
+      "automation_suitable": false,
+      "confirmation_strategy": "Java cryptography/hash/randomness source pattern",
+      "all_match": {"tool": ["audit/javapatterns"], "url": ["lessons/cryptography"], "evidence_normalized": ["java-pattern-category=hash", "java-pattern-category=weakrand", "java-pattern-category=crypto"]}
+    },
+    {
+      "id": "webgoat-sqli",
+      "class": "sql-injection",
+      "label": "SQL injection",
+      "automation_suitable": false,
+      "confirmation_strategy": "Java SQL sink source pattern in SQL injection lessons",
+      "all_match": {"tool": ["audit/javapatterns"], "url": ["lessons/sqlinjection"], "evidence_normalized": ["java-pattern-category=sqli"]}
+    },
+    {
+      "id": "webgoat-xss",
+      "class": "xss",
+      "label": "Cross-site scripting",
+      "automation_suitable": false,
+      "confirmation_strategy": "Java output-injection source pattern in XSS lessons",
+      "all_match": {"tool": ["audit/javapatterns"], "url": ["lessons/xss"], "evidence_normalized": ["java-pattern-category=outputinj"]}
+    },
+    {
+      "id": "webgoat-path-traversal",
+      "class": "path-traversal",
+      "label": "Path traversal",
+      "automation_suitable": false,
+      "confirmation_strategy": "Java file path sink source pattern in path traversal lesson",
+      "all_match": {"tool": ["audit/javapatterns"], "url": ["lessons/pathtraversal"], "evidence_normalized": ["java-pattern-category=pathtraver"]}
+    },
+    {
+      "id": "webgoat-csrf",
+      "class": "csrf",
+      "label": "Cross-site request forgery",
+      "automation_suitable": false,
+      "confirmation_strategy": "Spring CSRF-disabled source configuration review",
+      "all_match": {"tool": ["audit/javapatterns"], "evidence_normalized": ["java-pattern-category=springcsrf"]}
+    },
+    {
+      "id": "webgoat-xxe",
+      "class": "xxe",
+      "label": "XML external entity",
+      "automation_suitable": false,
+      "confirmation_strategy": "Java XML parser hardening source pattern in XXE lesson",
+      "all_match": {"tool": ["audit/javapatterns"], "url": ["lessons/xxe"], "evidence_normalized": ["java-pattern-category=xxe"]}
+    },
+    {
+      "id": "webgoat-vulnerable-components",
+      "class": "vulnerable-components",
+      "label": "Vulnerable components",
+      "automation_suitable": false,
+      "confirmation_strategy": "Java dependency and XML deserialization component review",
+      "all_match": {"tool": ["audit/javapatterns"], "url": ["pom.xml"], "evidence_normalized": ["java-pattern-category=vulndep"]}
+    },
+    {
+      "id": "webgoat-identity-auth-failure",
+      "class": "identity-auth-failure",
+      "label": "Identity and authentication failure",
+      "automation_suitable": false,
+      "confirmation_strategy": "Java no-op password encoder source pattern",
+      "all_match": {"tool": ["audit/javapatterns"], "evidence_normalized": ["java-pattern-category=nooppass"]}
+    },
+    {
+      "id": "webgoat-insecure-deserialization",
+      "class": "insecure-deserialization",
+      "label": "Insecure deserialization",
+      "automation_suitable": false,
+      "confirmation_strategy": "Java object deserialization source pattern in deserialization lesson",
+      "all_match": {"tool": ["audit/javapatterns"], "url": ["lessons/deserialization"], "evidence_normalized": ["java-pattern-category=deser"]}
+    },
+    {
+      "id": "webgoat-logging-failures",
+      "class": "logging-failures",
+      "label": "Security logging failures",
+      "automation_suitable": false,
+      "confirmation_strategy": "Java output/logging review source pattern in logging lesson",
+      "all_match": {"tool": ["audit/javapatterns"], "url": ["lessons/logging"], "evidence_normalized": ["java-pattern-category=outputinj"]}
+    },
+    {
+      "id": "webgoat-ssrf",
+      "class": "ssrf",
+      "label": "Server-side request forgery",
+      "automation_suitable": false,
+      "confirmation_strategy": "Java server-side URL fetch source pattern in SSRF lesson",
+      "all_match": {"tool": ["audit/javapatterns"], "url": ["lessons/ssrf"], "evidence_normalized": ["java-pattern-category=ssrf"]}
+    },
+    {
+      "id": "webgoat-client-side-controls",
+      "class": "client-side-controls",
+      "label": "Client-side controls",
+      "automation_suitable": false,
+      "confirmation_strategy": "Source route review for client-side filtering/restriction lessons",
+      "all_match": {"tool": ["audit/authmiddleware"], "url": ["lessons/clientsidefiltering"]}
+    },
+    {
+      "id": "webgoat-jwt",
+      "class": "jwt",
+      "label": "JWT handling",
+      "automation_suitable": false,
+      "confirmation_strategy": "Java JWT lesson source pattern for key material, SQL, or cookie handling",
+      "all_match": {"tool": ["audit/javapatterns"], "url": ["lessons/jwt"], "evidence_normalized": ["java-pattern-category=securecookie", "java-pattern-category=sqli", "java-pattern-category=ssrf"]}
+    }
+  ]
 }
