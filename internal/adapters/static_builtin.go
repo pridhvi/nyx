@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"os/exec"
@@ -503,20 +504,25 @@ var javaPatternClasses = []javaPatternClass{
 
 func scanJavaPatternFindings(ctx context.Context, input StaticAdapterInput) ([]models.Finding, error) {
 	var findings []models.Finding
-	err := filepath.WalkDir(input.RepoPath, func(path string, entry os.DirEntry, err error) error {
+	root, err := os.OpenRoot(input.RepoPath)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	err = filepath.WalkDir(input.RepoPath, func(path string, entry os.DirEntry, err error) error {
 		if err != nil || entry.IsDir() || entry.Type()&os.ModeSymlink != 0 || !strings.EqualFold(filepath.Ext(path), ".java") || javaStaticExcluded(path) {
 			return nil
 		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		body, err := os.ReadFile(path)
+		rel, err := filepath.Rel(input.RepoPath, path)
 		if err != nil {
 			return nil
 		}
-		rel, err := filepath.Rel(input.RepoPath, path)
+		body, err := readJavaPatternFileInRoot(root, rel)
 		if err != nil {
-			rel = path
+			return nil
 		}
 		lines := strings.Split(string(body), "\n")
 		seenInFile := map[string]bool{}
@@ -533,6 +539,26 @@ func scanJavaPatternFindings(ctx context.Context, input StaticAdapterInput) ([]m
 		return nil
 	})
 	return findings, err
+}
+
+func readJavaPatternFileInRoot(root *os.Root, rel string) ([]byte, error) {
+	rel = filepath.Clean(rel)
+	if rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return nil, fmt.Errorf("java source path escapes root: %s", rel)
+	}
+	file, err := root.Open(rel)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("java source path is not a regular file: %s", rel)
+	}
+	return io.ReadAll(file)
 }
 
 func javaPatternFinding(input StaticAdapterInput, class javaPatternClass, path string, line int, evidenceLine, context string) models.Finding {
