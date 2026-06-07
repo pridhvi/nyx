@@ -21,11 +21,11 @@ type AnalysisResult struct {
 func Analyse(repoPath, sessionID string) (AnalysisResult, error) {
 	extractors := []Extractor{
 		PythonExtractor{},
+		JavaExtractor{},
 		JavaScriptExtractor{},
 		GoExtractor{},
 		PHPExtractor{},
 		RubyExtractor{},
-		JavaExtractor{},
 	}
 	for _, extractor := range extractors {
 		if !extractor.Detect(repoPath) {
@@ -206,6 +206,7 @@ var routePatterns = map[string][]routePattern{
 	},
 	"java": {
 		{regexp.MustCompile(`@(Get|Post|Put|Delete|Patch|Request)Mapping\(\s*(?:value\s*=\s*)?["']([^"']+)`), 2, 1},
+		{regexp.MustCompile(`@WebServlet\(\s*["']([^"']+)`), 1, 0},
 	},
 }
 
@@ -215,11 +216,11 @@ var parameterPatterns = map[string][]*regexp.Regexp{
 	"go":         {regexp.MustCompile(`(?:Query|Param)\(\s*["']([^"']+)`), regexp.MustCompile(`Query\(\)\.Get\(\s*["']([^"']+)`)},
 	"php":        {regexp.MustCompile(`\$_(?:GET|POST|REQUEST)\[['"]([^'"]+)`)},
 	"ruby":       {regexp.MustCompile(`params\[[':]?([A-Za-z_][A-Za-z0-9_]*)`)},
-	"java":       {regexp.MustCompile(`@RequestParam\(\s*["']([^"']+)`)},
+	"java":       {regexp.MustCompile(`@RequestParam\(\s*["']([^"']+)`), regexp.MustCompile(`request\.get(?:Parameter|Header)\(\s*["']([^"']+)`)},
 }
 
 var (
-	sqlSinkPattern     = regexp.MustCompile(`(?i)(raw\(|\.Raw\(|text\(|SELECT .*\+|WHERE .*\+|query\([^)]*\+)`)
+	sqlSinkPattern     = regexp.MustCompile(`(?i)(raw\(|\.Raw\(|text\(|SELECT .*\+|WHERE .*\+|query\([^)]*\+|execute(Query|Update)\(|prepare(Call|Statement)\(|createStatement\()`)
 	fileUploadPattern  = regexp.MustCompile(`(?i)(request\.FILES|multer|upload\.single|move_uploaded_file|multipart\.Form|MultipartFile)`)
 	authPattern        = regexp.MustCompile(`(?i)(auth|login_required|permission|authenticate|authorize|jwt|session)`)
 	secretPattern      = regexp.MustCompile(`(?i)(AKIA[A-Z0-9]{16}|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|password\s*=|secret\s*=|api[_-]?key\s*=)`)

@@ -1,5 +1,30 @@
 {
   "benchmark": "owasp-benchmark",
-  "name": "OWASP Benchmark baseline coverage",
-  "items": []
+  "name": "OWASP Benchmark Java class coverage",
+  "known_findings": [
+    {"class": "cmdi", "label": "Command Injection", "cwe": "CWE-78", "vulnerable_count": 126, "safe_count": 125, "total_count": 251},
+    {"class": "crypto", "label": "Weak Cryptography", "cwe": "CWE-327", "vulnerable_count": 130, "safe_count": 116, "total_count": 246},
+    {"class": "hash", "label": "Weak Hashing", "cwe": "CWE-328", "vulnerable_count": 129, "safe_count": 107, "total_count": 236},
+    {"class": "ldapi", "label": "LDAP Injection", "cwe": "CWE-90", "vulnerable_count": 27, "safe_count": 32, "total_count": 59},
+    {"class": "pathtraver", "label": "Path Traversal", "cwe": "CWE-22", "vulnerable_count": 133, "safe_count": 135, "total_count": 268},
+    {"class": "securecookie", "label": "Cookie Missing Secure Flag", "cwe": "CWE-614", "vulnerable_count": 36, "safe_count": 31, "total_count": 67},
+    {"class": "sqli", "label": "SQL Injection", "cwe": "CWE-89", "vulnerable_count": 272, "safe_count": 232, "total_count": 504},
+    {"class": "trustbound", "label": "Trust Boundary Violation", "cwe": "CWE-501", "vulnerable_count": 83, "safe_count": 43, "total_count": 126},
+    {"class": "weakrand", "label": "Weak Randomness", "cwe": "CWE-330", "vulnerable_count": 218, "safe_count": 275, "total_count": 493},
+    {"class": "xpathi", "label": "XPath Injection", "cwe": "CWE-643", "vulnerable_count": 15, "safe_count": 20, "total_count": 35},
+    {"class": "xss", "label": "Cross-Site Scripting", "cwe": "CWE-79", "vulnerable_count": 246, "safe_count": 209, "total_count": 455}
+  ],
+  "items": [
+    {"id": "owasp-benchmark-cmdi", "class": "cmdi", "label": "Command Injection", "automation_suitable": true, "confirmation_strategy": "generic Java command execution source pattern", "all_match": {"tool": ["audit/javapatterns"], "evidence_normalized": ["java-pattern-category=cmdi"]}},
+    {"id": "owasp-benchmark-crypto", "class": "crypto", "label": "Weak Cryptography", "automation_suitable": true, "confirmation_strategy": "generic Java cipher source pattern", "all_match": {"tool": ["audit/javapatterns"], "evidence_normalized": ["java-pattern-category=crypto"]}},
+    {"id": "owasp-benchmark-hash", "class": "hash", "label": "Weak Hashing", "automation_suitable": true, "confirmation_strategy": "generic Java message digest source pattern", "all_match": {"tool": ["audit/javapatterns"], "evidence_normalized": ["java-pattern-category=hash"]}},
+    {"id": "owasp-benchmark-ldapi", "class": "ldapi", "label": "LDAP Injection", "automation_suitable": true, "confirmation_strategy": "generic Java LDAP query source pattern", "all_match": {"tool": ["audit/javapatterns"], "evidence_normalized": ["java-pattern-category=ldapi"]}},
+    {"id": "owasp-benchmark-pathtraver", "class": "pathtraver", "label": "Path Traversal", "automation_suitable": true, "confirmation_strategy": "generic Java request-controlled file path source pattern", "all_match": {"tool": ["audit/javapatterns"], "evidence_normalized": ["java-pattern-category=pathtraver"]}},
+    {"id": "owasp-benchmark-securecookie", "class": "securecookie", "label": "Cookie Missing Secure Flag", "automation_suitable": true, "confirmation_strategy": "generic Java cookie security source pattern", "all_match": {"tool": ["audit/javapatterns"], "evidence_normalized": ["java-pattern-category=securecookie"]}},
+    {"id": "owasp-benchmark-sqli", "class": "sqli", "label": "SQL Injection", "automation_suitable": true, "confirmation_strategy": "generic Java SQL execution source pattern", "all_match": {"tool": ["audit/javapatterns"], "evidence_normalized": ["java-pattern-category=sqli"]}},
+    {"id": "owasp-benchmark-trustbound", "class": "trustbound", "label": "Trust Boundary Violation", "automation_suitable": true, "confirmation_strategy": "generic Java request-to-session trust-boundary pattern", "all_match": {"tool": ["audit/javapatterns"], "evidence_normalized": ["java-pattern-category=trustbound"]}},
+    {"id": "owasp-benchmark-weakrand", "class": "weakrand", "label": "Weak Randomness", "automation_suitable": true, "confirmation_strategy": "generic Java non-cryptographic randomness source pattern", "all_match": {"tool": ["audit/javapatterns"], "evidence_normalized": ["java-pattern-category=weakrand"]}},
+    {"id": "owasp-benchmark-xpathi", "class": "xpathi", "label": "XPath Injection", "automation_suitable": true, "confirmation_strategy": "generic Java XPath evaluation source pattern", "all_match": {"tool": ["audit/javapatterns"], "evidence_normalized": ["java-pattern-category=xpathi"]}},
+    {"id": "owasp-benchmark-xss", "class": "xss", "label": "Cross-Site Scripting", "automation_suitable": true, "confirmation_strategy": "generic Java response output source pattern", "all_match": {"tool": ["audit/javapatterns"], "evidence_normalized": ["java-pattern-category=xss"]}}
+  ]
 }

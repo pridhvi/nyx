@@ -148,6 +148,7 @@ def build_summary(
     artifact_dir: Path,
 ) -> dict[str, Any]:
     expected = load_json(expected_path)
+    known_findings = expected.get("known_findings") or []
     all_findings = findings(db_path)
     all_runs = tool_runs(db_path)
     item_results = []
@@ -186,6 +187,7 @@ def build_summary(
         "missed_count": status_counts.get("missed", 0),
         "skipped_count": status_counts.get("skipped", 0),
         "coverage_percent": round((covered / total) * 100, 2) if total else 0,
+        "known_findings": known_findings,
         "finding_count": len(all_findings),
         "finding_severity_counts": severity_counts(all_findings),
         "tool_run_count": len(all_runs),
@@ -244,6 +246,20 @@ def markdown(summary: dict[str, Any]) -> str:
         )
         for failure in gate.get("failures") or []:
             lines.append(f"- Gate failure: {failure}")
+    if summary.get("known_findings"):
+        lines.extend(
+            [
+                "",
+                "## Known Findings Corpus",
+                "",
+                "| Class | Vulnerable | Non-vulnerable | Total | CWE |",
+                "|---|---:|---:|---:|---|",
+            ]
+        )
+        for item in summary["known_findings"]:
+            lines.append(
+                f"| {item.get('class', '')} | {item.get('vulnerable_count', 0)} | {item.get('safe_count', 0)} | {item.get('total_count', 0)} | {item.get('cwe', '')} |"
+            )
     lines.extend(
         [
             "",

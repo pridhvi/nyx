@@ -6,6 +6,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -57,6 +58,7 @@ func init() {
 		newCommandStaticAdapter("grype", "Grype", []string{"any"}, "grype", func(input StaticAdapterInput) []string {
 			return []string{input.RepoPath, "-o", "json"}
 		}),
+		javaPatternStaticAdapter{},
 		sourceStaticAdapter{id: "authmiddleware", name: "Auth middleware gap", kind: models.SourceKindUnprotectedRoute, severity: models.SeverityMedium},
 		sourceStaticAdapter{id: "idor", name: "IDOR pattern detection", kind: models.SourceKindParameter, severity: models.SeverityMedium},
 		sourceStaticAdapter{id: "dangerfuncs", name: "Dangerous function tracer", kind: models.SourceKindDeserialisationSink, severity: models.SeverityHigh},
@@ -97,6 +99,32 @@ func (a commandStaticAdapter) Run(ctx context.Context, input StaticAdapterInput)
 	findings, cves := parseStaticOutput(input, a.id, result.Stdout)
 	run.FindingCount = len(findings)
 	return StaticAdapterOutput{Findings: findings, CVEs: cves, ToolRun: run}, nil
+}
+
+type javaPatternStaticAdapter struct{}
+
+func (javaPatternStaticAdapter) ID() string          { return "javapatterns" }
+func (javaPatternStaticAdapter) Name() string        { return "Java dangerous pattern audit" }
+func (javaPatternStaticAdapter) Languages() []string { return []string{"java"} }
+func (javaPatternStaticAdapter) Available() bool     { return true }
+
+func (a javaPatternStaticAdapter) Run(ctx context.Context, input StaticAdapterInput) (StaticAdapterOutput, error) {
+	started := time.Now().UTC()
+	findings, err := scanJavaPatternFindings(ctx, input)
+	now := time.Now().UTC()
+	return StaticAdapterOutput{Findings: findings, ToolRun: models.ToolRun{
+		ID:           models.NewID(),
+		SessionID:    input.SessionID,
+		ToolID:       a.ID(),
+		Args:         []string{a.ID(), input.RepoPath},
+		ExitCode:     exitCodeForErr(err),
+		DurationMS:   time.Since(started).Milliseconds(),
+		FindingCount: len(findings),
+		RawStdout:    fmt.Sprintf("scanned Java source patterns; findings=%d\n", len(findings)),
+		RawStderr:    errorString(err),
+		NormalizedAt: &now,
+		StartedAt:    started,
+	}}, err
 }
 
 type sourceStaticAdapter struct {
@@ -423,6 +451,150 @@ func parseGenericCVEs(input StaticAdapterInput, decoded any, toolID string) []mo
 		cves = append(cves, cveMatch(input, toolID, id, firstString(obj, "title", "summary", "description", "message"), firstString(obj, "package", "module", "name", "dependency"), firstString(obj, "version", "installed_version", "current_version"), obj))
 	})
 	return cves
+}
+
+type javaPatternClass struct {
+	ID          string
+	Title       string
+	Description string
+	Remediation string
+	Severity    models.Severity
+	Matches     func(line, context string) bool
+}
+
+var javaPatternClasses = []javaPatternClass{
+	{ID: "cmdi", Title: "Java command execution sink", Description: "Java source contains command execution APIs that should be reviewed for untrusted input flow.", Remediation: "Avoid shelling out with untrusted data. Prefer safe library APIs, strict allow-lists, fixed argv templates, and server-side authorization checks.", Severity: models.SeverityHigh, Matches: func(line, context string) bool {
+		return javaContainsAny(line, "runtime.getruntime().exec", "new processbuilder", "processbuilder(")
+	}},
+	{ID: "sqli", Title: "Java SQL execution sink", Description: "Java source constructs or executes SQL in a way that should be reviewed for injection-safe parameter binding.", Remediation: "Use prepared statements with bound parameters for all untrusted values and avoid string-concatenated SQL.", Severity: models.SeverityHigh, Matches: func(line, context string) bool {
+		return javaContainsAny(line, "executequery(", "executeupdate(", "preparecall(", "createstatement(") && javaContainsAny(context, "sql", "getparameter", "getheader", "param")
+	}},
+	{ID: "xss", Title: "Java response output sink", Description: "Java source writes response content near request-controlled data and should be reviewed for output encoding.", Remediation: "Encode untrusted output for the browser context, prefer templating auto-escape, and validate or reject dangerous input.", Severity: models.SeverityHigh, Matches: func(line, context string) bool {
+		return javaContainsAny(line, "response.getwriter().print", "response.getwriter().write", "out.print") && javaContainsAny(context, "getparameter", "getheader", "urldecoder", "param")
+	}},
+	{ID: "pathtraver", Title: "Java file path sink", Description: "Java source performs file access near request-controlled data and should be reviewed for path traversal risk.", Remediation: "Resolve paths under a fixed root, reject traversal segments after canonicalization, and avoid direct use of request-controlled filenames.", Severity: models.SeverityHigh, Matches: func(line, context string) bool {
+		return javaContainsAny(line, "fileinputstream", "fileoutputstream", "randomaccessfile", "new java.io.file", "new file(") && javaContainsAny(context, "getparameter", "getheader", "getcookies", "urldecoder", "cookie")
+	}},
+	{ID: "crypto", Title: "Java cryptographic algorithm selection", Description: "Java source selects a cipher algorithm that should be reviewed for weak modes, deprecated algorithms, or untrusted selection.", Remediation: "Use modern authenticated encryption such as AES-GCM with fixed approved algorithms and avoid request-controlled algorithm names.", Severity: models.SeverityMedium, Matches: func(line, context string) bool {
+		return javaContainsAny(line, "cipher.getinstance(")
+	}},
+	{ID: "hash", Title: "Java message digest usage", Description: "Java source creates a message digest and should be reviewed for weak hashing or password-storage misuse.", Remediation: "Use SHA-256 or stronger for integrity, and use password-specific KDFs such as Argon2id, bcrypt, scrypt, or PBKDF2 for passwords.", Severity: models.SeverityMedium, Matches: func(line, context string) bool {
+		return javaContainsAny(line, "messagedigest.getinstance(")
+	}},
+	{ID: "weakrand", Title: "Java predictable randomness", Description: "Java source uses non-cryptographic randomness where security-sensitive token or key generation may require stronger entropy.", Remediation: "Use SecureRandom for security-sensitive identifiers, keys, nonces, and tokens.", Severity: models.SeverityMedium, Matches: func(line, context string) bool {
+		return javaContainsAny(line, "java.util.random", "new random(", "math.random(", ".nextfloat(", ".nextint(") && !javaContainsAny(context, "securerandom")
+	}},
+	{ID: "securecookie", Title: "Java cookie missing secure flag", Description: "Java source creates or configures cookies in a way that should be reviewed for missing Secure attributes.", Remediation: "Set Secure, HttpOnly, and SameSite attributes on sensitive cookies and serve them only over HTTPS.", Severity: models.SeverityMedium, Matches: func(line, context string) bool {
+		if javaContainsAny(line, "setsecure(false)") {
+			return true
+		}
+		return javaContainsAny(line, "new javax.servlet.http.cookie", "new cookie(") && !javaContainsAny(context, "setsecure(true)")
+	}},
+	{ID: "trustbound", Title: "Java trust-boundary session write", Description: "Java source writes request-derived data into server-side session state and should be reviewed for trust-boundary violations.", Remediation: "Validate and canonicalize data before storing it in trusted session state, and avoid using user-controlled values as authorization decisions.", Severity: models.SeverityMedium, Matches: func(line, context string) bool {
+		return javaContainsAny(line, "getsession().setattribute", ".setattribute(") && javaContainsAny(context, "getparameter", "getheader", "getcookies", "urldecoder", "param")
+	}},
+	{ID: "ldapi", Title: "Java LDAP query sink", Description: "Java source performs LDAP lookup/search operations near request-controlled data and should be reviewed for LDAP injection.", Remediation: "Escape LDAP filter values, use safe directory APIs, and restrict query templates to server-defined structures.", Severity: models.SeverityHigh, Matches: func(line, context string) bool {
+		return javaContainsAny(line, "dircontext", "initialdircontext", ".search(", "searchcontrols") && javaContainsAny(context, "getparameter", "getheader", "param")
+	}},
+	{ID: "xpathi", Title: "Java XPath evaluation sink", Description: "Java source evaluates XPath expressions near request-controlled data and should be reviewed for XPath injection.", Remediation: "Avoid string-built XPath expressions with untrusted data. Use allow-lists, fixed expressions, and safe variable binding where available.", Severity: models.SeverityHigh, Matches: func(line, context string) bool {
+		return javaContainsAny(line, "xpath", ".evaluate(") && javaContainsAny(context, "getparameter", "getheader", "param")
+	}},
+}
+
+func scanJavaPatternFindings(ctx context.Context, input StaticAdapterInput) ([]models.Finding, error) {
+	var findings []models.Finding
+	err := filepath.WalkDir(input.RepoPath, func(path string, entry os.DirEntry, err error) error {
+		if err != nil || entry.IsDir() || entry.Type()&os.ModeSymlink != 0 || !strings.EqualFold(filepath.Ext(path), ".java") || javaStaticExcluded(path) {
+			return nil
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		body, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		rel, err := filepath.Rel(input.RepoPath, path)
+		if err != nil {
+			rel = path
+		}
+		lines := strings.Split(string(body), "\n")
+		seenInFile := map[string]bool{}
+		for idx, line := range lines {
+			context := javaContext(lines, idx)
+			for _, class := range javaPatternClasses {
+				if seenInFile[class.ID] || !class.Matches(line, context) {
+					continue
+				}
+				seenInFile[class.ID] = true
+				findings = append(findings, javaPatternFinding(input, class, filepath.ToSlash(rel), idx+1, line, context))
+			}
+		}
+		return nil
+	})
+	return findings, err
+}
+
+func javaPatternFinding(input StaticAdapterInput, class javaPatternClass, path string, line int, evidenceLine, context string) models.Finding {
+	return models.Finding{
+		ID:                 models.NewID(),
+		SessionID:          input.SessionID,
+		ToolID:             "audit/javapatterns",
+		Type:               models.FindingTypeVulnerability,
+		Severity:           class.Severity,
+		Confidence:         0.58,
+		Title:              class.Title,
+		Description:        class.Description,
+		Remediation:        class.Remediation,
+		URL:                fileURL(path, line),
+		EvidenceRaw:        strings.TrimSpace(evidenceLine),
+		EvidenceNormalized: fmt.Sprintf("java-pattern-category=%s", class.ID),
+		CodeContext:        context,
+		Status:             models.FindingStatusOpen,
+		Tags:               []string{"audit", "javapatterns", "java", class.ID},
+		CreatedAt:          time.Now().UTC(),
+	}
+}
+
+func javaContext(lines []string, idx int) string {
+	start := idx - 8
+	if start < 0 {
+		start = 0
+	}
+	end := idx + 9
+	if end > len(lines) {
+		end = len(lines)
+	}
+	return strings.Join(lines[start:end], "\n")
+}
+
+func javaContainsAny(value string, needles ...string) bool {
+	lower := strings.ToLower(value)
+	for _, needle := range needles {
+		if strings.Contains(lower, strings.ToLower(needle)) {
+			return true
+		}
+	}
+	return false
+}
+
+func javaStaticExcluded(path string) bool {
+	normalized := filepath.ToSlash(path)
+	return strings.Contains(normalized, "/target/") || strings.Contains(normalized, "/test/") || strings.Contains(normalized, "/tests/")
+}
+
+func exitCodeForErr(err error) int {
+	if err != nil {
+		return 1
+	}
+	return 0
+}
+
+func errorString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }
 
 func staticFinding(input StaticAdapterInput, toolID, path string, line int, message string, severity models.Severity, raw any) models.Finding {

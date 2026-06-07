@@ -1,6 +1,9 @@
 package adapters
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -69,5 +72,47 @@ func TestSourceFindingToAuditFindingUsesAuditToolID(t *testing.T) {
 	})
 	if finding.ToolID != "audit/authmiddleware" || !strings.Contains(finding.URL, "app.py") {
 		t.Fatalf("unexpected audit finding: %#v", finding)
+	}
+}
+
+func TestJavaPatternStaticAdapterCoversBenchmarkClasses(t *testing.T) {
+	repo := t.TempDir()
+	source := `package demo;
+class Demo {
+  void test(javax.servlet.http.HttpServletRequest request, javax.servlet.http.HttpServletResponse response) throws Exception {
+    String param = request.getParameter("q");
+    String sql = "select * from users where name='" + param + "'";
+    statement.executeQuery(sql);
+    new ProcessBuilder(param).start();
+    response.getWriter().println(param);
+    new java.io.FileInputStream(new java.io.File(param));
+    javax.crypto.Cipher.getInstance(param);
+    java.security.MessageDigest.getInstance(param);
+    float r = new java.util.Random().nextFloat();
+    javax.servlet.http.Cookie c = new javax.servlet.http.Cookie("sid", param);
+    request.getSession().setAttribute("name", param);
+    javax.naming.directory.DirContext ctx = null;
+    ctx.search("ou=people", param, null);
+    javax.xml.xpath.XPath xp = null;
+    xp.evaluate(param, document);
+  }
+}`
+	if err := os.WriteFile(filepath.Join(repo, "Demo.java"), []byte(source), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	findings, err := scanJavaPatternFindings(context.Background(), StaticAdapterInput{SessionID: "session-1", RepoPath: repo})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, finding := range findings {
+		if len(finding.Tags) > 0 {
+			got[finding.Tags[len(finding.Tags)-1]] = true
+		}
+	}
+	for _, want := range []string{"cmdi", "crypto", "hash", "ldapi", "pathtraver", "securecookie", "sqli", "trustbound", "weakrand", "xpathi", "xss"} {
+		if !got[want] {
+			t.Fatalf("missing Java pattern class %s from findings %#v", want, findings)
+		}
 	}
 }

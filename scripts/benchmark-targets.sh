@@ -41,13 +41,14 @@ wait_url() {
   url="$1"
   label="$2"
   curl_flags="${3:-}"
+  attempts="${4:-90}"
   i=0
   # shellcheck disable=SC2086
-  until curl $curl_flags -fsS "$url" >/dev/null 2>&1 || [ "$i" -ge 90 ]; do
+  until curl $curl_flags -fsS "$url" >/dev/null 2>&1 || [ "$i" -ge "$attempts" ]; do
     i=$((i + 1))
     sleep 2
   done
-  if [ "$i" -ge 90 ]; then
+  if [ "$i" -ge "$attempts" ]; then
     echo "$label did not become ready at $url" >&2
     docker ps -a --filter "name=$label" >&2 || true
     exit 1
@@ -159,12 +160,18 @@ PY
 }
 
 start_or_create_owasp_benchmark() {
-  if container_exists "$benchmark_name"; then
-    docker start "$benchmark_name" >/dev/null
+  if container_running "$benchmark_name"; then
+    :
   else
-    docker run -d --name "$benchmark_name" -p "127.0.0.1:$benchmark_port:8443" owasp/benchmark >/dev/null
+    if container_exists "$benchmark_name"; then
+      docker rm "$benchmark_name" >/dev/null
+    fi
+    docker run -d --name "$benchmark_name" \
+      -p "127.0.0.1:$benchmark_port:8443" \
+      owasp/benchmark \
+      /bin/bash -lc 'cd /owasp/BenchmarkJava && exec ./runRemoteAccessibleBenchmark.sh -q' >/dev/null
   fi
-  wait_url "$benchmark_url" "$benchmark_name" "-k"
+  wait_url "$benchmark_url" "$benchmark_name" "-k" "${NYX_BENCHMARK_OWASP_BENCHMARK_WAIT_ATTEMPTS:-240}"
 }
 
 start_or_create_dvga() {

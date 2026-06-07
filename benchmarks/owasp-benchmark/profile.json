@@ -13,14 +13,16 @@
   "auth": {},
   "setup": {
     "self_signed_tls": true,
-    "baseline_only": true
+    "source_from_docker": "/owasp/BenchmarkJava",
+    "coverage_gate": "11 class-level categories from expectedresults-1.2.csv"
   },
   "safe_active_checks": {
     "intentionally_vulnerable": true,
     "non_production": true
   },
   "notes": [
-    "OWASP Benchmark is intended for scanner measurement. Initial integration starts the target and captures baseline Nyx output; detailed expected item mapping is deferred because the application contains thousands of labeled cases.",
-    "Publishing comparative scores should include exact Nyx settings and benchmark version details."
+    "OWASP Benchmark is intended for scanner measurement. Nyx starts the target for readiness, extracts the BenchmarkJava source tree from the Docker image, and runs a source audit so Java source patterns can be measured against the labeled corpus.",
+    "The committed gate is class-level coverage across the 11 vulnerability families in expectedresults-1.2.csv. It does not claim per-testcase precision across all 2740 labeled cases.",
+    "Publishing comparative scores should include exact Nyx settings, benchmark version details, and whether results are category-level or per-testcase."
   ]
 }

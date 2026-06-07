@@ -93,11 +93,14 @@ The harness also includes first-pass integrations for five additional targets:
 - OWASP NodeGoat for traditional Node/Express application coverage.
 
 crAPI now has an authenticated baseline profile, seeded API routes, strict
-category mappings, and a 12/12 accepted Linux VM baseline. OWASP Benchmark,
-DVGA, WebGoat, and NodeGoat intentionally start as baseline integrations with
-route seeds and empty expected mappings. Their first runs should establish
-target readiness, Nyx scan stability, report generation, and initial observed
-findings before minimum coverage gates are added.
+category mappings, and a 12/12 accepted Linux VM baseline. OWASP Benchmark now
+starts the target for readiness, extracts the BenchmarkJava source tree from the
+Docker image, runs a source audit, records the `expectedresults-1.2.csv` class counts, and
+gates on all 11 vulnerability classes at category level. DVGA, WebGoat, and
+NodeGoat intentionally start as baseline integrations with route seeds and empty
+expected mappings. Their first runs should establish target readiness, Nyx scan
+stability, report generation, and initial observed findings before minimum
+coverage gates are added.
 
 ## Phase 1: Benchmark Harness
 
@@ -487,6 +490,14 @@ against commit `a41272c` in the Kali VM checkout at
   sensitive configuration exposure, security misconfiguration, JWT key-material
   review, and community API data exposure. The improved run wrote artifacts
   under `/tmp/nyx-crapi-api-depth/artifacts-20260607-140356/crapi`.
+- OWASP Benchmark: accepted Linux VM baseline on 2026-06-07 covered 11 of 11
+  class-level Java source-audit mappings with 2,223 findings, one
+  `audit/javapatterns` tool run, and no failed tool runs. The source-audit gate
+  covers command injection, weak cryptography, weak hashing, LDAP injection,
+  path traversal, missing secure cookie flag, SQL injection, trust-boundary
+  session writes, weak randomness, XPath injection, and XSS using generic Java
+  source patterns. The run wrote artifacts under
+  `/tmp/nyx-owasp-benchmark/artifacts-run4/owasp-benchmark`.
 - LLM acceptance: LM Studio at `http://10.0.0.100:1234/v1` listed
   `huihui-qwen3.5-9b-abliterated`,
   `huihui-qwen3.6-35b-a3b-claude-4.7-opus-abliterated`, and
@@ -499,10 +510,14 @@ against commit `a41272c` in the Kali VM checkout at
 The opt-in benchmark harness now enforces this baseline locally: `make
 benchmark-dvwa` requires at least 14 covered expected items, `make
 benchmark-juice` requires at least 15 covered expected items, `make
-benchmark-crapi` requires 12 covered expected categories, and those commands
-fail when any benchmark tool run exits nonzero. Temporary local experimentation
-can lower those gates with `NYX_BENCHMARK_MIN_COVERED_DVWA`,
-`NYX_BENCHMARK_MIN_COVERED_JUICE_SHOP`, `NYX_BENCHMARK_MIN_COVERED_CRAPI`, or
+benchmark-crapi` requires 12 covered expected categories,
+`make benchmark-owasp-benchmark` requires 11 covered OWASP Benchmark
+vulnerability classes, and those commands fail when any benchmark tool run exits
+nonzero. Temporary local experimentation can lower those gates with
+`NYX_BENCHMARK_MIN_COVERED_DVWA`,
+`NYX_BENCHMARK_MIN_COVERED_JUICE_SHOP`,
+`NYX_BENCHMARK_MIN_COVERED_CRAPI`,
+`NYX_BENCHMARK_MIN_COVERED_OWASP_BENCHMARK`, or
 `NYX_BENCHMARK_ALLOW_FAILED_TOOLS=1`; baseline changes should be intentional and
 reviewed.
 

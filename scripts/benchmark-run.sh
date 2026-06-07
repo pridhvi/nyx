@@ -108,6 +108,54 @@ PY
   printf '%s' "$output"
 }
 
+source_path_for() {
+  name="$1"
+  case "$name" in
+    owasp-benchmark)
+      prepare_owasp_benchmark_source "$name"
+      ;;
+    *)
+      printf ''
+      ;;
+  esac
+}
+
+tools_for() {
+  name="$1"
+  case "$name" in
+    owasp-benchmark)
+      printf '%s' "${NYX_BENCHMARK_TOOLS_OWASP_BENCHMARK:-audit/javapatterns}"
+      ;;
+    *)
+      printf '%s' "$tools"
+      ;;
+  esac
+}
+
+prepare_owasp_benchmark_source() {
+  name="$1"
+  source_dir="$artifact_root/$name/source"
+  if [ -d "$source_dir/src/main/java" ]; then
+    printf '%s' "$source_dir"
+    return
+  fi
+  rm -rf "$source_dir" "$artifact_root/$name/source-extract"
+  mkdir -p "$artifact_root/$name/source-extract"
+  container_id="$(docker create owasp/benchmark)"
+  cleanup_container() {
+    docker rm "$container_id" >/dev/null 2>&1 || true
+  }
+  trap cleanup_container EXIT HUP INT TERM
+  mkdir -p "$source_dir"
+  docker cp "$container_id:/owasp/BenchmarkJava/src" "$source_dir/" >/dev/null
+  docker cp "$container_id:/owasp/BenchmarkJava/pom.xml" "$source_dir/pom.xml" >/dev/null
+  docker cp "$container_id:/owasp/BenchmarkJava/expectedresults-1.2.csv" "$source_dir/expectedresults-1.2.csv" >/dev/null
+  cleanup_container
+  trap - EXIT HUP INT TERM
+  rm -rf "$artifact_root/$name/source-extract"
+  printf '%s' "$source_dir"
+}
+
 setup_benchmark_target() {
   name="$1"
   target_url="$2"
@@ -396,7 +444,7 @@ min_covered_for() {
       printf '%s' "${NYX_BENCHMARK_MIN_COVERED_CRAPI:-12}"
       ;;
     owasp-benchmark)
-      printf '%s' "${NYX_BENCHMARK_MIN_COVERED_OWASP_BENCHMARK:-}"
+      printf '%s' "${NYX_BENCHMARK_MIN_COVERED_OWASP_BENCHMARK:-11}"
       ;;
     dvga)
       printf '%s' "${NYX_BENCHMARK_MIN_COVERED_DVGA:-}"
@@ -425,7 +473,7 @@ summary_gate_args() {
       allow_failed="${NYX_BENCHMARK_ALLOW_FAILED_TOOLS_CRAPI:-${allow_failed:-0}}"
       ;;
     owasp-benchmark)
-      allow_failed="${NYX_BENCHMARK_ALLOW_FAILED_TOOLS_OWASP_BENCHMARK:-${allow_failed:-1}}"
+      allow_failed="${NYX_BENCHMARK_ALLOW_FAILED_TOOLS_OWASP_BENCHMARK:-${allow_failed:-0}}"
       ;;
     dvga)
       allow_failed="${NYX_BENCHMARK_ALLOW_FAILED_TOOLS_DVGA:-${allow_failed:-1}}"
@@ -450,6 +498,8 @@ run_one() {
   report_sarif="$artifact_root/$name/report.sarif"
   summary_json="$artifact_root/$name/summary.json"
   summary_md="$artifact_root/$name/summary.md"
+  source_path="$(source_path_for "$name")"
+  selected_tools="$(tools_for "$name")"
 
   copy_profile_artifacts "$name"
   auth_profile="$(auth_profile_for "$name")"
@@ -463,16 +513,41 @@ run_one() {
   else
     scan_prefix=""
   fi
-  if ! $scan_prefix env PATH="$benchmark_path" NYX_SESSION_DIR="$sessions_root" $go_cmd scan \
-    --target "$target_url" \
-    --concurrency "$scan_concurrency" \
-    --tools "$tools" \
-    --route-seed-file "benchmarks/$name/routes.txt" \
-    --auth-profile "$auth_profile" \
-    --no-llm \
-    --config /dev/null >"$log" 2>&1; then
-    sed -n '1,220p' "$log" >&2 || true
-    fail "$name scan failed"
+  if [ "$name" = "owasp-benchmark" ] && [ -n "$source_path" ]; then
+    if ! $scan_prefix env PATH="$benchmark_path" NYX_SESSION_DIR="$sessions_root" $go_cmd scan \
+      --source "$source_path" \
+      --concurrency "$scan_concurrency" \
+      --tools "$selected_tools" \
+      --no-llm \
+      --config /dev/null >"$log" 2>&1; then
+      sed -n '1,220p' "$log" >&2 || true
+      fail "$name scan failed"
+    fi
+  elif [ -n "$source_path" ]; then
+    if ! $scan_prefix env PATH="$benchmark_path" NYX_SESSION_DIR="$sessions_root" $go_cmd scan \
+      --target "$target_url" \
+      --source "$source_path" \
+      --concurrency "$scan_concurrency" \
+      --tools "$selected_tools" \
+      --route-seed-file "benchmarks/$name/routes.txt" \
+      --auth-profile "$auth_profile" \
+      --no-llm \
+      --config /dev/null >"$log" 2>&1; then
+      sed -n '1,220p' "$log" >&2 || true
+      fail "$name scan failed"
+    fi
+  else
+    if ! $scan_prefix env PATH="$benchmark_path" NYX_SESSION_DIR="$sessions_root" $go_cmd scan \
+      --target "$target_url" \
+      --concurrency "$scan_concurrency" \
+      --tools "$selected_tools" \
+      --route-seed-file "benchmarks/$name/routes.txt" \
+      --auth-profile "$auth_profile" \
+      --no-llm \
+      --config /dev/null >"$log" 2>&1; then
+      sed -n '1,220p' "$log" >&2 || true
+      fail "$name scan failed"
+    fi
   fi
 
   session_id="$(session_id_from_log "$log")"
