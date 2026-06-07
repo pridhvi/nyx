@@ -221,6 +221,7 @@ func descriptionForTool(id string) string {
 		"nuclei-tech":             "Runs Nuclei technology-detection templates.",
 		"testssl":                 "Checks TLS protocol and certificate configuration.",
 		"graphql-introspection":   "Attempts safe GraphQL introspection discovery.",
+		"graphql-security-review": "Reviews GraphQL schema, console, batching, suggestions, and resolver-shaped risk signals without destructive exploit execution.",
 		"openapi-discovery":       "Discovers OpenAPI and Swagger metadata endpoints.",
 		"wpscan":                  "Fingerprints WordPress installations and common exposure signals.",
 		"droopescan":              "Fingerprints Drupal, Joomla, and other CMS exposure signals.",

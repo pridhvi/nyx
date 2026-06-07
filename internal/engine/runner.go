@@ -50,6 +50,7 @@ func DefaultSafeAdapters() []adapters.Adapter {
 		adapters.NewNucleiTech(),
 		adapters.NewTestSSL(),
 		adapters.NewGraphQLIntrospection(),
+		adapters.NewGraphQLSecurityReview(),
 		adapters.NewOpenAPIDiscovery(),
 		adapters.NewWPScan(),
 		adapters.NewDroopescan(),

@@ -2096,6 +2096,80 @@ func TestParseXXEFindings(t *testing.T) {
 	}
 }
 
+func TestGraphQLSecurityReviewFindingsCoverDVGACategories(t *testing.T) {
+	evidence := graphqlReviewEvidence{
+		Endpoint:         "https://example.com/graphql",
+		TypenameStatus:   200,
+		TypenameBody:     `{"data":{"__typename":"Query"}}`,
+		SchemaStatus:     200,
+		SchemaBody:       testGraphQLReviewSchemaJSON,
+		Schema:           parseGraphQLReviewSchema(testGraphQLReviewSchemaJSON),
+		SuggestionStatus: 400,
+		SuggestionBody:   `{"errors":[{"message":"Cannot query field \"system\" on type \"Query\". Did you mean \"pastes\" or \"systemHealth\"?"}]}`,
+		BatchStatus:      200,
+		BatchBody:        `[{"data":{"__typename":"Query"}},{"data":{"__typename":"Query"}}]`,
+		AliasStatus:      200,
+		AliasBody:        `{"data":{"a":"Query","b":"Query"}}`,
+		DuplicateStatus:  200,
+		DuplicateBody:    `{"data":{"__typename":"Query"}}`,
+		GraphiQLStatus:   400,
+		GraphiQLBody:     `{"errors":[{"message":"Cannot query field","extensions":{"exception":{"stack":["site-packages/graphene/types/schema.py"],"debug":"Traceback"}}}]}`,
+	}
+	findings := graphqlSecurityReviewFindings(testExternalInput(), evidence)
+	seen := map[string]bool{}
+	for _, finding := range findings {
+		var normalized map[string]any
+		if err := json.Unmarshal([]byte(finding.EvidenceNormalized), &normalized); err != nil {
+			t.Fatalf("invalid normalized evidence: %v", err)
+		}
+		seen[normalized["graphql_review_category"].(string)] = true
+	}
+	expected := []string{
+		"recon-detection", "recon-fingerprinting", "dos-batch", "dos-recursion",
+		"dos-intensive", "dos-fielddup", "dos-aliases", "dos-circular-fragment",
+		"info-introspection", "info-igql", "info-suggestions", "info-ssrf",
+		"info-stacktrace", "exec-os-1", "exec-os-2", "inj-xss", "inj-log",
+		"inj-html", "inj-sql", "bypassauthz-token", "bypassauthz-igql",
+		"bypassauthz-denylist", "misc-weakpass", "misc-filewrite",
+	}
+	for _, category := range expected {
+		if !seen[category] {
+			t.Fatalf("missing GraphQL review category %s; saw %#v", category, seen)
+		}
+	}
+}
+
+const testGraphQLReviewSchemaJSON = `{
+  "data": {
+    "__schema": {
+      "queryType": {"name": "Query"},
+      "mutationType": {"name": "Mutation"},
+      "types": [
+        {"kind":"OBJECT","name":"Query","fields":[
+          {"name":"pastes","args":[{"name":"filter"}],"type":{"kind":"LIST","name":"","ofType":{"kind":"OBJECT","name":"PasteObject"}}},
+          {"name":"systemUpdate","args":[],"type":{"kind":"SCALAR","name":"String"}},
+          {"name":"systemDiagnostics","args":[{"name":"username"},{"name":"password"},{"name":"cmd"}],"type":{"kind":"SCALAR","name":"String"}},
+          {"name":"systemDebug","args":[{"name":"arg"}],"type":{"kind":"SCALAR","name":"String"}},
+          {"name":"systemHealth","args":[],"type":{"kind":"SCALAR","name":"String"}},
+          {"name":"audits","args":[],"type":{"kind":"LIST","name":"","ofType":{"kind":"OBJECT","name":"AuditObject"}}},
+          {"name":"me","args":[{"name":"token"}],"type":{"kind":"OBJECT","name":"UserObject"}}
+        ]},
+        {"kind":"OBJECT","name":"Mutation","fields":[
+          {"name":"importPaste","args":[{"name":"host"},{"name":"port"},{"name":"path"},{"name":"scheme"}],"type":{"kind":"OBJECT","name":"ImportPaste"}},
+          {"name":"createPaste","args":[{"name":"title"},{"name":"content"},{"name":"public"}],"type":{"kind":"OBJECT","name":"CreatePaste"}},
+          {"name":"uploadPaste","args":[{"name":"filename"},{"name":"content"}],"type":{"kind":"OBJECT","name":"UploadPaste"}}
+        ]},
+        {"kind":"OBJECT","name":"PasteObject","fields":[
+          {"name":"owner","args":[],"type":{"kind":"OBJECT","name":"OwnerObject"}}
+        ]},
+        {"kind":"OBJECT","name":"OwnerObject","fields":[
+          {"name":"pastes","args":[],"type":{"kind":"LIST","name":"","ofType":{"kind":"OBJECT","name":"PasteObject"}}}
+        ]}
+      ]
+    }
+  }
+}`
+
 func TestXXEFuzzUsesMultipartForUploadCandidate(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/file-upload" {

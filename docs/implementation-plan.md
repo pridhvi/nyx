@@ -81,23 +81,28 @@ form metadata where available,
 first adapter consumers for built-in HTTP checks plus `ffuf`, `sqlmap`, and
 `dalfox`, and benchmark summary gates that fail the strict release-gate
 benchmark commands if DVWA drops below 14 covered items, Juice Shop drops below
-15 covered items, crAPI drops below 12 covered categories, or any strict-gate
-benchmark tool run exits nonzero unless an explicit local override is set. crAPI
+15 covered items, crAPI drops below 12 covered categories, DVGA drops below 24
+GraphQL solution categories, or any strict-gate benchmark tool run exits
+nonzero unless an explicit local override is set. crAPI
 has an authenticated benchmark profile, route seeds, strict category mappings,
 and a measured Linux VM baseline of 12/12 covered categories after generic
 API-depth improvements. OWASP Benchmark now starts the target for readiness, extracts BenchmarkJava source from
 the Docker image, and runs source-audit coverage, records the
 known `expectedresults-1.2.csv` class counts, and gates on 11/11 Java
 vulnerability classes without claiming per-testcase precision across all 2,740
-labeled cases. DVGA, WebGoat, and NodeGoat start as baseline integrations with
-target startup, route seeds, artifact generation, and no minimum coverage gate
-until accepted mappings are established.
+labeled cases. DVGA now gates on 24/24 upstream GraphQL solution categories
+using the generic `graphql-security-review` adapter, safe GraphQL probes, and
+schema-shaped human-assist findings without executing destructive challenge
+payloads. WebGoat and NodeGoat start as baseline integrations with target
+startup, route seeds, artifact generation, and no minimum coverage gate until
+accepted mappings are established.
 The latest Linux VM acceptance pass, run on 2026-05-28 against commit
 `a41272c`, passed strict Linux tool smoke, `NYX_RUN_LINUX_FULL=1 make
 linux-full-smoke`, DVWA at 14/14 with 42 findings, Juice Shop at 15/15 with 28
 findings, and LM Studio-backed LLM CLI/UI smoke against real persisted DVWA
 session data. Later benchmark-depth passes added crAPI at 12/12 category
-coverage and OWASP Benchmark at 11/11 Java source-audit class coverage.
+coverage, OWASP Benchmark at 11/11 Java source-audit class coverage, and DVGA
+at 24/24 GraphQL solution-category coverage.
 
 ## Current Baseline
 

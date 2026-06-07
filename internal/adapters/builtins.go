@@ -7,6 +7,7 @@ func init() {
 	Register(NewNucleiTech())
 	Register(NewTestSSL())
 	Register(NewGraphQLIntrospection())
+	Register(NewGraphQLSecurityReview())
 	Register(NewOpenAPIDiscovery())
 	Register(NewWPScan())
 	Register(NewDroopescan())

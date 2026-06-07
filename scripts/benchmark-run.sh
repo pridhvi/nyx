@@ -12,7 +12,7 @@ artifact_root="${NYX_BENCHMARK_ARTIFACT_DIR:-artifacts/benchmarks/$timestamp}"
 sessions_root="$artifact_root/sessions"
 mkdir -p "$artifact_root" "$sessions_root"
 
-tools_default="http-probe,security-headers,whatweb,graphql-introspection,openapi-discovery,arjun,linkfinder,js-secret-scan,cors-check,nmap,ffuf,nuclei-tech,nuclei-vuln,jwt-tool,nikto,sqlmap,dalfox,brute-force-check,reflected-xss-check,dom-xss-check,stored-xss-check,sqli-check,open-redirect-check,file-inclusion-check,command-injection-check,upload-check,idor-check,workflow-assist,observability-assist,deserialization-assist,csp-review,csrf-check,weak-session-check,xxe-fuzz"
+tools_default="http-probe,security-headers,whatweb,graphql-introspection,graphql-security-review,openapi-discovery,arjun,linkfinder,js-secret-scan,cors-check,nmap,ffuf,nuclei-tech,nuclei-vuln,jwt-tool,nikto,sqlmap,dalfox,brute-force-check,reflected-xss-check,dom-xss-check,stored-xss-check,sqli-check,open-redirect-check,file-inclusion-check,command-injection-check,upload-check,idor-check,workflow-assist,observability-assist,deserialization-assist,csp-review,csrf-check,weak-session-check,xxe-fuzz"
 tools="${NYX_BENCHMARK_TOOLS:-$tools_default}"
 scan_timeout="${NYX_BENCHMARK_SCAN_TIMEOUT:-20m}"
 scan_concurrency="${NYX_BENCHMARK_CONCURRENCY:-1}"
@@ -125,6 +125,9 @@ tools_for() {
   case "$name" in
     owasp-benchmark)
       printf '%s' "${NYX_BENCHMARK_TOOLS_OWASP_BENCHMARK:-audit/javapatterns}"
+      ;;
+    dvga)
+      printf '%s' "${NYX_BENCHMARK_TOOLS_DVGA:-http-probe,security-headers,graphql-introspection,graphql-security-review}"
       ;;
     *)
       printf '%s' "$tools"
@@ -447,7 +450,7 @@ min_covered_for() {
       printf '%s' "${NYX_BENCHMARK_MIN_COVERED_OWASP_BENCHMARK:-11}"
       ;;
     dvga)
-      printf '%s' "${NYX_BENCHMARK_MIN_COVERED_DVGA:-}"
+      printf '%s' "${NYX_BENCHMARK_MIN_COVERED_DVGA:-24}"
       ;;
     webgoat)
       printf '%s' "${NYX_BENCHMARK_MIN_COVERED_WEBGOAT:-}"
@@ -476,7 +479,7 @@ summary_gate_args() {
       allow_failed="${NYX_BENCHMARK_ALLOW_FAILED_TOOLS_OWASP_BENCHMARK:-${allow_failed:-0}}"
       ;;
     dvga)
-      allow_failed="${NYX_BENCHMARK_ALLOW_FAILED_TOOLS_DVGA:-${allow_failed:-1}}"
+      allow_failed="${NYX_BENCHMARK_ALLOW_FAILED_TOOLS_DVGA:-${allow_failed:-0}}"
       ;;
     webgoat)
       allow_failed="${NYX_BENCHMARK_ALLOW_FAILED_TOOLS_WEBGOAT:-${allow_failed:-1}}"

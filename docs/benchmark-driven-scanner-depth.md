@@ -96,7 +96,9 @@ crAPI now has an authenticated baseline profile, seeded API routes, strict
 category mappings, and a 12/12 accepted Linux VM baseline. OWASP Benchmark now
 starts the target for readiness, extracts the BenchmarkJava source tree from the
 Docker image, runs a source audit, records the `expectedresults-1.2.csv` class counts, and
-gates on all 11 vulnerability classes at category level. DVGA, WebGoat, and
+gates on all 11 vulnerability classes at category level. DVGA now gates on 24
+upstream GraphQL solution categories using the generic `graphql-security-review`
+adapter, safe probes, and schema-shaped human-assist findings. WebGoat and
 NodeGoat intentionally start as baseline integrations with route seeds and empty
 expected mappings. Their first runs should establish target readiness, Nyx scan
 stability, report generation, and initial observed findings before minimum
@@ -498,6 +500,14 @@ against commit `a41272c` in the Kali VM checkout at
   session writes, weak randomness, XPath injection, and XSS using generic Java
   source patterns. The run wrote artifacts under
   `/tmp/nyx-owasp-benchmark/artifacts-run4/owasp-benchmark`.
+- DVGA: accepted local Docker baseline on 2026-06-07 covered 24 of 24 upstream
+  GraphQL solution categories with 29 findings, four built-in tool runs, and no
+  failed tool runs. The gate uses `graphql-security-review` to combine minimal
+  GraphQL probes, introspection/schema evidence, GraphiQL error evidence, and
+  human-assist review findings. Destructive challenge payloads for command
+  execution, arbitrary file write, SSRF, XSS, and DoS are not executed by the
+  benchmark gate. The run wrote artifacts under
+  `/tmp/nyx-dvga-benchmark/artifacts-20260607-152154/dvga`.
 - LLM acceptance: LM Studio at `http://10.0.0.100:1234/v1` listed
   `huihui-qwen3.5-9b-abliterated`,
   `huihui-qwen3.6-35b-a3b-claude-4.7-opus-abliterated`, and
@@ -512,12 +522,14 @@ benchmark-dvwa` requires at least 14 covered expected items, `make
 benchmark-juice` requires at least 15 covered expected items, `make
 benchmark-crapi` requires 12 covered expected categories,
 `make benchmark-owasp-benchmark` requires 11 covered OWASP Benchmark
-vulnerability classes, and those commands fail when any benchmark tool run exits
+vulnerability classes, `make benchmark-dvga` requires 24 covered GraphQL
+solution categories, and those commands fail when any benchmark tool run exits
 nonzero. Temporary local experimentation can lower those gates with
 `NYX_BENCHMARK_MIN_COVERED_DVWA`,
 `NYX_BENCHMARK_MIN_COVERED_JUICE_SHOP`,
 `NYX_BENCHMARK_MIN_COVERED_CRAPI`,
-`NYX_BENCHMARK_MIN_COVERED_OWASP_BENCHMARK`, or
+`NYX_BENCHMARK_MIN_COVERED_OWASP_BENCHMARK`,
+`NYX_BENCHMARK_MIN_COVERED_DVGA`, or
 `NYX_BENCHMARK_ALLOW_FAILED_TOOLS=1`; baseline changes should be intentional and
 reviewed.
 

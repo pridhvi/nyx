@@ -12,14 +12,16 @@
   },
   "auth": {},
   "setup": {
-    "baseline_only": true
+    "baseline_only": false,
+    "minimum_covered": 24,
+    "allow_failed_tools": false
   },
   "safe_active_checks": {
     "intentionally_vulnerable": true,
     "non_production": true
   },
   "notes": [
-    "DVGA is the first GraphQL-specific benchmark target. Initial integration seeds the GraphQL endpoints and leaves detailed expected mappings for the first baseline run.",
-    "Core scanner adapters must not hardcode DVGA schema fields or challenge names."
+    "DVGA is the first GraphQL-specific benchmark target. The accepted gate maps the upstream solution categories to generic GraphQL review evidence.",
+    "Core scanner adapters must not hardcode DVGA schema fields or challenge names. The GraphQL security review adapter records safe probes and schema-shaped human-assist findings; destructive payload execution remains out of scope."
   ]
 }
