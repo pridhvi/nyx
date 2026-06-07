@@ -1,4 +1,4 @@
-.PHONY: build ci dev test security-scan benchmark-summary-test test-integration power-integration browser-smoke readme-media tool-version-smoke linux-full-smoke benchmark-targets-up benchmark-targets-down benchmark-targets-status benchmark-dvwa benchmark-juice benchmark-all lint web web-build run sqlc migrate-up docker-smoke compose-config clean release-snapshot
+.PHONY: build ci dev test security-scan benchmark-summary-test test-integration power-integration browser-smoke readme-media tool-version-smoke linux-full-smoke benchmark-targets-up benchmark-targets-down benchmark-targets-status benchmark-dvwa benchmark-juice benchmark-crapi benchmark-owasp-benchmark benchmark-dvga benchmark-webgoat benchmark-nodegoat benchmark-all lint web web-build run sqlc migrate-up docker-smoke compose-config clean release-snapshot
 
 build:
 	cd web && npm run build
@@ -52,6 +52,21 @@ benchmark-dvwa:
 
 benchmark-juice:
 	./scripts/benchmark-run.sh juice-shop
+
+benchmark-crapi:
+	./scripts/benchmark-run.sh crapi
+
+benchmark-owasp-benchmark:
+	./scripts/benchmark-run.sh owasp-benchmark
+
+benchmark-dvga:
+	./scripts/benchmark-run.sh dvga
+
+benchmark-webgoat:
+	./scripts/benchmark-run.sh webgoat
+
+benchmark-nodegoat:
+	./scripts/benchmark-run.sh nodegoat
 
 benchmark-all:
 	./scripts/benchmark-run.sh all

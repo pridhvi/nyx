@@ -1,0 +1,6 @@
+/WebGoat
+/WebGoat/
+/WebGoat/login
+/WebGoat/registration
+/WebGoat/start.mvc
+/WebGoat/WebGoatIntroduction.lesson

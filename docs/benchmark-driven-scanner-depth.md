@@ -1,10 +1,10 @@
 # Benchmark-Driven Scanner Depth Plan
 
-This plan uses DVWA and OWASP Juice Shop as repeatable ground-truth benchmark
-targets to deepen Nyx's generic scanner capabilities. The benchmark suites may
-contain target-specific setup, seed routes, credentials, and expected-result
-mappings, but core Nyx adapters and validators must not hardcode DVWA or Juice
-Shop behavior.
+This plan uses deliberately vulnerable local applications as repeatable
+benchmark targets to deepen Nyx's generic scanner capabilities. The benchmark
+suites may contain target-specific setup, seed routes, credentials, and
+expected-result mappings, but core Nyx adapters and validators must not hardcode
+any benchmark application's behavior.
 
 ## Goal
 
@@ -80,6 +80,25 @@ Juice Shop should be measured by category and challenge signal rather than only
 raw challenge count. Many challenges require multi-step or puzzle-like reasoning
 that should become human-assist output before it becomes automated confirmation.
 
+### Baseline Expansion Targets
+
+The harness also includes first-pass integrations for five additional targets:
+
+- OWASP crAPI for API security, authorization, workflow, and JWT-heavy coverage.
+- OWASP Benchmark for measurable scanner precision against a large labeled Java
+  test corpus.
+- Damn Vulnerable GraphQL Application (DVGA) for GraphQL discovery and
+  authorization depth.
+- OWASP WebGoat for Java lesson-oriented web vulnerabilities.
+- OWASP NodeGoat for traditional Node/Express application coverage.
+
+crAPI now has an authenticated baseline profile, seeded API routes, strict
+category mappings, and a 12/12 accepted Linux VM baseline. OWASP Benchmark,
+DVGA, WebGoat, and NodeGoat intentionally start as baseline integrations with
+route seeds and empty expected mappings. Their first runs should establish
+target readiness, Nyx scan stability, report generation, and initial observed
+findings before minimum coverage gates are added.
+
 ## Phase 1: Benchmark Harness
 
 Add repeatable commands and artifact collection:
@@ -88,6 +107,11 @@ Add repeatable commands and artifact collection:
 - `make benchmark-targets-down`
 - `make benchmark-dvwa`
 - `make benchmark-juice`
+- `make benchmark-crapi`
+- `make benchmark-owasp-benchmark`
+- `make benchmark-dvga`
+- `make benchmark-webgoat`
+- `make benchmark-nodegoat`
 - `make benchmark-all`
 
 Artifacts should be written under `artifacts/benchmarks/<timestamp>/` and
@@ -123,6 +147,21 @@ Create benchmark profile files, for example:
 - `benchmarks/juice-shop/profile.json`
 - `benchmarks/juice-shop/expected.json`
 - `benchmarks/juice-shop/routes.txt`
+- `benchmarks/crapi/profile.json`
+- `benchmarks/crapi/expected.json`
+- `benchmarks/crapi/routes.txt`
+- `benchmarks/owasp-benchmark/profile.json`
+- `benchmarks/owasp-benchmark/expected.json`
+- `benchmarks/owasp-benchmark/routes.txt`
+- `benchmarks/dvga/profile.json`
+- `benchmarks/dvga/expected.json`
+- `benchmarks/dvga/routes.txt`
+- `benchmarks/webgoat/profile.json`
+- `benchmarks/webgoat/expected.json`
+- `benchmarks/webgoat/routes.txt`
+- `benchmarks/nodegoat/profile.json`
+- `benchmarks/nodegoat/expected.json`
+- `benchmarks/nodegoat/routes.txt`
 
 Expected mappings should use generic classes:
 
@@ -439,6 +478,15 @@ against commit `a41272c` in the Kali VM checkout at
   `NYX_RUN_LINUX_FULL=1 make linux-full-smoke` completed dynamic, lean, audit,
   combined, report, SARIF, and sidecar-log assertions. The retained smoke
   sessions were under `/tmp/tmp.3H6vzs2W5T`.
+- crAPI: accepted authenticated Linux VM baseline on 2026-06-07 covered 12 of
+  12 strict category mappings with 62 findings and no failed tool runs. Nyx
+  covered BOLA, excessive data exposure, authentication workflow review,
+  mass-assignment/property-tampering workflow review, unrestricted resource
+  consumption review, SSRF/unsafe callback consumption review, unrestricted
+  upload, API endpoint exposure through JavaScript endpoint discovery,
+  sensitive configuration exposure, security misconfiguration, JWT key-material
+  review, and community API data exposure. The improved run wrote artifacts
+  under `/tmp/nyx-crapi-api-depth/artifacts-20260607-140356/crapi`.
 - LLM acceptance: LM Studio at `http://10.0.0.100:1234/v1` listed
   `huihui-qwen3.5-9b-abliterated`,
   `huihui-qwen3.6-35b-a3b-claude-4.7-opus-abliterated`, and
@@ -450,10 +498,11 @@ against commit `a41272c` in the Kali VM checkout at
 
 The opt-in benchmark harness now enforces this baseline locally: `make
 benchmark-dvwa` requires at least 14 covered expected items, `make
-benchmark-juice` requires at least 15 covered expected items, and both commands
+benchmark-juice` requires at least 15 covered expected items, `make
+benchmark-crapi` requires 12 covered expected categories, and those commands
 fail when any benchmark tool run exits nonzero. Temporary local experimentation
 can lower those gates with `NYX_BENCHMARK_MIN_COVERED_DVWA`,
-`NYX_BENCHMARK_MIN_COVERED_JUICE_SHOP`, or
+`NYX_BENCHMARK_MIN_COVERED_JUICE_SHOP`, `NYX_BENCHMARK_MIN_COVERED_CRAPI`, or
 `NYX_BENCHMARK_ALLOW_FAILED_TOOLS=1`; baseline changes should be intentional and
 reviewed.
 

@@ -1,0 +1,38 @@
+{
+  "id": "crapi",
+  "name": "OWASP crAPI",
+  "target_env": "NYX_BENCHMARK_CRAPI_URL",
+  "default_url": "http://127.0.0.1:8888",
+  "docker": {
+    "project_name": "nyx-benchmark-crapi",
+    "compose_source": "https://github.com/OWASP/crAPI/archive/refs/heads/main.zip",
+    "host_port_env": "NYX_BENCHMARK_CRAPI_PORT",
+    "default_host_port": 8888,
+    "container_port": 80
+  },
+  "auth": {
+    "type": "json_login",
+    "login_url": "/identity/api/auth/login",
+    "username": "test@example.com",
+    "password": "Test!123",
+    "token_json_path": "token",
+    "auth_header": "Authorization",
+    "auth_header_prefix": "Bearer ",
+    "validation_url": "/identity/api/v2/user/dashboard",
+    "validation_contains": "\"email\":\"test@example.com\""
+  },
+  "setup": {
+    "compose_managed": true,
+    "reset_test_users": true,
+    "login_preflight": true
+  },
+  "safe_active_checks": {
+    "intentionally_vulnerable": true,
+    "non_production": true
+  },
+  "notes": [
+    "crAPI is a multi-service API benchmark. The profile uses the upstream deterministic test account and route seeds to exercise authenticated API surfaces.",
+    "Expected coverage is category-based and intentionally not gated yet; use early runs to improve generic API finding depth before enforcing a minimum.",
+    "Core scanner adapters must not hardcode crAPI routes, account details, or challenge names."
+  ]
+}

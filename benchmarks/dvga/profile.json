@@ -1,0 +1,25 @@
+{
+  "id": "dvga",
+  "name": "Damn Vulnerable GraphQL Application",
+  "target_env": "NYX_BENCHMARK_DVGA_URL",
+  "default_url": "http://127.0.0.1:15013",
+  "docker": {
+    "container_name": "nyx-benchmark-dvga",
+    "image": "dolevf/dvga",
+    "host_port_env": "NYX_BENCHMARK_DVGA_PORT",
+    "default_host_port": 15013,
+    "container_port": 5013
+  },
+  "auth": {},
+  "setup": {
+    "baseline_only": true
+  },
+  "safe_active_checks": {
+    "intentionally_vulnerable": true,
+    "non_production": true
+  },
+  "notes": [
+    "DVGA is the first GraphQL-specific benchmark target. Initial integration seeds the GraphQL endpoints and leaves detailed expected mappings for the first baseline run.",
+    "Core scanner adapters must not hardcode DVGA schema fields or challenge names."
+  ]
+}

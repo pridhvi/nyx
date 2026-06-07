@@ -1,0 +1,5 @@
+{
+  "benchmark": "owasp-benchmark",
+  "name": "OWASP Benchmark baseline coverage",
+  "items": []
+}

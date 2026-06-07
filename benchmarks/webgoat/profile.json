@@ -1,0 +1,28 @@
+{
+  "id": "webgoat",
+  "name": "OWASP WebGoat",
+  "target_env": "NYX_BENCHMARK_WEBGOAT_URL",
+  "default_url": "http://127.0.0.1:18088/WebGoat",
+  "docker": {
+    "container_name": "nyx-benchmark-webgoat",
+    "image": "webgoat/webgoat",
+    "host_port_env": "NYX_BENCHMARK_WEBGOAT_PORT",
+    "default_host_port": 18088,
+    "container_port": 8080,
+    "webwolf_host_port_env": "NYX_BENCHMARK_WEBWOLF_PORT",
+    "webwolf_default_host_port": 19090,
+    "webwolf_container_port": 9090
+  },
+  "auth": {},
+  "setup": {
+    "baseline_only": true
+  },
+  "safe_active_checks": {
+    "intentionally_vulnerable": true,
+    "non_production": true
+  },
+  "notes": [
+    "WebGoat usually needs an operator-created account for deep authenticated lessons. Initial integration starts the target and scans public/login surfaces only.",
+    "Authenticated lesson setup and expected mappings should be added after the first baseline run."
+  ]
+}

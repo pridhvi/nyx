@@ -1,0 +1,25 @@
+{
+  "id": "nodegoat",
+  "name": "OWASP NodeGoat",
+  "target_env": "NYX_BENCHMARK_NODEGOAT_URL",
+  "default_url": "http://127.0.0.1:14000",
+  "docker": {
+    "container_name": "nyx-benchmark-nodegoat",
+    "image": "nirocr/nodegoat",
+    "host_port_env": "NYX_BENCHMARK_NODEGOAT_PORT",
+    "default_host_port": 14000,
+    "container_port": 4000
+  },
+  "auth": {},
+  "setup": {
+    "baseline_only": true
+  },
+  "safe_active_checks": {
+    "intentionally_vulnerable": true,
+    "non_production": true
+  },
+  "notes": [
+    "NodeGoat adds a traditional Node/Express benchmark target. Initial integration starts the target and seeds common public/login/tutorial routes.",
+    "Core scanner adapters must not hardcode NodeGoat route names or lesson content."
+  ]
+}

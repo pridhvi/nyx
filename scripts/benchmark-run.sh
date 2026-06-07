@@ -29,7 +29,7 @@ ensure_targets() {
   if [ "${NYX_BENCHMARK_NO_TARGET_UP:-}" = "1" ]; then
     return
   fi
-  ./scripts/benchmark-targets.sh up >"$artifact_root/targets-up.log" 2>&1 || {
+  ./scripts/benchmark-targets.sh up "$benchmark" >"$artifact_root/targets-up.log" 2>&1 || {
     sed -n '1,220p' "$artifact_root/targets-up.log" >&2 || true
     fail "benchmark targets did not start"
   }
@@ -310,10 +310,43 @@ def setup_juice_shop() -> None:
         raise SystemExit("Juice Shop benchmark login response did not contain authentication.token")
 
 
+def setup_crapi() -> None:
+    log(f"preparing crAPI benchmark at {target_url}")
+    reset_status, reset_body = request("POST", "/identity/api/auth/reset-test-users", json_body={})
+    log(f"POST /identity/api/auth/reset-test-users status={reset_status}")
+    if reset_status not in (200, 404, 405):
+        raise SystemExit(f"crAPI test user reset failed with HTTP {reset_status}: {reset_body[:240]}")
+    login_status, login_body = request(
+        "POST",
+        "/identity/api/auth/login",
+        json_body={"email": "test@example.com", "password": "Test!123"},
+    )
+    log(f"POST /identity/api/auth/login status={login_status}")
+    if login_status >= 400:
+        raise SystemExit(f"crAPI benchmark login failed with HTTP {login_status}: {login_body[:240]}")
+    try:
+        parsed = json.loads(login_body)
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"crAPI login response was not JSON: {exc}") from exc
+    token = parsed.get("token")
+    if not token:
+        raise SystemExit("crAPI benchmark login response did not contain token")
+    dashboard_status, dashboard_body = request(
+        "GET",
+        "/identity/api/v2/user/dashboard",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    log(f"GET /identity/api/v2/user/dashboard status={dashboard_status}")
+    if dashboard_status >= 400 or "test@example.com" not in dashboard_body:
+        raise SystemExit(f"crAPI benchmark auth validation failed with HTTP {dashboard_status}")
+
+
 if name == "dvwa":
     setup_dvwa()
 elif name == "juice-shop":
     setup_juice_shop()
+elif name == "crapi":
+    setup_crapi()
 else:
     log(f"no benchmark setup defined for {name}")
 log("benchmark setup completed")
@@ -328,6 +361,21 @@ target_url_for() {
       ;;
     juice-shop)
       printf '%s' "${NYX_BENCHMARK_JUICE_URL:-http://127.0.0.1:${NYX_BENCHMARK_JUICE_PORT:-13000}}"
+      ;;
+    crapi)
+      printf '%s' "${NYX_BENCHMARK_CRAPI_URL:-http://127.0.0.1:${NYX_BENCHMARK_CRAPI_PORT:-8888}}"
+      ;;
+    owasp-benchmark)
+      printf '%s' "${NYX_BENCHMARK_OWASP_BENCHMARK_URL:-https://127.0.0.1:${NYX_BENCHMARK_OWASP_BENCHMARK_PORT:-18443}/benchmark}"
+      ;;
+    dvga)
+      printf '%s' "${NYX_BENCHMARK_DVGA_URL:-http://127.0.0.1:${NYX_BENCHMARK_DVGA_PORT:-15013}}"
+      ;;
+    webgoat)
+      printf '%s' "${NYX_BENCHMARK_WEBGOAT_URL:-http://127.0.0.1:${NYX_BENCHMARK_WEBGOAT_PORT:-18088}/WebGoat}"
+      ;;
+    nodegoat)
+      printf '%s' "${NYX_BENCHMARK_NODEGOAT_URL:-http://127.0.0.1:${NYX_BENCHMARK_NODEGOAT_PORT:-14000}}"
       ;;
     *)
       fail "unknown benchmark target $name"
@@ -344,6 +392,21 @@ min_covered_for() {
     juice-shop)
       printf '%s' "${NYX_BENCHMARK_MIN_COVERED_JUICE_SHOP:-15}"
       ;;
+    crapi)
+      printf '%s' "${NYX_BENCHMARK_MIN_COVERED_CRAPI:-12}"
+      ;;
+    owasp-benchmark)
+      printf '%s' "${NYX_BENCHMARK_MIN_COVERED_OWASP_BENCHMARK:-}"
+      ;;
+    dvga)
+      printf '%s' "${NYX_BENCHMARK_MIN_COVERED_DVGA:-}"
+      ;;
+    webgoat)
+      printf '%s' "${NYX_BENCHMARK_MIN_COVERED_WEBGOAT:-}"
+      ;;
+    nodegoat)
+      printf '%s' "${NYX_BENCHMARK_MIN_COVERED_NODEGOAT:-}"
+      ;;
     *)
       fail "unknown benchmark target $name"
       ;;
@@ -356,7 +419,25 @@ summary_gate_args() {
   if [ -n "$min_covered" ]; then
     printf ' --min-covered %s' "$min_covered"
   fi
-  if [ "${NYX_BENCHMARK_ALLOW_FAILED_TOOLS:-}" = "1" ]; then
+  allow_failed="${NYX_BENCHMARK_ALLOW_FAILED_TOOLS:-}"
+  case "$name" in
+    crapi)
+      allow_failed="${NYX_BENCHMARK_ALLOW_FAILED_TOOLS_CRAPI:-${allow_failed:-0}}"
+      ;;
+    owasp-benchmark)
+      allow_failed="${NYX_BENCHMARK_ALLOW_FAILED_TOOLS_OWASP_BENCHMARK:-${allow_failed:-1}}"
+      ;;
+    dvga)
+      allow_failed="${NYX_BENCHMARK_ALLOW_FAILED_TOOLS_DVGA:-${allow_failed:-1}}"
+      ;;
+    webgoat)
+      allow_failed="${NYX_BENCHMARK_ALLOW_FAILED_TOOLS_WEBGOAT:-${allow_failed:-1}}"
+      ;;
+    nodegoat)
+      allow_failed="${NYX_BENCHMARK_ALLOW_FAILED_TOOLS_NODEGOAT:-${allow_failed:-1}}"
+      ;;
+  esac
+  if [ "$allow_failed" = "1" ]; then
     printf ' --allow-failed-tools'
   fi
 }
@@ -442,12 +523,32 @@ case "$benchmark" in
   juice|juice-shop)
     run_one juice-shop
     ;;
+  crapi)
+    run_one crapi
+    ;;
+  benchmark|owasp-benchmark)
+    run_one owasp-benchmark
+    ;;
+  dvga)
+    run_one dvga
+    ;;
+  webgoat)
+    run_one webgoat
+    ;;
+  nodegoat)
+    run_one nodegoat
+    ;;
   all)
     run_one dvwa
     run_one juice-shop
+    run_one crapi
+    run_one owasp-benchmark
+    run_one dvga
+    run_one webgoat
+    run_one nodegoat
     ;;
   *)
-    echo "usage: $0 {dvwa|juice-shop|all}" >&2
+    echo "usage: $0 {dvwa|juice-shop|crapi|owasp-benchmark|dvga|webgoat|nodegoat|all}" >&2
     exit 2
     ;;
 esac

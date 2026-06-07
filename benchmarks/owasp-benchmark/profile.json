@@ -1,0 +1,26 @@
+{
+  "id": "owasp-benchmark",
+  "name": "OWASP Benchmark",
+  "target_env": "NYX_BENCHMARK_OWASP_BENCHMARK_URL",
+  "default_url": "https://127.0.0.1:18443/benchmark",
+  "docker": {
+    "container_name": "nyx-benchmark-owasp-benchmark",
+    "image": "owasp/benchmark",
+    "host_port_env": "NYX_BENCHMARK_OWASP_BENCHMARK_PORT",
+    "default_host_port": 18443,
+    "container_port": 8443
+  },
+  "auth": {},
+  "setup": {
+    "self_signed_tls": true,
+    "baseline_only": true
+  },
+  "safe_active_checks": {
+    "intentionally_vulnerable": true,
+    "non_production": true
+  },
+  "notes": [
+    "OWASP Benchmark is intended for scanner measurement. Initial integration starts the target and captures baseline Nyx output; detailed expected item mapping is deferred because the application contains thousands of labeled cases.",
+    "Publishing comparative scores should include exact Nyx settings and benchmark version details."
+  ]
+}

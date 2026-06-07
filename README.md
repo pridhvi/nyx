@@ -433,17 +433,22 @@ See [docs/deployment.md](docs/deployment.md) for Docker, Compose, config mounts,
 
 ## Benchmarks And Validation
 
-Nyx uses DVWA and OWASP Juice Shop as repeatable ground-truth benchmarks for generic scanner depth. App-specific setup, credentials, route seeds, and expected mappings live under `benchmarks/`; scanner adapters must remain target-agnostic.
+Nyx uses deliberately vulnerable local apps as repeatable benchmarks for generic scanner depth. App-specific setup, credentials, route seeds, and expected mappings live under `benchmarks/`; scanner adapters must remain target-agnostic.
 
 ```sh
 make benchmark-targets-up
 NYX_RUN_BENCHMARKS=1 make benchmark-dvwa
 NYX_RUN_BENCHMARKS=1 make benchmark-juice
+NYX_RUN_BENCHMARKS=1 make benchmark-crapi
+NYX_RUN_BENCHMARKS=1 make benchmark-owasp-benchmark
+NYX_RUN_BENCHMARKS=1 make benchmark-dvga
+NYX_RUN_BENCHMARKS=1 make benchmark-webgoat
+NYX_RUN_BENCHMARKS=1 make benchmark-nodegoat
 NYX_RUN_BENCHMARKS=1 make benchmark-all
 make benchmark-targets-down
 ```
 
-Benchmark artifacts are written under `artifacts/benchmarks/<timestamp>/`. The current accepted Linux VM baseline requires DVWA to cover at least 14 expected items, Juice Shop to cover at least 15 expected items, and benchmark tool runs to avoid nonzero exits unless a local override is set.
+Benchmark artifacts are written under `artifacts/benchmarks/<timestamp>/`. DVWA, Juice Shop, and crAPI are strict release gates: DVWA must cover at least 14 expected items, Juice Shop must cover at least 15 expected items, crAPI must cover 12 expected categories, and those benchmark tool runs must avoid nonzero exits unless a local override is set. OWASP Benchmark, DVGA, WebGoat, and NodeGoat are baseline integrations first: they start local targets, seed routes, collect reports, and intentionally have no minimum coverage gate until their first accepted baselines are mapped.
 
 The v0.1.0 release-prep validation passed the local Go/frontend/security suite, Docker smoke, strict Linux VM full-tool smoke, DVWA `14/14`, Juice Shop `15/15`, and LM Studio-backed LLM scan-time, CLI, and API analyst paths. This validation applies to Linux/Docker full-tool operation; macOS and Windows release binaries are provided for core workflows and convenience pending dedicated platform acceptance.
 

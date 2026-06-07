@@ -1,0 +1,8 @@
+/
+/tutorial
+/login
+/signup
+/allocations
+/allocations/1
+/profile
+/memos

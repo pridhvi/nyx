@@ -624,6 +624,36 @@ func TestJWTToolDoesNotFailWhenExternalSupplementExitsAfterBuiltInFinding(t *tes
 	}
 }
 
+func TestJWTToolDoesNotFailWhenExternalSupplementExitsWithoutFindings(t *testing.T) {
+	binDir := t.TempDir()
+	toolPath := filepath.Join(binDir, "jwt_tool")
+	if err := os.WriteFile(toolPath, []byte("#!/bin/sh\necho first-run setup\nexit 1\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir)
+	t.Setenv("HOME", t.TempDir())
+	input := testExternalInput()
+	token := testJWT(t,
+		map[string]any{"typ": "JWT", "alg": "RS256"},
+		map[string]any{"sub": "1", "exp": float64(time.Now().Add(time.Hour).Unix())},
+	)
+	input.Session.ToolParameters = map[string]map[string]any{
+		models.SessionScanOptionsKey: {
+			"auth_headers": map[string]any{"Authorization": "Bearer " + token},
+		},
+	}
+	out, err := NewJWTTool().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.ToolRun.ExitCode != 0 || len(out.Findings) != 0 {
+		t.Fatalf("expected nonzero external supplement to be ignored without findings, got run=%#v findings=%#v", out.ToolRun, out.Findings)
+	}
+	if !strings.Contains(out.ToolRun.RawStdout, "no_builtin_jwt_findings=true") {
+		t.Fatalf("expected ignored external nonzero marker without findings, got %q", out.ToolRun.RawStdout)
+	}
+}
+
 func testJWT(t *testing.T, header, payload map[string]any) string {
 	t.Helper()
 	encode := func(values map[string]any) string {
@@ -634,6 +664,14 @@ func testJWT(t *testing.T, header, payload map[string]any) string {
 		return base64.RawURLEncoding.EncodeToString(body)
 	}
 	return encode(header) + "." + encode(payload) + ".signature"
+}
+
+func findingTitles(findings []models.Finding) string {
+	var titles []string
+	for _, finding := range findings {
+		titles = append(titles, finding.Title)
+	}
+	return strings.Join(titles, "\n")
 }
 
 func TestParseOAuthFindings(t *testing.T) {
@@ -1495,6 +1533,57 @@ func TestWorkflowAssistReportsGETStateChangingForm(t *testing.T) {
 	}
 }
 
+func TestWorkflowAssistCandidatesIncludeAPIRoutes(t *testing.T) {
+	input := testHTTPAdapterInput(t, "http://example.test",
+		"/identity/api/auth/login?email=user@example.test",
+		"/identity/api/v2/vehicle/vehicles",
+		"/workshop/api/merchant/contact_mechanic?mechanic_api=http://127.0.0.1:8888/report",
+	)
+	candidates := workflowCandidateURLs(input, 10)
+	joined := strings.Join(candidates, "\n")
+	for _, want := range []string{"/identity/api/auth/login", "/identity/api/v2/vehicle/vehicles", "/workshop/api/merchant/contact_mechanic"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("expected API workflow candidate %s in %#v", want, candidates)
+		}
+	}
+}
+
+func TestWorkflowAssistReportsAPIDataExposureAndRouteHints(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/identity/api/v2/user/dashboard":
+			_, _ = w.Write([]byte(`{"id":4,"email":"test@example.com","number":"9876540001","role":"ROLE_USER","available_credit":100}`))
+		case "/identity/api/auth/jwks.json":
+			_, _ = w.Write([]byte(`{"keys":[{"kid":"1","kty":"RSA"}]}`))
+		case "/workshop/api/merchant/contact_mechanic":
+			_, _ = w.Write([]byte(`{"status":"queued"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	input := testHTTPAdapterInput(t, server.URL,
+		"/identity/api/v2/user/dashboard",
+		"/identity/api/auth/jwks.json",
+		"/workshop/api/merchant/contact_mechanic?mechanic_api=http://127.0.0.1:8888/report&vin=123",
+	)
+	adapter := NewWorkflowAssistCheck()
+	if !adapter.ShouldRun(input) {
+		t.Fatal("expected workflow assist to run with API route seeds")
+	}
+	out, err := adapter.Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	titles := strings.ToLower(findingTitles(out.Findings))
+	for _, want := range []string{"excessive data exposure", "jwt key material", "ssrf"} {
+		if !strings.Contains(titles, want) {
+			t.Fatalf("expected %q finding in titles %q; stdout=%s findings=%#v", want, titles, out.ToolRun.RawStdout, out.Findings)
+		}
+	}
+}
+
 func TestWorkflowAssistCandidatesUseCaptchaSeededRoutes(t *testing.T) {
 	input := testHTTPAdapterInput(t, "http://example.test",
 		"/vulnerabilities/captcha/",
@@ -1503,6 +1592,18 @@ func TestWorkflowAssistCandidatesUseCaptchaSeededRoutes(t *testing.T) {
 	candidates := workflowCandidateURLs(input, 10)
 	if len(candidates) != 1 || candidates[0] != "http://example.test/vulnerabilities/captcha/" {
 		t.Fatalf("expected seeded CAPTCHA workflow candidate, got %#v", candidates)
+	}
+}
+
+func TestUploadCandidatesIncludeMediaAPIRoutes(t *testing.T) {
+	input := testHTTPAdapterInput(t, "http://example.test",
+		"/identity/api/v2/user/videos",
+		"/identity/api/v2/user/pictures",
+	)
+	candidates := uploadCandidates(input, 10)
+	joined := strings.Join(candidates, "\n")
+	if !strings.Contains(joined, "/videos") || !strings.Contains(joined, "/pictures") {
+		t.Fatalf("expected media API routes as upload candidates, got %#v", candidates)
 	}
 }
 

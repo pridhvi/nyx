@@ -1,0 +1,285 @@
+{
+  "benchmark": "crapi",
+  "name": "OWASP crAPI baseline coverage",
+  "items": [
+    {
+      "id": "crapi-bola",
+      "class": "broken_object_level_authorization",
+      "label": "Broken Object Level Authorization",
+      "route": "/identity/api/v2/vehicle/{vehicleId}/location",
+      "automation_suitable": true,
+      "confirmation_strategy": "adjacent object and secondary identity checks against seeded object routes",
+      "all_match": {
+        "title": [
+          "idor",
+          "access control",
+          "adjacent object",
+          "secondary identity",
+          "authorization"
+        ],
+        "tool": [
+          "idor-check"
+        ]
+      }
+    },
+    {
+      "id": "crapi-excessive-data-exposure",
+      "class": "excessive_data_exposure",
+      "label": "Excessive Data Exposure",
+      "route": "/identity/api/v2/user/dashboard",
+      "automation_suitable": false,
+      "confirmation_strategy": "human-assist review of profile, vehicle, and order response fields",
+      "all_match": {
+        "title": [
+          "sensitive",
+          "excessive data",
+          "data exposure",
+          "profile",
+          "vehicle location"
+        ],
+        "url": [
+          "/identity/api/v2/user/dashboard",
+          "/identity/api/v2/vehicle/vehicles",
+          "/identity/api/v2/vehicle/"
+        ]
+      }
+    },
+    {
+      "id": "crapi-authentication",
+      "class": "broken_authentication",
+      "label": "Broken Authentication",
+      "route": "/identity/api/auth/*",
+      "automation_suitable": true,
+      "confirmation_strategy": "JWT, reset, OTP, and authentication workflow checks with bounded attempts",
+      "match": {
+        "title": [
+          "authentication",
+          "jwt",
+          "weak password",
+          "default credential",
+          "otp",
+          "session"
+        ],
+        "tool": [
+          "jwt-tool",
+          "weak-session-check"
+        ],
+        "url": [
+          "/identity/api/auth/forget-password",
+          "/identity/api/auth/v2/check-otp",
+          "/identity/api/auth/jwks.json"
+        ]
+      }
+    },
+    {
+      "id": "crapi-mass-assignment",
+      "class": "mass_assignment",
+      "label": "Mass Assignment / Property Tampering",
+      "route": "/workshop/api/shop/orders/{order_id}",
+      "automation_suitable": false,
+      "confirmation_strategy": "human-assist review of seeded update, coupon, return, email, and profile-video workflows",
+      "all_match": {
+        "title": [
+          "mass assignment",
+          "business-control",
+          "workflow",
+          "high-value workflow",
+          "tamper"
+        ],
+        "url": [
+          "/workshop/api/shop/orders/",
+          "/workshop/api/shop/apply_coupon",
+          "/workshop/api/shop/orders/return_order",
+          "/identity/api/v2/user/change-email",
+          "/identity/api/v2/user/videos/"
+        ],
+        "tool": [
+          "workflow-assist"
+        ]
+      }
+    },
+    {
+      "id": "crapi-unrestricted-resource-consumption",
+      "class": "unrestricted_resource_consumption",
+      "label": "Unrestricted Resource Consumption",
+      "route": "/identity/api/auth/v2/check-otp",
+      "automation_suitable": false,
+      "confirmation_strategy": "human-assist review of OTP, resend, and repeated mechanic contact workflows",
+      "all_match": {
+        "title": [
+          "rate limit",
+          "anti automation",
+          "workflow",
+          "business-control",
+          "resource"
+        ],
+        "url": [
+          "/identity/api/auth/v2/check-otp",
+          "/identity/api/v2/vehicle/resend_email",
+          "/workshop/api/merchant/contact_mechanic"
+        ],
+        "tool": [
+          "workflow-assist"
+        ]
+      }
+    },
+    {
+      "id": "crapi-ssrf-unsafe-consumption",
+      "class": "server_side_request_forgery",
+      "label": "Unsafe Consumption / SSRF",
+      "route": "/workshop/api/merchant/contact_mechanic",
+      "automation_suitable": false,
+      "confirmation_strategy": "human-assist review of callback-style mechanic API parameter without submitting exploit callbacks",
+      "all_match": {
+        "url": [
+          "/workshop/api/merchant/contact_mechanic"
+        ],
+        "title": [
+          "workflow",
+          "business-control",
+          "ssrf",
+          "server-side request",
+          "callback"
+        ]
+      }
+    },
+    {
+      "id": "crapi-file-upload",
+      "class": "unrestricted_file_upload",
+      "label": "Unrestricted File Upload",
+      "route": "/identity/api/v2/user/videos",
+      "automation_suitable": true,
+      "confirmation_strategy": "safe upload/deserialization review of profile media endpoints",
+      "all_match": {
+        "title": [
+          "file upload",
+          "upload endpoint",
+          "deserialization",
+          "import",
+          "archive"
+        ],
+        "tool": [
+          "upload-check",
+          "deserialization-assist"
+        ],
+        "url": [
+          "/identity/api/v2/user/videos",
+          "/identity/api/v2/user/pictures"
+        ]
+      }
+    },
+    {
+      "id": "crapi-api-endpoint-exposure",
+      "class": "api_endpoint_exposure",
+      "label": "API Endpoint Exposure",
+      "route": "/",
+      "automation_suitable": true,
+      "confirmation_strategy": "OpenAPI/Swagger discovery or JavaScript endpoint enumeration",
+      "all_match": {
+        "title": [
+          "openapi",
+          "swagger",
+          "api documentation",
+          "hidden endpoint",
+          "hidden javascript endpoint"
+        ],
+        "tool": [
+          "openapi-discovery",
+          "linkfinder"
+        ]
+      }
+    },
+    {
+      "id": "crapi-sensitive-config-exposure",
+      "class": "sensitive_configuration_exposure",
+      "label": "Sensitive Configuration Exposure",
+      "route": "/",
+      "automation_suitable": true,
+      "confirmation_strategy": "template and scanner checks for exposed environment/configuration files",
+      "all_match": {
+        "title": [
+          "env file",
+          ".env",
+          "sensitive information",
+          "secret",
+          "configuration disclosure"
+        ],
+        "tool": [
+          "nuclei-vuln"
+        ]
+      }
+    },
+    {
+      "id": "crapi-security-misconfiguration",
+      "class": "security_misconfiguration",
+      "label": "Security Misconfiguration",
+      "route": "/",
+      "automation_suitable": true,
+      "confirmation_strategy": "security headers, CORS, exposed docs, and server configuration checks",
+      "match": {
+        "type": [
+          "misconfiguration"
+        ],
+        "title": [
+          "missing content-security-policy",
+          "security header",
+          "cors",
+          "openapi",
+          "swagger"
+        ],
+        "tool": [
+          "security-headers",
+          "cors-check",
+          "openapi-discovery"
+        ]
+      }
+    },
+    {
+      "id": "crapi-jwt-key-exposure",
+      "class": "jwt_key_exposure",
+      "label": "JWT / Key Material Exposure",
+      "route": "/identity/api/auth/jwks.json",
+      "automation_suitable": true,
+      "confirmation_strategy": "JWT metadata and key endpoint review",
+      "all_match": {
+        "title": [
+          "jwt",
+          "jwks",
+          "key material",
+          "public key"
+        ],
+        "tool": [
+          "jwt-tool",
+          "workflow-assist"
+        ],
+        "url": [
+          "/identity/api/auth/jwks.json"
+        ]
+      }
+    },
+    {
+      "id": "crapi-community-data-exposure",
+      "class": "public_api_data_exposure",
+      "label": "Public API Data Exposure",
+      "route": "/community/api/v2/community/posts/recent",
+      "automation_suitable": false,
+      "confirmation_strategy": "human-assist review of public feed data, author metadata, and object references",
+      "all_match": {
+        "title": [
+          "sensitive",
+          "data exposure",
+          "hidden endpoint",
+          "public api"
+        ],
+        "url": [
+          "/community/api/v2/community/posts/recent",
+          "/community/api/v2/community/posts"
+        ],
+        "tool": [
+          "linkfinder",
+          "workflow-assist"
+        ]
+      }
+    }
+  ]
+}
