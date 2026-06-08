@@ -452,7 +452,7 @@ Benchmark artifacts are written under `artifacts/benchmarks/<timestamp>/`, with 
 
 The v0.1.0 release-prep validation passed the local Go/frontend/security suite, Docker smoke, strict Linux VM full-tool smoke, DVWA `14/14`, Juice Shop `15/15`, and LM Studio-backed LLM scan-time, CLI, and API analyst paths. This validation applies to Linux/Docker full-tool operation; macOS and Windows release binaries are provided for core workflows and convenience pending dedicated platform acceptance.
 
-See [docs/benchmark-driven-scanner-depth.md](docs/benchmark-driven-scanner-depth.md) for the benchmark plan and acceptance history.
+See [docs/benchmark-status.md](docs/benchmark-status.md) for the current gate table and [docs/benchmark-driven-scanner-depth.md](docs/benchmark-driven-scanner-depth.md) for the benchmark plan and acceptance history.
 
 ## Troubleshooting
 

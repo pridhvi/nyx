@@ -82,6 +82,8 @@ that should become human-assist output before it becomes automated confirmation.
 
 ### Baseline Expansion Targets
 
+Current release-gate results are summarized in [benchmark-status.md](benchmark-status.md).
+
 The harness also includes first-pass integrations for five additional targets:
 
 - OWASP crAPI for API security, authorization, workflow, and JWT-heavy coverage.

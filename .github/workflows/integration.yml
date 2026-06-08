@@ -2,6 +2,22 @@ name: Integration
 
 on:
   workflow_dispatch:
+    inputs:
+      benchmark:
+        description: "Optional benchmark target to run and upload artifacts for"
+        required: false
+        default: "none"
+        type: choice
+        options:
+          - none
+          - dvwa
+          - juice-shop
+          - crapi
+          - owasp-benchmark
+          - dvga
+          - webgoat
+          - nodegoat
+          - all
   schedule:
     - cron: "17 9 * * *"
 
@@ -31,3 +47,39 @@ jobs:
             /tmp/nyx-integration-*.md
             /tmp/nyx-integration-*.sarif
           if-no-files-found: ignore
+  benchmark:
+    if: github.event_name == 'workflow_dispatch' && inputs.benchmark != 'none'
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version: "1.26.4"
+
+      - name: Install benchmark dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl git jq sqlite3 unzip
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.config/composer/vendor/bin" >> "$GITHUB_PATH"
+          ./scripts/install-linux-tools.sh --execute
+
+      - name: Run benchmark target
+        run: NYX_RUN_BENCHMARKS=1 ./scripts/benchmark-run.sh "${{ inputs.benchmark }}"
+
+      - name: Upload benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: nyx-benchmark-${{ inputs.benchmark }}-artifacts
+          path: |
+            artifacts/benchmarks/**/index.md
+            artifacts/benchmarks/**/index.json
+            artifacts/benchmarks/**/summary.md
+            artifacts/benchmarks/**/summary.json
+            artifacts/benchmarks/**/*.log
+          if-no-files-found: ignore
+          retention-days: 14
