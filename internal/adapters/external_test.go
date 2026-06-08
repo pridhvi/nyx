@@ -1582,6 +1582,23 @@ func TestWorkflowAssistReportsAPIDataExposureAndRouteHints(t *testing.T) {
 			t.Fatalf("expected %q finding in titles %q; stdout=%s findings=%#v", want, titles, out.ToolRun.RawStdout, out.Findings)
 		}
 	}
+	var ssrfEvidence map[string]any
+	for _, finding := range out.Findings {
+		if strings.Contains(strings.ToLower(finding.Title), "ssrf") {
+			if err := json.Unmarshal([]byte(finding.EvidenceNormalized), &ssrfEvidence); err != nil {
+				t.Fatalf("invalid workflow API evidence: %v", err)
+			}
+		}
+	}
+	if ssrfEvidence == nil {
+		t.Fatal("expected SSRF workflow evidence")
+	}
+	if ssrfEvidence["status_code"] == nil || ssrfEvidence["content_type"] == nil || ssrfEvidence["body_excerpt"] == nil || ssrfEvidence["response_bytes"] == nil {
+		t.Fatalf("expected HTTP response context in workflow evidence, got %#v", ssrfEvidence)
+	}
+	if ssrfEvidence["source"] != "api-route" {
+		t.Fatalf("expected api-route source, got %#v", ssrfEvidence)
+	}
 }
 
 func TestWorkflowAssistCandidatesUseCaptchaSeededRoutes(t *testing.T) {
@@ -2117,12 +2134,30 @@ func TestGraphQLSecurityReviewFindingsCoverDVGACategories(t *testing.T) {
 	}
 	findings := graphqlSecurityReviewFindings(testExternalInput(), evidence)
 	seen := map[string]bool{}
+	structuredProofSeen := false
 	for _, finding := range findings {
 		var normalized map[string]any
 		if err := json.Unmarshal([]byte(finding.EvidenceNormalized), &normalized); err != nil {
 			t.Fatalf("invalid normalized evidence: %v", err)
 		}
-		seen[normalized["graphql_review_category"].(string)] = true
+		category := normalized["graphql_review_category"].(string)
+		seen[category] = true
+		if category == "info-ssrf" {
+			if normalized["operation_type"] != "mutation" || normalized["field"] != "importPaste" {
+				t.Fatalf("expected structured operation evidence for info-ssrf, got %#v", normalized)
+			}
+			args, ok := normalized["arguments"].([]any)
+			if !ok || len(args) != 4 || args[0] != "host" {
+				t.Fatalf("expected structured argument evidence for info-ssrf, got %#v", normalized["arguments"])
+			}
+			if normalized["manual_verification"] == "" || normalized["proof_excerpt"] == "" {
+				t.Fatalf("expected review guidance and proof excerpt, got %#v", normalized)
+			}
+			structuredProofSeen = true
+		}
+	}
+	if !structuredProofSeen {
+		t.Fatal("expected structured GraphQL proof evidence")
 	}
 	expected := []string{
 		"recon-detection", "recon-fingerprinting", "dos-batch", "dos-recursion",

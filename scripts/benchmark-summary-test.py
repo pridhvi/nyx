@@ -19,6 +19,13 @@ if SPEC is None or SPEC.loader is None:
 benchmark_summary = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(benchmark_summary)
 
+INDEX_PATH = ROOT / "scripts" / "benchmark-index.py"
+INDEX_SPEC = importlib.util.spec_from_file_location("benchmark_index", INDEX_PATH)
+if INDEX_SPEC is None or INDEX_SPEC.loader is None:
+    raise RuntimeError(f"could not load {INDEX_PATH}")
+benchmark_index = importlib.util.module_from_spec(INDEX_SPEC)
+INDEX_SPEC.loader.exec_module(benchmark_index)
+
 
 def write_fixture_db(path: Path, *, failed_tool_runs: int = 0) -> None:
     conn = sqlite3.connect(path)
@@ -144,6 +151,71 @@ class BenchmarkSummaryGateTest(unittest.TestCase):
             self.assertFalse(strict_gate["passed"])
             self.assertIn("1 tool run(s) exited nonzero", strict_gate["failures"])
             self.assertTrue(relaxed_gate["passed"])
+
+
+class BenchmarkIndexTest(unittest.TestCase):
+    def test_index_rolls_up_target_summaries(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first = root / "dvwa"
+            second = root / "dvga"
+            first.mkdir()
+            second.mkdir()
+            (first / "summary.json").write_text(
+                json.dumps(
+                    {
+                        "benchmark": "dvwa",
+                        "target_url": "http://target-one",
+                        "session": {"id": "session-one"},
+                        "covered_count": 2,
+                        "expected_count": 2,
+                        "coverage_percent": 100,
+                        "confirmed_count": 1,
+                        "detected_count": 1,
+                        "partial_count": 0,
+                        "missed_count": 0,
+                        "skipped_count": 0,
+                        "finding_count": 5,
+                        "tool_run_count": 3,
+                        "failed_tool_runs": [],
+                        "gate": {"passed": True},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (second / "summary.json").write_text(
+                json.dumps(
+                    {
+                        "benchmark": "dvga",
+                        "target_url": "http://target-two",
+                        "session": {"id": "session-two"},
+                        "covered_count": 1,
+                        "expected_count": 2,
+                        "coverage_percent": 50,
+                        "confirmed_count": 0,
+                        "detected_count": 0,
+                        "partial_count": 1,
+                        "missed_count": 1,
+                        "skipped_count": 0,
+                        "finding_count": 2,
+                        "tool_run_count": 1,
+                        "failed_tool_runs": [{"tool_id": "x", "exit_code": 1}],
+                        "gate": {"passed": False},
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            index = benchmark_index.build_index(root)
+            rendered = benchmark_index.markdown(index)
+
+            self.assertFalse(index["gate_passed"])
+            self.assertEqual(2, index["target_count"])
+            self.assertEqual(3, index["totals"]["covered"])
+            self.assertEqual(4, index["totals"]["expected"])
+            self.assertEqual(1, index["totals"]["failed_tool_runs"])
+            self.assertIn("dvwa/summary.md", rendered)
+            self.assertIn("dvga", rendered)
 
 
 if __name__ == "__main__":

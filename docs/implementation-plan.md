@@ -85,6 +85,8 @@ benchmark commands if DVWA drops below 14 covered items, Juice Shop drops below
 GraphQL solution categories, WebGoat drops below 14 Java lesson categories, or
 any strict-gate benchmark tool run exits
 nonzero unless an explicit local override is set. crAPI
+uses an API-focused default benchmark tool set that omits the external Dalfox
+XSS adapter unless `NYX_BENCHMARK_TOOLS_CRAPI` is overridden locally, and it
 has an authenticated benchmark profile, route seeds, strict category mappings,
 and a measured Linux VM baseline of 12/12 covered categories after generic
 API-depth improvements. OWASP Benchmark now starts the target for readiness, extracts BenchmarkJava source from
@@ -93,8 +95,8 @@ known `expectedresults-1.2.csv` class counts, and gates on 11/11 Java
 vulnerability classes without claiming per-testcase precision across all 2,740
 labeled cases. DVGA now gates on 24/24 upstream GraphQL solution categories
 using the generic `graphql-security-review` adapter, safe GraphQL probes, and
-schema-shaped human-assist findings without executing destructive challenge
-payloads. WebGoat now gates on 14/14 Java lesson-oriented categories using
+schema-shaped human-assist findings with operation/field/argument context
+without executing destructive challenge payloads. WebGoat now gates on 14/14 Java lesson-oriented categories using
 deterministic authenticated setup, pinned `v2025.3` source extraction, generic
 Java source patterns, auth-middleware route review, and built-in authenticated
 HTTP checks without hardcoding lesson solutions. NodeGoat now gates on 12/12
@@ -109,7 +111,9 @@ session data. Later benchmark-depth passes added crAPI at 12/12 category
 coverage, OWASP Benchmark at 11/11 Java source-audit class coverage, DVGA at
 24/24 GraphQL solution-category coverage, WebGoat at 14/14 Java
 lesson-category coverage, and NodeGoat at 12/12 Node/Express category
-coverage.
+coverage. Benchmark runs now emit aggregate `index.md` and `index.json`
+rollups so full-suite acceptance can be reviewed without opening each target
+summary individually.
 
 ## Current Baseline
 

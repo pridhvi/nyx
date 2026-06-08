@@ -93,12 +93,17 @@ The harness also includes first-pass integrations for five additional targets:
 - OWASP NodeGoat for traditional Node/Express application coverage.
 
 crAPI now has an authenticated baseline profile, seeded API routes, strict
-category mappings, and a 12/12 accepted Linux VM baseline. OWASP Benchmark now
+category mappings, and a 12/12 accepted Linux VM baseline. Seeded API workflow
+hints include response status, content type, redacted excerpt, and response-size
+context for manual review. Its strict benchmark default uses API-relevant tools
+and omits the external Dalfox XSS adapter; set `NYX_BENCHMARK_TOOLS_CRAPI`
+locally to include it. OWASP Benchmark now
 starts the target for readiness, extracts the BenchmarkJava source tree from the
 Docker image, runs a source audit, records the `expectedresults-1.2.csv` class counts, and
 gates on all 11 vulnerability classes at category level. DVGA now gates on 24
 upstream GraphQL solution categories using the generic `graphql-security-review`
-adapter, safe probes, and schema-shaped human-assist findings. WebGoat now
+adapter, safe probes, and schema-shaped human-assist findings with operation,
+field, argument, proof-excerpt, and manual-verification context. WebGoat now
 registers a deterministic local benchmark user, validates authenticated
 lesson-menu access, downloads pinned WebGoat `v2025.3` source, and gates on 14
 Java lesson-oriented categories using generic source/authenticated evidence.
@@ -130,7 +135,8 @@ include:
 - Nyx session directories
 - generated Markdown reports
 - generated SARIF reports
-- benchmark summary JSON
+- per-target benchmark summary JSON/Markdown
+- aggregate `index.md` and `index.json` rollups across the run
 - raw tool sidecar logs when not using lean mode
 - scan command lines and environment metadata
 

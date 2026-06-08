@@ -380,12 +380,87 @@ func responseHasData(body string) bool {
 }
 
 func graphqlReviewFinding(input AdapterInput, category string, findingType models.FindingType, severity models.Severity, confidence float64, title, description, remediation, raw string, tags []string) models.Finding {
-	finding := externalFinding(input, "graphql-security-review", findingType, severity, title, description, remediation, limitString(raw, 6000), map[string]any{
+	normalized := map[string]any{
 		"graphql_review_category": category,
 		"category":                category,
-	}, append([]string{"graphql-review", category}, tags...))
+	}
+	for key, value := range graphqlReviewProofContext(category, raw) {
+		normalized[key] = value
+	}
+	finding := externalFinding(input, "graphql-security-review", findingType, severity, title, description, remediation, limitString(raw, 6000), normalized, append([]string{"graphql-review", category}, tags...))
 	finding.Confidence = confidence
 	return finding
+}
+
+func graphqlReviewProofContext(category, raw string) map[string]any {
+	trimmed := strings.TrimSpace(raw)
+	context := map[string]any{
+		"proof_excerpt":       limitString(trimmed, 600),
+		"manual_verification": graphqlReviewManualVerification(category),
+	}
+	operationType, field, args := parseGraphQLOperationProof(trimmed)
+	if operationType != "" {
+		context["operation_type"] = operationType
+	}
+	if field != "" {
+		context["field"] = field
+	}
+	if len(args) > 0 {
+		context["arguments"] = args
+	}
+	return context
+}
+
+func parseGraphQLOperationProof(raw string) (string, string, []string) {
+	trimmed := strings.TrimSpace(raw)
+	operation, rest, ok := strings.Cut(trimmed, " ")
+	if !ok {
+		return "", "", nil
+	}
+	operation = strings.ToLower(strings.TrimSpace(operation))
+	if operation != "query" && operation != "mutation" {
+		return "", "", nil
+	}
+	rest = strings.TrimSpace(rest)
+	field := rest
+	if idx := strings.IndexAny(field, " ({"); idx >= 0 {
+		field = field[:idx]
+	}
+	field = strings.TrimSpace(field)
+	var args []string
+	if start := strings.Index(rest, "("); start >= 0 {
+		if end := strings.Index(rest[start+1:], ")"); end >= 0 {
+			argList := rest[start+1 : start+1+end]
+			for _, arg := range strings.Split(argList, ",") {
+				arg = strings.TrimSpace(arg)
+				if arg == "" {
+					continue
+				}
+				if before, _, ok := strings.Cut(arg, ":"); ok {
+					arg = strings.TrimSpace(before)
+				}
+				args = append(args, arg)
+			}
+		}
+	}
+	return operation, field, args
+}
+
+func graphqlReviewManualVerification(category string) string {
+	switch {
+	case strings.HasPrefix(category, "dos-"):
+		return "Review depth, alias, duplicate-field, batch, and resolver cost limits before treating this as exploitable denial of service."
+	case strings.HasPrefix(category, "info-") || strings.HasPrefix(category, "recon-"):
+		return "Confirm whether schema, console, stack-trace, or implementation details are intentionally exposed to this caller."
+	case strings.HasPrefix(category, "bypassauthz-"):
+		return "Verify resolver-level authorization and whether aliases, operation names, client-controlled cookies, or token arguments alter access decisions."
+	case strings.HasPrefix(category, "inj-"):
+		return "Trace the named field or argument into backend query, render, or log sinks before attempting active payload validation."
+	case strings.HasPrefix(category, "exec-") || strings.HasPrefix(category, "misc-filewrite"):
+		return "Trace the named field or argument to subprocess, file-system, or server-side fetch behavior before attempting active validation."
+	default:
+		return "Use the operation, field, arguments, and proof excerpt as review context; LLM or human notes should not override deterministic scanner evidence."
+	}
 }
 
 func limitString(value string, limit int) string {

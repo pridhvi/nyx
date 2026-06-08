@@ -132,6 +132,9 @@ tools_for() {
     owasp-benchmark)
       printf '%s' "${NYX_BENCHMARK_TOOLS_OWASP_BENCHMARK:-audit/javapatterns}"
       ;;
+    crapi)
+      printf '%s' "${NYX_BENCHMARK_TOOLS_CRAPI:-http-probe,security-headers,whatweb,openapi-discovery,arjun,linkfinder,js-secret-scan,cors-check,nmap,ffuf,nuclei-tech,nuclei-vuln,jwt-tool,nikto,sqlmap,brute-force-check,reflected-xss-check,dom-xss-check,stored-xss-check,sqli-check,open-redirect-check,file-inclusion-check,command-injection-check,upload-check,idor-check,workflow-assist,observability-assist,deserialization-assist,csp-review,csrf-check,weak-session-check,xxe-fuzz}"
+      ;;
     dvga)
       printf '%s' "${NYX_BENCHMARK_TOOLS_DVGA:-http-probe,security-headers,graphql-introspection,graphql-security-review}"
       ;;
@@ -791,4 +794,5 @@ case "$benchmark" in
     ;;
 esac
 
+scripts/benchmark-index.py --artifact-root "$artifact_root" || fail "benchmark index generation failed"
 echo "Benchmark artifacts: $artifact_root"
