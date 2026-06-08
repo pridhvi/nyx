@@ -1,5 +1,236 @@
 {
   "benchmark": "nodegoat",
-  "name": "NodeGoat baseline coverage",
-  "items": []
+  "name": "NodeGoat category-level coverage",
+  "known_findings": [
+    {
+      "class": "server-side-js-injection",
+      "label": "Server-side JavaScript injection"
+    },
+    {
+      "class": "nosql-injection",
+      "label": "NoSQL injection"
+    },
+    {
+      "class": "broken-access-control",
+      "label": "IDOR on allocation records"
+    },
+    {
+      "class": "broken-access-control",
+      "label": "Function-level access control"
+    },
+    {
+      "class": "xss",
+      "label": "Stored cross-site scripting"
+    },
+    {
+      "class": "open-redirect",
+      "label": "Open redirect"
+    },
+    {
+      "class": "ssrf",
+      "label": "Server-side request forgery"
+    },
+    {
+      "class": "cryptographic-failures",
+      "label": "Weak crypto and sensitive defaults"
+    },
+    {
+      "class": "identity-auth-failure",
+      "label": "Session fixation"
+    },
+    {
+      "class": "csrf",
+      "label": "CSRF protection disabled"
+    },
+    {
+      "class": "security-misconfiguration",
+      "label": "Security misconfiguration"
+    },
+    {
+      "class": "vulnerable-components",
+      "label": "Vulnerable dependencies"
+    }
+  ],
+  "items": [
+    {
+      "id": "nodegoat-server-side-js-injection",
+      "class": "server-side-js-injection",
+      "label": "Server-side JavaScript injection",
+      "automation_suitable": false,
+      "confirmation_strategy": "Node/Express eval sink fed by request-controlled contribution fields",
+      "all_match": {
+        "tool": [
+          "audit/nodepatterns"
+        ],
+        "evidence_normalized": [
+          "node-pattern-category=ssjs"
+        ]
+      }
+    },
+    {
+      "id": "nodegoat-nosql-injection",
+      "class": "nosql-injection",
+      "label": "NoSQL injection",
+      "automation_suitable": false,
+      "confirmation_strategy": "MongoDB $where expression built from route/user-controlled values",
+      "all_match": {
+        "tool": [
+          "audit/nodepatterns"
+        ],
+        "evidence_normalized": [
+          "node-pattern-category=nosqli"
+        ]
+      }
+    },
+    {
+      "id": "nodegoat-idor",
+      "class": "broken-access-control",
+      "label": "IDOR on allocation records",
+      "automation_suitable": false,
+      "confirmation_strategy": "Authenticated route accepts object/user identifiers without owner enforcement",
+      "all_match": {
+        "tool": [
+          "audit/nodepatterns"
+        ],
+        "evidence_normalized": [
+          "node-pattern-category=idor"
+        ]
+      }
+    },
+    {
+      "id": "nodegoat-function-access-control",
+      "class": "broken-access-control",
+      "label": "Function-level access control",
+      "automation_suitable": false,
+      "confirmation_strategy": "Privileged benefits route is reachable with login-only middleware",
+      "all_match": {
+        "tool": [
+          "audit/nodepatterns"
+        ],
+        "evidence_normalized": [
+          "node-pattern-category=missingauthz"
+        ]
+      }
+    },
+    {
+      "id": "nodegoat-stored-xss",
+      "class": "xss",
+      "label": "Stored cross-site scripting",
+      "automation_suitable": false,
+      "confirmation_strategy": "Stored memo content is rendered through markdown with escaping disabled",
+      "all_match": {
+        "tool": [
+          "audit/nodepatterns"
+        ],
+        "evidence_normalized": [
+          "node-pattern-category=storedxss"
+        ]
+      }
+    },
+    {
+      "id": "nodegoat-open-redirect",
+      "class": "open-redirect",
+      "label": "Open redirect",
+      "automation_suitable": false,
+      "confirmation_strategy": "Redirect destination is taken from a request query parameter",
+      "all_match": {
+        "tool": [
+          "audit/nodepatterns"
+        ],
+        "evidence_normalized": [
+          "node-pattern-category=openredirect"
+        ]
+      }
+    },
+    {
+      "id": "nodegoat-ssrf",
+      "class": "ssrf",
+      "label": "Server-side request forgery",
+      "automation_suitable": false,
+      "confirmation_strategy": "Server-side HTTP client URL is built from request query values",
+      "all_match": {
+        "tool": [
+          "audit/nodepatterns"
+        ],
+        "evidence_normalized": [
+          "node-pattern-category=ssrf"
+        ]
+      }
+    },
+    {
+      "id": "nodegoat-weak-crypto-sensitive-data",
+      "class": "cryptographic-failures",
+      "label": "Weak crypto and sensitive defaults",
+      "automation_suitable": false,
+      "confirmation_strategy": "Static cookie/crypto key material and legacy cipher configuration are present",
+      "all_match": {
+        "tool": [
+          "audit/nodepatterns"
+        ],
+        "evidence_normalized": [
+          "node-pattern-category=weakcrypto"
+        ]
+      }
+    },
+    {
+      "id": "nodegoat-session-fixation",
+      "class": "identity-auth-failure",
+      "label": "Session fixation",
+      "automation_suitable": false,
+      "confirmation_strategy": "Login assigns the authenticated user to the existing session without regeneration",
+      "all_match": {
+        "tool": [
+          "audit/nodepatterns"
+        ],
+        "evidence_normalized": [
+          "node-pattern-category=sessionfix"
+        ]
+      }
+    },
+    {
+      "id": "nodegoat-csrf-disabled",
+      "class": "csrf",
+      "label": "CSRF protection disabled",
+      "automation_suitable": false,
+      "confirmation_strategy": "CSRF middleware is present but commented out",
+      "all_match": {
+        "tool": [
+          "audit/nodepatterns"
+        ],
+        "evidence_normalized": [
+          "node-pattern-category=csrf"
+        ]
+      }
+    },
+    {
+      "id": "nodegoat-security-misconfiguration",
+      "class": "security-misconfiguration",
+      "label": "Security misconfiguration",
+      "automation_suitable": false,
+      "confirmation_strategy": "Security header and template escaping hardening are disabled",
+      "all_match": {
+        "tool": [
+          "audit/nodepatterns"
+        ],
+        "evidence_normalized": [
+          "node-pattern-category=misconfig"
+        ]
+      }
+    },
+    {
+      "id": "nodegoat-vulnerable-components",
+      "class": "vulnerable-components",
+      "label": "Vulnerable dependencies",
+      "automation_suitable": false,
+      "confirmation_strategy": "Known old Node package versions are declared in package.json",
+      "all_match": {
+        "tool": [
+          "audit/nodepatterns"
+        ],
+        "evidence_normalized": [
+          "node-pattern-category=vulndep"
+        ]
+      }
+    }
+  ]
 }

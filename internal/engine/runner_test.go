@@ -294,9 +294,18 @@ func TestRunnerHTTPClientIgnoresAmbientProxyAndHonorsExplicitProxy(t *testing.T)
 	t.Setenv("HTTPS_PROXY", proxy.URL)
 	t.Setenv("NO_PROXY", "")
 
-	session, store := testRunnerStoreForURL(t, ctx, "http://example.invalid")
+	closedListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetURL := "http://" + closedListener.Addr().String()
+	if err := closedListener.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	session, store := testRunnerStoreForURL(t, ctx, targetURL)
 	defer store.Close()
-	runner := NewRunnerWithOptions(store, []adapters.Adapter{proxyProbeAdapter{}}, nil, RunnerOptions{GlobalConcurrency: 1, PerToolConcurrency: 1, ToolTimeout: 100 * time.Millisecond})
+	runner := NewRunnerWithOptions(store, []adapters.Adapter{proxyProbeAdapter{}}, nil, RunnerOptions{GlobalConcurrency: 1, PerToolConcurrency: 1, ToolTimeout: time.Second})
 	if err := runner.Run(ctx, session); err != nil {
 		t.Fatal(err)
 	}
@@ -304,7 +313,7 @@ func TestRunnerHTTPClientIgnoresAmbientProxyAndHonorsExplicitProxy(t *testing.T)
 		t.Fatalf("expected ambient proxy to be ignored, got %d hits", proxyHits.Load())
 	}
 
-	session2, store2 := testRunnerStoreForURL(t, ctx, "http://example.invalid")
+	session2, store2 := testRunnerStoreForURL(t, ctx, targetURL)
 	defer store2.Close()
 	runner = NewRunnerWithOptions(store2, []adapters.Adapter{proxyProbeAdapter{}}, nil, RunnerOptions{GlobalConcurrency: 1, PerToolConcurrency: 1, ToolTimeout: time.Second, ProxyURL: proxy.URL})
 	if err := runner.Run(ctx, session2); err != nil {

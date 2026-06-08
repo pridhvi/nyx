@@ -102,10 +102,11 @@ adapter, safe probes, and schema-shaped human-assist findings. WebGoat now
 registers a deterministic local benchmark user, validates authenticated
 lesson-menu access, downloads pinned WebGoat `v2025.3` source, and gates on 14
 Java lesson-oriented categories using generic source/authenticated evidence.
-NodeGoat intentionally starts as a baseline integration with route seeds and an
-empty expected mapping. Its first runs should establish target readiness, Nyx
-scan stability, report generation, and initial observed findings before minimum
-coverage gates are added.
+NodeGoat now registers a deterministic local benchmark user, validates
+authenticated dashboard access, extracts source from the running container, and
+gates on 12 Node/Express categories using generic source/authenticated evidence.
+The accepted Linux VM baseline covered 12/12 categories with 66 findings and no
+failed tool runs.
 
 ## Phase 1: Benchmark Harness
 

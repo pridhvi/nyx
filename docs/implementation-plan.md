@@ -97,17 +97,19 @@ schema-shaped human-assist findings without executing destructive challenge
 payloads. WebGoat now gates on 14/14 Java lesson-oriented categories using
 deterministic authenticated setup, pinned `v2025.3` source extraction, generic
 Java source patterns, auth-middleware route review, and built-in authenticated
-HTTP checks without hardcoding lesson solutions. NodeGoat starts as a baseline
-integration with target startup, route seeds, artifact generation, and no
-minimum coverage gate until accepted mappings are established.
+HTTP checks without hardcoding lesson solutions. NodeGoat now gates on 12/12
+Node/Express categories using deterministic authenticated setup, source
+extraction from the running container, generic Node source patterns, route
+review, and built-in authenticated HTTP checks.
 The latest Linux VM acceptance pass, run on 2026-05-28 against commit
 `a41272c`, passed strict Linux tool smoke, `NYX_RUN_LINUX_FULL=1 make
 linux-full-smoke`, DVWA at 14/14 with 42 findings, Juice Shop at 15/15 with 28
 findings, and LM Studio-backed LLM CLI/UI smoke against real persisted DVWA
 session data. Later benchmark-depth passes added crAPI at 12/12 category
 coverage, OWASP Benchmark at 11/11 Java source-audit class coverage, DVGA at
-24/24 GraphQL solution-category coverage, and WebGoat at 14/14 Java
-lesson-category coverage.
+24/24 GraphQL solution-category coverage, WebGoat at 14/14 Java
+lesson-category coverage, and NodeGoat at 12/12 Node/Express category
+coverage.
 
 ## Current Baseline
 

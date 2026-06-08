@@ -117,6 +117,9 @@ source_path_for() {
     webgoat)
       prepare_webgoat_source "$name"
       ;;
+    nodegoat)
+      prepare_nodegoat_source "$name"
+      ;;
     *)
       printf ''
       ;;
@@ -134,6 +137,9 @@ tools_for() {
       ;;
     webgoat)
       printf '%s' "${NYX_BENCHMARK_TOOLS_WEBGOAT:-audit/javapatterns,audit/authmiddleware,audit/idor,audit/dangerfuncs,http-probe,security-headers,cors-check,workflow-assist,observability-assist,deserialization-assist,csp-review}"
+      ;;
+    nodegoat)
+      printf '%s' "${NYX_BENCHMARK_TOOLS_NODEGOAT:-audit/nodepatterns,audit/authmiddleware,audit/idor,audit/dangerfuncs,http-probe,security-headers,cors-check,workflow-assist,observability-assist,deserialization-assist,csp-review}"
       ;;
     *)
       printf '%s' "$tools"
@@ -211,6 +217,28 @@ with zipfile.ZipFile(archive) as bundle:
 PY
   if [ ! -d "$source_dir/src/main/java" ]; then
     fail "WebGoat source extraction did not produce src/main/java"
+  fi
+  printf '%s' "$source_dir"
+}
+
+prepare_nodegoat_source() {
+  name="$1"
+  source_dir="$artifact_root/$name/source"
+  if [ -f "$source_dir/package.json" ] && [ -d "$source_dir/app/routes" ]; then
+    printf '%s' "$source_dir"
+    return
+  fi
+  rm -rf "$source_dir" "$artifact_root/$name/source-copy"
+  mkdir -p "$artifact_root/$name"
+  container="${NYX_BENCHMARK_NODEGOAT_CONTAINER:-nyx-benchmark-nodegoat}"
+  if ! docker inspect "$container" >/dev/null 2>&1; then
+    fail "NodeGoat container $container is not available for source extraction"
+  fi
+  docker cp "$container:/usr/src/app" "$artifact_root/$name/source-copy" >/dev/null
+  mv "$artifact_root/$name/source-copy" "$source_dir"
+  rm -rf "$source_dir/node_modules" "$source_dir/.git" "$source_dir/coverage"
+  if [ ! -f "$source_dir/package.json" ] || [ ! -d "$source_dir/app/routes" ]; then
+    fail "NodeGoat source extraction did not produce package.json and app/routes"
   fi
   printf '%s' "$source_dir"
 }
@@ -447,6 +475,44 @@ def setup_crapi() -> None:
     if dashboard_status >= 400 or "test@example.com" not in dashboard_body:
         raise SystemExit(f"crAPI benchmark auth validation failed with HTTP {dashboard_status}")
 
+def setup_nodegoat() -> None:
+    log(f"preparing NodeGoat benchmark at {target_url}")
+    username = "nyxbench"
+    password = "Nyx12345"
+    email = "nyxbench@example.test"
+    status, _ = request("GET", "/signup")
+    log(f"GET /signup status={status}")
+    register_status, register_body = request(
+        "POST",
+        "/signup",
+        form={
+            "userName": username,
+            "firstName": "Nyx",
+            "lastName": "Benchmark",
+            "password": password,
+            "verify": password,
+            "email": email,
+            "_csrf": "",
+        },
+    )
+    log(f"POST /signup status={register_status}")
+    duplicate = "already" in register_body.lower() or "exists" in register_body.lower()
+    if register_status >= 400 and not duplicate:
+        raise SystemExit(f"NodeGoat registration failed with HTTP {register_status}: {register_body[:240]}")
+    reset_session()
+    login_status, login_body = request(
+        "POST",
+        "/login",
+        form={"userName": username, "password": password, "_csrf": ""},
+    )
+    log(f"POST /login status={login_status}")
+    if login_status >= 400 or "Invalid" in login_body or "Login" in login_body and "Dashboard" not in login_body:
+        raise SystemExit(f"NodeGoat login failed with HTTP {login_status}: {login_body[:240]}")
+    dashboard_status, dashboard_body = request("GET", "/dashboard")
+    log(f"GET /dashboard status={dashboard_status}")
+    if dashboard_status >= 400 or "Dashboard" not in dashboard_body:
+        raise SystemExit(f"NodeGoat auth validation failed with HTTP {dashboard_status}")
+
 
 def setup_webgoat() -> None:
     log(f"preparing WebGoat benchmark at {target_url}")
@@ -490,6 +556,8 @@ elif name == "crapi":
     setup_crapi()
 elif name == "webgoat":
     setup_webgoat()
+elif name == "nodegoat":
+    setup_nodegoat()
 else:
     log(f"no benchmark setup defined for {name}")
 log("benchmark setup completed")
@@ -548,7 +616,7 @@ min_covered_for() {
       printf '%s' "${NYX_BENCHMARK_MIN_COVERED_WEBGOAT:-14}"
       ;;
     nodegoat)
-      printf '%s' "${NYX_BENCHMARK_MIN_COVERED_NODEGOAT:-}"
+      printf '%s' "${NYX_BENCHMARK_MIN_COVERED_NODEGOAT:-12}"
       ;;
     *)
       fail "unknown benchmark target $name"
@@ -577,7 +645,7 @@ summary_gate_args() {
       allow_failed="${NYX_BENCHMARK_ALLOW_FAILED_TOOLS_WEBGOAT:-${allow_failed:-0}}"
       ;;
     nodegoat)
-      allow_failed="${NYX_BENCHMARK_ALLOW_FAILED_TOOLS_NODEGOAT:-${allow_failed:-1}}"
+      allow_failed="${NYX_BENCHMARK_ALLOW_FAILED_TOOLS_NODEGOAT:-${allow_failed:-0}}"
       ;;
   esac
   if [ "$allow_failed" = "1" ]; then

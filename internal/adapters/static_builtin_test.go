@@ -126,3 +126,56 @@ class Demo {
 		}
 	}
 }
+
+func TestNodePatternStaticAdapterCoversBenchmarkClasses(t *testing.T) {
+	repo := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(repo, "app", "routes"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(repo, "app", "data"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	routes := `
+const needle = require("needle");
+app.get("/allocations/:userId", isLoggedIn, allocationsHandler.displayAllocations);
+app.get("/benefits", isLoggedIn, benefitsHandler.displayBenefits);
+app.get("/learn", isLoggedIn, (req, res) => res.redirect(req.query.url));
+const preTax = eval(req.body.preTax);
+const url = req.query.url + req.query.symbol;
+needle.get(url, (error, newResponse, body) => {});
+req.session.userId = user._id;
+// const csrf = require('csurf');
+// app.use(helmet.frameguard());
+swig.setDefaults({ autoescape: false });
+`
+	if err := os.WriteFile(filepath.Join(repo, "app", "routes", "index.js"), []byte(routes), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	data := `
+return {$where: "this.userId == " + userId + " && this.stocks > '" + threshold + "'"};
+memosCol.insert(req.body.memo, (err, result) => callback(err, result));
+const cipher = crypto.createCipheriv(config.cryptoAlgo, config.cryptoKey, config.iv);
+`
+	if err := os.WriteFile(filepath.Join(repo, "app", "data", "dao.js"), []byte(data), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	pkg := `{"dependencies":{"marked":"0.3.5","express":"^4.13.4","mongodb":"^2.1.18","bcrypt-nodejs":"0.0.3"}}`
+	if err := os.WriteFile(filepath.Join(repo, "package.json"), []byte(pkg), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	findings, err := scanNodePatternFindings(context.Background(), StaticAdapterInput{SessionID: "session-1", RepoPath: repo})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, finding := range findings {
+		if len(finding.Tags) > 0 {
+			got[finding.Tags[len(finding.Tags)-1]] = true
+		}
+	}
+	for _, want := range []string{"csrf", "idor", "misconfig", "missingauthz", "nosqli", "openredirect", "sessionfix", "ssjs", "ssrf", "storedxss", "vulndep", "weakcrypto"} {
+		if !got[want] {
+			t.Fatalf("missing Node pattern class %s from findings %#v", want, findings)
+		}
+	}
+}

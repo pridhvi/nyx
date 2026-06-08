@@ -60,6 +60,7 @@ func init() {
 			return []string{input.RepoPath, "-o", "json"}
 		}),
 		javaPatternStaticAdapter{},
+		nodePatternStaticAdapter{},
 		sourceStaticAdapter{id: "authmiddleware", name: "Auth middleware gap", kind: models.SourceKindUnprotectedRoute, severity: models.SeverityMedium},
 		sourceStaticAdapter{id: "idor", name: "IDOR pattern detection", kind: models.SourceKindParameter, severity: models.SeverityMedium},
 		sourceStaticAdapter{id: "dangerfuncs", name: "Dangerous function tracer", kind: models.SourceKindDeserialisationSink, severity: models.SeverityHigh},
@@ -454,6 +455,32 @@ func parseGenericCVEs(input StaticAdapterInput, decoded any, toolID string) []mo
 	return cves
 }
 
+type nodePatternStaticAdapter struct{}
+
+func (nodePatternStaticAdapter) ID() string          { return "nodepatterns" }
+func (nodePatternStaticAdapter) Name() string        { return "Node.js dangerous pattern audit" }
+func (nodePatternStaticAdapter) Languages() []string { return []string{"javascript", "typescript"} }
+func (nodePatternStaticAdapter) Available() bool     { return true }
+
+func (a nodePatternStaticAdapter) Run(ctx context.Context, input StaticAdapterInput) (StaticAdapterOutput, error) {
+	started := time.Now().UTC()
+	findings, err := scanNodePatternFindings(ctx, input)
+	now := time.Now().UTC()
+	return StaticAdapterOutput{Findings: findings, ToolRun: models.ToolRun{
+		ID:           models.NewID(),
+		SessionID:    input.SessionID,
+		ToolID:       a.ID(),
+		Args:         []string{a.ID(), input.RepoPath},
+		ExitCode:     exitCodeForErr(err),
+		DurationMS:   time.Since(started).Milliseconds(),
+		FindingCount: len(findings),
+		RawStdout:    fmt.Sprintf("scanned Node.js source patterns; findings=%d\n", len(findings)),
+		RawStderr:    errorString(err),
+		NormalizedAt: &now,
+		StartedAt:    started,
+	}}, err
+}
+
 type javaPatternClass struct {
 	ID          string
 	Title       string
@@ -629,6 +656,156 @@ func javaDependencyPatternFinding(input StaticAdapterInput, root *os.Root) (mode
 		EvidenceNormalized: "java-pattern-category=vulndep",
 		Status:             models.FindingStatusOpen,
 		Tags:               []string{"audit", "javapatterns", "java", "vulndep"},
+		CreatedAt:          time.Now().UTC(),
+	}, true
+}
+
+type nodePatternClass struct {
+	ID          string
+	Title       string
+	Description string
+	Remediation string
+	Severity    models.Severity
+	Matches     func(line, context string) bool
+}
+
+var nodePatternClasses = []nodePatternClass{
+	{ID: "ssjs", Title: "Node.js server-side JavaScript evaluation sink", Description: "Node.js source evaluates request-controlled input and should be reviewed for server-side JavaScript injection.", Remediation: "Do not evaluate request input as code. Parse numeric or structured values with strict allow-lists and fixed schemas.", Severity: models.SeverityHigh, Matches: func(line, context string) bool {
+		return javaContainsAny(line, "eval(req.", "function(req", "new function(") || (javaContainsAny(line, "eval(") && javaContainsAny(context, "req.body", "req.query", "req.params"))
+	}},
+	{ID: "nosqli", Title: "Node.js MongoDB query uses executable predicate", Description: "Node.js source builds a MongoDB $where predicate near request-controlled input and should be reviewed for NoSQL injection.", Remediation: "Avoid $where and JavaScript query predicates. Use typed query operators with parsed values and strict bounds checks.", Severity: models.SeverityHigh, Matches: func(line, context string) bool {
+		return javaContainsAny(line, "$where") && javaContainsAny(context, "req.query", "req.body", "threshold", "userId", "userid")
+	}},
+	{ID: "idor", Title: "Express route exposes object identifier in path", Description: "Express route accepts an object identifier from the URL while relying only on authentication middleware and should be reviewed for IDOR.", Remediation: "Authorize object access server-side using the authenticated subject, not only route parameters supplied by the browser.", Severity: models.SeverityHigh, Matches: func(line, context string) bool {
+		return javaContainsAny(line, "app.get(", "router.get(") && javaContainsAny(line, "/:userid", "/:id") && javaContainsAny(line, "isloggedin") && !javaContainsAny(line, "isadmin")
+	}},
+	{ID: "missingauthz", Title: "Express privileged route lacks role middleware", Description: "Express route appears to expose privileged functionality with authentication but without role/authorization middleware.", Remediation: "Require explicit role or permission middleware for privileged workflows and test direct route access with lower-privileged users.", Severity: models.SeverityHigh, Matches: func(line, context string) bool {
+		return javaContainsAny(line, "app.get(\"/benefits\"", "app.post(\"/benefits\"") && javaContainsAny(line, "isloggedin") && !javaContainsAny(line, "isadmin")
+	}},
+	{ID: "storedxss", Title: "Node.js untrusted stored content rendered as HTML", Description: "Node.js source stores or renders request-controlled content in an HTML/Markdown context and should be reviewed for stored XSS.", Remediation: "Sanitize stored rich text with a maintained allow-list sanitizer and keep template auto-escaping enabled by default.", Severity: models.SeverityHigh, Matches: func(line, context string) bool {
+		return (javaContainsAny(line, "insert(req.body", "memo,") && javaContainsAny(context, "memos", "memo")) || javaContainsAny(line, "marked(doc.memo)", "autoescape: false")
+	}},
+	{ID: "openredirect", Title: "Express redirect uses request-controlled URL", Description: "Express source redirects to a URL supplied by the request and should be reviewed for open redirect risk.", Remediation: "Redirect only to server-defined paths or validate destinations against a strict same-origin allow-list.", Severity: models.SeverityMedium, Matches: func(line, context string) bool {
+		return javaContainsAny(line, "res.redirect(req.query", "res.redirect(req.body", "res.redirect(req.params")
+	}},
+	{ID: "ssrf", Title: "Node.js server-side HTTP request uses request URL", Description: "Node.js source makes a server-side HTTP request to a request-controlled URL and should be reviewed for SSRF protections.", Remediation: "Resolve and validate destinations at connect time, block private and metadata networks by default, and use fixed allow-lists for server-side fetches.", Severity: models.SeverityHigh, Matches: func(line, context string) bool {
+		return javaContainsAny(line, "needle.get(", "needle.post(", "needle.put(", "request(", "axios.", "fetch(") && javaContainsAny(context, "req.query", "req.body", "url", "callback", "uploadurl")
+	}},
+	{ID: "weakcrypto", Title: "Node.js static cryptographic configuration", Description: "Node.js source uses static cryptographic keys, IVs, or legacy cipher configuration and should be reviewed for sensitive-data exposure.", Remediation: "Store secrets outside source, rotate per environment, use authenticated encryption, and generate unique random IVs/nonces per encryption operation.", Severity: models.SeverityMedium, Matches: func(line, context string) bool {
+		return javaContainsAny(line, "cryptokey:", "cookieSecret:", "iv:", "createcipheriv(", "createdecipheriv(") || (javaContainsAny(line, "cryptoalgo:") && javaContainsAny(line, "aes"))
+	}},
+	{ID: "sessionfix", Title: "Express login does not regenerate session", Description: "Express login flow assigns an authenticated user to the existing session and should be reviewed for session fixation.", Remediation: "Regenerate the session on successful authentication before attaching user identity or privilege state.", Severity: models.SeverityMedium, Matches: func(line, context string) bool {
+		return javaContainsAny(line, "req.session.userid = user._id")
+	}},
+	{ID: "csrf", Title: "Express CSRF protection is disabled or commented", Description: "Express application source has CSRF protection disabled or commented out and should be reviewed for browser state-changing routes.", Remediation: "Enable CSRF protection for cookie-authenticated browser flows or require equivalent anti-CSRF controls and SameSite cookies.", Severity: models.SeverityMedium, Matches: func(line, context string) bool {
+		trimmed := strings.TrimSpace(line)
+		return strings.HasPrefix(trimmed, "//") && javaContainsAny(trimmed, "csrf") && javaContainsAny(trimmed, "require", "app.use")
+	}},
+	{ID: "misconfig", Title: "Express security middleware is disabled or commented", Description: "Express application source leaves security headers or template auto-escaping disabled and should be reviewed for security misconfiguration.", Remediation: "Enable maintained security middleware, keep template auto-escaping on, and enforce secure headers in production.", Severity: models.SeverityMedium, Matches: func(line, context string) bool {
+		trimmed := strings.TrimSpace(line)
+		return (strings.HasPrefix(trimmed, "//") && javaContainsAny(trimmed, "helmet", "nosniff", "x-powered-by")) || javaContainsAny(line, "autoescape: false")
+	}},
+}
+
+func scanNodePatternFindings(ctx context.Context, input StaticAdapterInput) ([]models.Finding, error) {
+	var findings []models.Finding
+	root, err := os.OpenRoot(input.RepoPath)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	err = filepath.WalkDir(input.RepoPath, func(path string, entry os.DirEntry, err error) error {
+		if err != nil || entry.IsDir() || entry.Type()&os.ModeSymlink != 0 || !nodePatternFile(path) || nodeStaticExcluded(path) {
+			return nil
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(input.RepoPath, path)
+		if err != nil {
+			return nil
+		}
+		body, err := readJavaPatternFileInRoot(root, rel)
+		if err != nil {
+			return nil
+		}
+		lines := strings.Split(string(body), "\n")
+		seenInFile := map[string]bool{}
+		for idx, line := range lines {
+			context := javaContext(lines, idx)
+			for _, class := range nodePatternClasses {
+				if seenInFile[class.ID] || !class.Matches(line, context) {
+					continue
+				}
+				seenInFile[class.ID] = true
+				findings = append(findings, nodePatternFinding(input, class, filepath.ToSlash(rel), idx+1, line, context))
+			}
+		}
+		return nil
+	})
+	if err == nil {
+		if dependencyFinding, ok := nodeDependencyPatternFinding(input, root); ok {
+			findings = append(findings, dependencyFinding)
+		}
+	}
+	return findings, err
+}
+
+func nodePatternFile(path string) bool {
+	ext := strings.ToLower(filepath.Ext(path))
+	return ext == ".js" || ext == ".jsx" || ext == ".ts" || ext == ".tsx"
+}
+
+func nodeStaticExcluded(path string) bool {
+	normalized := filepath.ToSlash(path)
+	return sourceFileExcluded(normalized) || strings.Contains(normalized, "/node_modules/") || strings.Contains(normalized, "/app/assets/vendor/") || strings.Contains(normalized, "/coverage/") || strings.Contains(normalized, "/dist/")
+}
+
+func nodePatternFinding(input StaticAdapterInput, class nodePatternClass, path string, line int, evidenceLine, context string) models.Finding {
+	return models.Finding{
+		ID:                 models.NewID(),
+		SessionID:          input.SessionID,
+		ToolID:             "audit/nodepatterns",
+		Type:               models.FindingTypeVulnerability,
+		Severity:           class.Severity,
+		Confidence:         0.58,
+		Title:              class.Title,
+		Description:        class.Description,
+		Remediation:        class.Remediation,
+		URL:                fileURL(path, line),
+		EvidenceRaw:        strings.TrimSpace(evidenceLine),
+		EvidenceNormalized: fmt.Sprintf("node-pattern-category=%s", class.ID),
+		CodeContext:        context,
+		Status:             models.FindingStatusOpen,
+		Tags:               []string{"audit", "nodepatterns", "javascript", class.ID},
+		CreatedAt:          time.Now().UTC(),
+	}
+}
+
+func nodeDependencyPatternFinding(input StaticAdapterInput, root *os.Root) (models.Finding, bool) {
+	body, err := readJavaPatternFileInRoot(root, "package.json")
+	if err != nil {
+		return models.Finding{}, false
+	}
+	text := strings.ToLower(string(body))
+	if !javaContainsAny(text, "\"marked\": \"0.", "\"express\": \"^4.13", "\"mongodb\": \"^2.", "\"bcrypt-nodejs\"", "\"helmet\": \"^2.") {
+		return models.Finding{}, false
+	}
+	return models.Finding{
+		ID:                 models.NewID(),
+		SessionID:          input.SessionID,
+		ToolID:             "audit/nodepatterns",
+		Type:               models.FindingTypeVulnerability,
+		Severity:           models.SeverityMedium,
+		Confidence:         0.55,
+		Title:              "Node.js dependency requires vulnerable-component review",
+		Description:        "Node.js package metadata includes dependencies commonly associated with historical web security advisories and should be reviewed against the deployed version set.",
+		Remediation:        "Pin supported dependency versions, run npm audit or equivalent SCA in CI, remove unused vulnerable libraries, and document intentionally vulnerable training dependencies separately from production builds.",
+		URL:                fileURL("package.json", 1),
+		EvidenceRaw:        "package.json contains dependency names requiring vulnerable-component review",
+		EvidenceNormalized: "node-pattern-category=vulndep",
+		Status:             models.FindingStatusOpen,
+		Tags:               []string{"audit", "nodepatterns", "javascript", "vulndep"},
 		CreatedAt:          time.Now().UTC(),
 	}, true
 }

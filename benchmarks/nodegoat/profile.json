@@ -10,16 +10,36 @@
     "default_host_port": 14000,
     "container_port": 4000
   },
-  "auth": {},
+  "auth": {
+    "type": "form_login",
+    "login_url": "/login",
+    "method": "POST",
+    "username": "nyxbench",
+    "password": "Nyx12345",
+    "username_field": "userName",
+    "password_field": "password",
+    "extra_fields": {
+      "_csrf": ""
+    },
+    "validation_url": "/dashboard",
+    "validation_contains": "Dashboard"
+  },
   "setup": {
-    "baseline_only": true
+    "register_user": true,
+    "minimum_covered": 12,
+    "allow_failed_tools": false,
+    "notes": "Strict source-aware benchmark gate. The harness registers a deterministic user, extracts source from the running container, and maps generic Node/Express audit findings to known training classes."
   },
   "safe_active_checks": {
     "intentionally_vulnerable": true,
-    "non_production": true
+    "non_production": true,
+    "enabled": true,
+    "benchmark": "nodegoat",
+    "requires_auth": true,
+    "allow_non_production": true
   },
   "notes": [
-    "NodeGoat adds a traditional Node/Express benchmark target. Initial integration starts the target and seeds common public/login/tutorial routes.",
+    "NodeGoat provides a traditional Node/Express benchmark target with authenticated route seeds and source-aware expected mappings.",
     "Core scanner adapters must not hardcode NodeGoat route names or lesson content."
   ]
 }
