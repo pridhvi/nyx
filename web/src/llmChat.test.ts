@@ -73,8 +73,10 @@ describe("LLM chat helpers", () => {
   });
 
   it("returns context-aware prompt sets", () => {
-    expect(suggestedPrompts({ activeMessages: 0, currentFindingID: "finding-1", pinnedCount: 0, sessionStatus: "completed" })[0].label).toBe("Finding brief");
-    expect(suggestedPrompts({ activeMessages: 0, currentFindingID: "", pinnedCount: 2, sessionStatus: "completed" })[0].label).toBe("Report synthesis");
-    expect(suggestedPrompts({ activeMessages: 0, currentFindingID: "", pinnedCount: 0, sessionStatus: "completed" })[0].label).toBe("Post-scan brief");
+    expect(suggestedPrompts({ activeMessages: 0, currentFindingID: "finding-1", pinnedCount: 0, sessionStatus: "completed" })[0].label).toBe("Chain this finding");
+    expect(suggestedPrompts({ activeMessages: 0, currentFindingID: "", pinnedCount: 2, sessionStatus: "completed" })[0].label).toBe("Chain synthesis");
+    expect(suggestedPrompts({ activeMessages: 0, currentFindingID: "", pinnedCount: 0, sessionStatus: "completed" })[0].label).toBe("Attack path brief");
+    expect(suggestedPrompts({ activeMessages: 4, currentFindingID: "", pinnedCount: 0, sessionStatus: "running" })[0].label).toBe("Refocus chain");
+    expect(suggestedPrompts({ activeMessages: 0, currentFindingID: "", pinnedCount: 0, sessionStatus: "running" })[0].label).toBe("Attack path ideas");
   });
 });

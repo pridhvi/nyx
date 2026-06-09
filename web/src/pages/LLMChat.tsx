@@ -117,7 +117,7 @@ export function LLMChat() {
       <header className="page-header">
         <div>
           <h1>Analyst</h1>
-          <p>Session-bound analysis with persisted tool-call audit trails.</p>
+          <p>Session-bound attack-path, impact, and evidence analysis with persisted tool-call audit trails.</p>
         </div>
         <div className="action-row">
           <button className="secondary" type="button" onClick={startNewAnalysis} disabled={!selected}>
@@ -477,36 +477,36 @@ export function contextUsageSummary(analyses: LLMAnalysis[], activeContextStart 
 export function suggestedPrompts({ activeMessages, currentFindingID, pinnedCount, sessionStatus }: { activeMessages: number; currentFindingID: string; pinnedCount: number; sessionStatus: string }) {
   if (currentFindingID) {
     return [
-      { label: "Finding brief", prompt: `Summarize finding ${currentFindingID}, its strongest evidence, and the safest remediation path.` },
-      { label: "Evidence gaps", prompt: `What evidence is missing before I should mark finding ${currentFindingID} confirmed?` },
+      { label: "Chain this finding", prompt: `For finding ${currentFindingID}, map likely in-scope attack paths, what this could chain into, and what evidence would prove real impact.` },
+      { label: "Impact proof", prompt: `What evidence is missing before I should mark finding ${currentFindingID} confirmed, and what scope-safe checks would strengthen impact?` },
       { label: "Report wording", prompt: `Draft concise technical report language for finding ${currentFindingID} using only persisted evidence.` },
     ];
   }
   if (pinnedCount > 0) {
     return [
-      { label: "Report synthesis", prompt: "Turn the pinned analyst notes into a concise executive summary candidate." },
-      { label: "Remediation order", prompt: "Order the pinned risks by remediation priority and explain the dependency order." },
-      { label: "Evidence check", prompt: "Which pinned conclusions need stronger stored evidence before report inclusion?" },
+      { label: "Chain synthesis", prompt: "Use the pinned analyst notes to identify likely in-scope compromise paths, dependency order, and the evidence that supports each path." },
+      { label: "Operator next steps", prompt: "From the pinned notes, list the highest-value next checks that stay within scope and explain what each check would prove." },
+      { label: "Report synthesis", prompt: "Turn the pinned analyst notes into a concise executive summary candidate with impact and remediation priority." },
     ];
   }
   if (sessionStatus === "completed" && activeMessages === 0) {
     return [
-      { label: "Post-scan brief", prompt: "Summarize the completed scan by confirmed risk, affected surface, and immediate remediation priority." },
-      { label: "Evidence triage", prompt: "Which findings have the strongest evidence and easiest remediation path?" },
-      { label: "Attack chains", prompt: "Map the likely attack chains from the selected session." },
+      { label: "Attack path brief", prompt: "Map the likely in-scope attack paths from the selected session, including chainable findings, impact hypotheses, and evidence gaps." },
+      { label: "Evidence triage", prompt: "Which findings have the strongest evidence, which need more proof, and what should I collect next?" },
+      { label: "Fix priority", prompt: "Prioritize fixes by likely compromise path and explain which remediations break the most dangerous chains first." },
     ];
   }
   if (activeMessages >= 4) {
     return [
-      { label: "Refocus", prompt: "Restate the current analysis in five bullets using only the strongest persisted evidence." },
-      { label: "Next decision", prompt: "What triage decision should I make next, and what evidence supports it?" },
-      { label: "Safe checks", prompt: "Suggest safe follow-up checks that stay within the current scope." },
+      { label: "Refocus chain", prompt: "Restate the current likely attack path in five bullets using only the strongest persisted evidence." },
+      { label: "Next proof", prompt: "What triage or validation decision should I make next, and what evidence would prove it?" },
+      { label: "Scope guardrails", prompt: "Suggest high-value follow-up checks that stay within the current scope and avoid unnecessary data access." },
     ];
   }
   return [
-    { label: "Risk summary", prompt: "Summarize the highest-confidence risks and why they matter." },
-    { label: "Evidence triage", prompt: "Which findings have the strongest evidence and easiest remediation path?" },
-    { label: "Follow-up checks", prompt: "Suggest safe follow-up checks that stay within the current scope." },
+    { label: "Attack path ideas", prompt: "Identify likely in-scope attack paths from the current findings and explain what could chain together." },
+    { label: "Impact hypotheses", prompt: "Which findings could lead to greater impact if chained, and what evidence would support that?" },
+    { label: "Scope-safe checks", prompt: "Suggest high-value follow-up checks that stay within the current scope and avoid unnecessary data access." },
   ];
 }
 

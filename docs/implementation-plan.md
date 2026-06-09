@@ -954,7 +954,8 @@ work and must be carried forward:
 
 - LLM integration must remain optional and local-first by default.
 - Do not require cloud API keys for normal operation.
-- LLM output annotates and explains; it must not overwrite deterministic
+- LLM output can reason about in-scope attack paths, chainable findings, impact
+  hypotheses, and evidence gaps, but it must not overwrite deterministic
   findings, CVE matches, or attack vectors without trace.
 
 ### Acceptance Criteria
@@ -1300,8 +1301,9 @@ work and must be carried forward:
   - visible LLM tool-call cards
   - parsed tool-call provenance summaries that show which stored session data
     was fetched before displaying expandable raw payloads
-  - context-aware suggested prompt chips for post-scan review, finding-focused
-    triage, report synthesis, and refocused long-running analysis
+  - context-aware suggested prompt chips for attack-path reasoning, finding
+    chaining, impact proof, scope-safe next checks, report synthesis, and
+    refocused long-running analysis
   - new-analysis reset that starts a fresh visible working context while
     preserving persisted audit history
   - context summary indicator with approximate usage, working-message count,

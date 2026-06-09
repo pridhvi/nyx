@@ -14,9 +14,11 @@ Recent UI/UX polish added progressive Scan Builder readiness, direct profile loa
 - Normalize all tool output into `internal/models.Finding`.
 - Persist raw evidence. Store full tool stdout/stderr as sidecar logs unless `nyx scan --lean` is used; keep HTTP request/response evidence in SQLite.
 - Prefer deterministic rule logic for attack vectors; LLM output should annotate, not decide correctness.
-- Keep LLM analyst guidance defensive and non-invasive by default: model output
-  must not suggest active credential, secret, or exploitability validation
-  unless the operator explicitly requests it and the authorized scope is clear.
+- Keep LLM analyst guidance useful for authorized in-scope penetration testing:
+  model output should reason about attack paths, chainable findings, impact
+  hypotheses, and evidence gaps, while still avoiding active credential,
+  secret, exploitability, or higher-impact validation unless the operator
+  explicitly requests it and the authorized scope is clear.
 - Keep external scanner tools optional and degrade gracefully when missing.
 - Default to local-only operation: no telemetry, no required cloud API keys.
 - Keep README screenshots generated from safe local fixture data with

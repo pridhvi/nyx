@@ -310,9 +310,9 @@ CLI examples:
 ./bin/nyx llm chat <session-id>
 ```
 
-LLM output can summarize, explain, and suggest safe follow-up checks. The Analyst UI keeps persisted audit history, supports fresh working contexts with a context-usage summary, shows what stored data each tool call fetched, adapts suggested prompts to the current triage context, and can pin assistant responses as report-composer candidates. Deterministic findings, scope checks, CVE matches, and attack-vector rules remain authoritative.
+LLM output can summarize, explain, suggest in-scope attack-path hypotheses, identify chainable findings, and propose evidence to collect before impact is claimed. The Analyst UI keeps persisted audit history, supports fresh working contexts with a context-usage summary, shows what stored data each tool call fetched, adapts suggested prompts to the current triage context, and can pin assistant responses as report-composer candidates. Deterministic findings, scope checks, CVE matches, and attack-vector rules remain authoritative.
 
-Treat model suggestions as advisory. Active validation of secrets, credentials, or exploitability should only happen when explicitly authorized and intentionally requested by the operator.
+Treat model suggestions as advisory. Active validation of secrets, credentials, exploitability, or higher-impact chains should only happen when explicitly authorized and intentionally requested by the operator.
 
 For tighter deployments, set `NYX_LLM_ALLOWED_HOSTS` to allowed endpoint hosts:
 

@@ -328,13 +328,16 @@ func TestAnalystForcesFinalAnswerAfterToolRoundLimit(t *testing.T) {
 	}
 }
 
-func TestSystemPromptDefaultsToDefensiveCredentialGuidance(t *testing.T) {
+func TestSystemPromptDefaultsToInScopePentestGuidance(t *testing.T) {
 	required := []string{
-		"Default to defensive, non-invasive guidance",
-		"suggest realistic attack chains, impact hypotheses, and safe validation strategies",
-		"authorized security assessment work",
-		"Prefer proof strategies that avoid data access",
-		"rotating or revoking exposed credentials",
+		"local in-scope penetration testing analyst",
+		"Default to operator-useful, in-scope pentest guidance",
+		"identify likely compromise paths",
+		"explain how findings could chain",
+		"Likely Attack Path",
+		"When To Escalate To Active Testing",
+		"Prefer proof strategies that avoid unnecessary data access",
+		"rotation or revocation",
 		"Do not recommend using or validating exposed credentials",
 		"active credential validation unless the operator explicitly asks",
 		"clear authorization and scope",
@@ -368,9 +371,11 @@ func TestAnalystSendsHardenedSystemPrompt(t *testing.T) {
 	if system.Role != openai.ChatMessageRoleSystem {
 		t.Fatalf("expected first message to be system prompt, got %#v", system)
 	}
-	if !strings.Contains(system.Content, "Do not recommend using or validating exposed credentials") ||
+	if !strings.Contains(system.Content, "local in-scope penetration testing analyst") ||
+		!strings.Contains(system.Content, "explain how findings could chain") ||
+		!strings.Contains(system.Content, "Do not recommend using or validating exposed credentials") ||
 		!strings.Contains(system.Content, "active credential validation unless the operator explicitly asks") {
-		t.Fatalf("expected hardened credential guidance in system prompt, got %q", system.Content)
+		t.Fatalf("expected pentest guidance with hardened credential limits in system prompt, got %q", system.Content)
 	}
 }
 
