@@ -501,4 +501,4 @@ Production security scanning uses `make security-scan`, which runs the repo-loca
 
 ## License
 
-GPL-3.0.
+MIT
