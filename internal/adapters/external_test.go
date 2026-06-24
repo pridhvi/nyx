@@ -1765,9 +1765,9 @@ func TestObservabilityAssistReportsMetricsSurface(t *testing.T) {
 	}
 }
 
-func TestObservabilityAssistDoesNotFollowRedirectsWithAuth(t *testing.T) {
+func TestObservabilityAssistDoesNotFollowRedirectsWithConfiguredHeaders(t *testing.T) {
 	var outOfScopeHits int
-	var leakedHeader string
+	var capturedHeader string
 	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		switch req.URL.Hostname() {
 		case "inscope.test":
@@ -1779,10 +1779,10 @@ func TestObservabilityAssistDoesNotFollowRedirectsWithAuth(t *testing.T) {
 			}, nil
 		case "attacker.test":
 			outOfScopeHits++
-			leakedHeader = req.Header.Get("X-Nyx-Scan-Auth")
+			capturedHeader = req.Header.Get("X-Nyx-Scan-Marker")
 			return &http.Response{
 				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader("leaked")),
+				Body:       io.NopCloser(strings.NewReader("captured")),
 				Request:    req,
 			}, nil
 		default:
@@ -1794,14 +1794,14 @@ func TestObservabilityAssistDoesNotFollowRedirectsWithAuth(t *testing.T) {
 	input.HTTPClient = client
 	input.Scope = fakeScope{allowed: map[string]bool{"inscope.test": true}}
 	input.Session.ToolParameters[models.SessionScanOptionsKey]["auth_headers"] = map[string]string{
-		"X-Nyx-Scan-Auth": "redirect-marker-value",
+		"X-Nyx-Scan-Marker": "redirect-marker-value",
 	}
 	out, err := NewObservabilityAssistCheck().Run(t.Context(), input)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if outOfScopeHits != 0 || leakedHeader != "" {
-		t.Fatalf("expected redirect to remain unfollowed without leaking auth, hits=%d leaked=%q", outOfScopeHits, leakedHeader)
+	if outOfScopeHits != 0 || capturedHeader != "" {
+		t.Fatalf("expected redirect to remain unfollowed without forwarding configured headers, hits=%d captured=%q", outOfScopeHits, capturedHeader)
 	}
 	if !strings.Contains(out.ToolRun.RawStdout, "status=302") {
 		t.Fatalf("expected redirect response to be recorded without following it, stdout=%q", out.ToolRun.RawStdout)
