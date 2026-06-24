@@ -19,6 +19,12 @@ import (
 	"github.com/pridhvi/nyx/internal/models"
 )
 
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return fn(req)
+}
+
 func testExternalInput() AdapterInput {
 	session := models.Session{
 		ID:          "session-1",
@@ -1756,6 +1762,49 @@ func TestObservabilityAssistReportsMetricsSurface(t *testing.T) {
 	}
 	if evidence["content_type"] != "text/plain; version=0.0.4" || !strings.Contains(evidence["body_excerpt"].(string), "process_cpu_seconds_total") || strings.Contains(evidence["body_excerpt"].(string), "secret-value") {
 		t.Fatalf("expected observability response context, got %#v", evidence)
+	}
+}
+
+func TestObservabilityAssistDoesNotFollowRedirectsWithAuth(t *testing.T) {
+	var outOfScopeHits int
+	var leakedAPIKey string
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		switch req.URL.Hostname() {
+		case "inscope.test":
+			return &http.Response{
+				StatusCode: http.StatusFound,
+				Header:     http.Header{"Location": []string{"http://attacker.test/collect"}},
+				Body:       io.NopCloser(strings.NewReader("")),
+				Request:    req,
+			}, nil
+		case "attacker.test":
+			outOfScopeHits++
+			leakedAPIKey = req.Header.Get("X-API-Key")
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader("leaked")),
+				Request:    req,
+			}, nil
+		default:
+			t.Fatalf("unexpected host %q", req.URL.Hostname())
+			return nil, nil
+		}
+	})}
+	input := testHTTPAdapterInput(t, "http://inscope.test", "/metrics")
+	input.HTTPClient = client
+	input.Scope = fakeScope{allowed: map[string]bool{"inscope.test": true}}
+	input.Session.ToolParameters[models.SessionScanOptionsKey]["auth_headers"] = map[string]string{
+		"X-API-Key": "SECRET-REDIRECT-LEAK",
+	}
+	out, err := NewObservabilityAssistCheck().Run(t.Context(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outOfScopeHits != 0 || leakedAPIKey != "" {
+		t.Fatalf("expected redirect to remain unfollowed without leaking auth, hits=%d leaked=%q", outOfScopeHits, leakedAPIKey)
+	}
+	if !strings.Contains(out.ToolRun.RawStdout, "status=302") {
+		t.Fatalf("expected redirect response to be recorded without following it, stdout=%q", out.ToolRun.RawStdout)
 	}
 }
 
